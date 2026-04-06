@@ -5,6 +5,13 @@
   color-scheme: dark;
   color: #ffffffde;
   background-color: #1a1a2e;
+
+  --accent: #7289da;
+  --bg-primary: #36393f;
+  --bg-secondary: #2f3136;
+  --bg-tertiary: #202225;
+  --text-primary: #dcddde;
+  --text-muted: #72767d;
 }
 
 * {
@@ -25,4 +32,106 @@ body {
   justify-content: center;
   min-height: 100vh;
   gap: 1rem;
+}
+
+/* ─── Анимированный градиентный фон ─────────────────────────────────────── */
+
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes gradientShiftCustom {
+  0%   { background-position: 0% 0%; }
+  33%  { background-position: 100% 50%; }
+  66%  { background-position: 50% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+.animated-bg {
+  background: linear-gradient(
+    135deg,
+    var(--anim-color-1, #1a1a2e),
+    var(--anim-color-2, #16213e),
+    var(--anim-color-3, #0f3460),
+    var(--anim-color-4, #533483)
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 8s ease infinite;
+}
+
+.animated-bg-custom {
+  background: linear-gradient(
+    120deg,
+    var(--anim-color-1, #1a1a2e),
+    var(--anim-color-2, #7289da33),
+    var(--anim-color-3, #16213e),
+    var(--anim-color-4, #7289da22)
+  );
+  background-size: 600% 600%;
+  animation: gradientShiftCustom 12s ease infinite;
+}
+
+/* ─── Анимации UI элементов ──────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.slide-in-left {
+  animation: slideInLeft 0.2s ease forwards;
+}
+
+/* ─── Кнопки с hover-эффектами ───────────────────────────────────────────── */
+
+button {
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ─── Скроллбар ──────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary, #202225);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted, #72767d);
 }
