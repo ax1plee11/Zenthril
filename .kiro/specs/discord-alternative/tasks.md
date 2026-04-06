@@ -97,14 +97,14 @@
     - Вступление по истёкшему инвайту
     - _Требования: 2.1, 2.5_
 
-- [ ] 7. WebSocket Hub и доставка сообщений (бэкенд)
-  - [ ] 7.1 Реализовать `Hub` (WebSocket hub): подписка/отписка клиентов на каналы, broadcast
+- [x] 7. WebSocket Hub и доставка сообщений (бэкенд)
+  - [x] 7.1 Реализовать `Hub` (WebSocket hub): подписка/отписка клиентов на каналы, broadcast
     - Структуры `Hub` и `Client` из дизайна
     - `Broadcast(channelID, msg)`, `BroadcastToUser(userID, msg)`
     - Обработка WebSocket-событий: `subscribe`, `unsubscribe`, `ping/pong`
     - _Требования: 3.2, 4.3_
 
-  - [ ] 7.2 Реализовать `MessageService`: CRUD сообщений, история
+  - [x] 7.2 Реализовать `MessageService`: CRUD сообщений, история
     - `POST /api/v1/channels/:channelId/messages` — сохранение зашифрованного payload
     - `GET /api/v1/channels/:channelId/messages` — история (50 сообщений, пагинация)
     - `PATCH /api/v1/messages/:messageId` — редактирование (флаг `edited=true`)

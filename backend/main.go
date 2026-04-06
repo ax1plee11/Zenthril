@@ -13,6 +13,8 @@ import (
 	"veltrix-backend/config"
 	"veltrix-backend/db"
 	"veltrix-backend/guild"
+	"veltrix-backend/hub"
+	"veltrix-backend/message"
 )
 
 func main() {
@@ -45,6 +47,14 @@ func main() {
 	// Инициализируем GuildService и Handler
 	guildSvc := guild.NewService(database, cfg.HTTPAddr)
 	guildHandler := guild.NewHandler(guildSvc)
+
+	// Инициализируем WebSocket Hub
+	wsHub := hub.NewHub()
+	go wsHub.Run()
+
+	// Инициализируем MessageService и Handler
+	messageSvc := message.NewService(database, wsHub)
+	messageHandler := message.NewHandler(messageSvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -80,6 +90,23 @@ func main() {
 			r.Use(authSvc.Middleware)
 			r.Post("/{code}/join", guildHandler.JoinByInvite)
 		})
+		r.Route("/channels", func(r chi.Router) {
+			r.Use(authSvc.Middleware)
+			r.Route("/{channelId}/messages", func(r chi.Router) {
+				r.Post("/", messageHandler.SendMessage)
+				r.Get("/", messageHandler.GetHistory)
+			})
+		})
+		r.Route("/messages", func(r chi.Router) {
+			r.Use(authSvc.Middleware)
+			r.Patch("/{messageId}", messageHandler.EditMessage)
+			r.Delete("/{messageId}", messageHandler.DeleteMessage)
+		})
+	})
+
+	// WebSocket endpoint
+	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(wsHub, authSvc, w, r)
 	})
 
 	// Federation endpoints

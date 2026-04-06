@@ -106,3 +106,8 @@ func (s *Service) IsTokenBlacklisted(ctx context.Context, token string) (bool, e
 	}
 	return val > 0, nil
 }
+
+// ValidateTokenPublic проверяет JWT-токен и возвращает userID (публичный метод для использования вне пакета).
+func (s *Service) ValidateTokenPublic(token string) (string, error) {
+	return ValidateToken(token, s.jwtSecret)
+}
