@@ -10,6 +10,9 @@ import { useAuth } from "../store/auth";
 import GuildList from "./GuildList";
 import ChannelList from "./ChannelList";
 import ChatView from "./ChatView";
+import ThemeSettings from "./ThemeSettings";
+import ProfileModal from "./ProfileModal";
+import UserSearch from "./UserSearch";
 
 const styles = {
   root: {
@@ -17,13 +20,13 @@ const styles = {
     height: "100vh",
     overflow: "hidden",
     fontFamily: "'Segoe UI', system-ui, sans-serif",
-    background: "#36393f",
-    color: "#dcddde",
+    background: "var(--bg-primary, #36393f)",
+    color: "var(--text-primary, #dcddde)",
   } as React.CSSProperties,
 
   userArea: {
     padding: "8px",
-    background: "#292b2f",
+    background: "var(--bg-tertiary, #292b2f)",
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -34,7 +37,7 @@ const styles = {
     width: 32,
     height: 32,
     borderRadius: "50%",
-    background: "#7289da",
+    background: "var(--accent, #7289da)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -47,18 +50,18 @@ const styles = {
   usernameText: {
     fontSize: 14,
     fontWeight: 600,
-    color: "#fff",
+    color: "var(--text-primary, #fff)",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap" as const,
     flex: 1,
   } as React.CSSProperties,
 
-  logoutBtn: {
+  iconBtn: {
     background: "none",
     border: "none",
     cursor: "pointer",
-    color: "#72767d",
+    color: "var(--text-muted, #72767d)",
     fontSize: 16,
     padding: "4px",
     borderRadius: 4,
@@ -68,7 +71,7 @@ const styles = {
 
   channelSidebar: {
     width: 240,
-    background: "#2f3136",
+    background: "var(--bg-secondary, #2f3136)",
     display: "flex",
     flexDirection: "column" as const,
     flexShrink: 0,
@@ -81,6 +84,10 @@ export default function MainLayout() {
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
   const [channels, setChannels] = useState<ChannelAPI[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+
+  const [showTheme, setShowTheme] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   // Загружаем список серверов
   useEffect(() => {
@@ -99,7 +106,6 @@ export default function MainLayout() {
       .channels(selectedGuildId)
       .then((chs) => {
         setChannels(chs);
-        // Автовыбор первого текстового канала
         const first = chs.find((c) => c.type === "text");
         if (first) setSelectedChannelId(first.id);
       })
@@ -155,13 +161,11 @@ export default function MainLayout() {
             {(user?.username ?? "?").charAt(0).toUpperCase()}
           </div>
           <div style={styles.usernameText}>{user?.username ?? "Гость"}</div>
-          <button
-            style={styles.logoutBtn}
-            onClick={handleLogout}
-            title="Выйти"
-          >
-            ⏻
-          </button>
+
+          <button style={styles.iconBtn} onClick={() => setShowSearch(true)} title="Поиск пользователей">🔍</button>
+          <button style={styles.iconBtn} onClick={() => setShowProfile(true)} title="Профиль">👤</button>
+          <button style={styles.iconBtn} onClick={() => setShowTheme(true)} title="Настройки темы">⚙️</button>
+          <button style={styles.iconBtn} onClick={handleLogout} title="Выйти">⏻</button>
         </div>
       </div>
 
@@ -172,6 +176,10 @@ export default function MainLayout() {
         currentUserId={user?.id ?? ""}
         currentUsername={user?.username ?? ""}
       />
+
+      {showTheme && <ThemeSettings onClose={() => setShowTheme(false)} />}
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+      {showSearch && <UserSearch onClose={() => setShowSearch(false)} />}
     </div>
   );
 }

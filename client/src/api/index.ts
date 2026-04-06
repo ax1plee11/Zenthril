@@ -92,6 +92,17 @@ export const api = {
       }),
   },
 
+  users: {
+    search: (q: string) =>
+      request<UserSearchResult[]>("GET", `/api/v1/users/search?q=${encodeURIComponent(q)}`),
+  },
+
+  friends: {
+    list: () => request<FriendAPI[]>("GET", "/api/v1/friends"),
+    sendRequest: (userId: string) =>
+      request<void>("POST", "/api/v1/friends/request", { user_id: userId }),
+  },
+
   messages: {
     history: (channelId: string, before?: string) => {
       const qs = before ? `?before=${before}&limit=50` : "?limit=50";
@@ -137,6 +148,17 @@ export interface ChannelAPI {
   type: "text" | "voice";
   position: number;
   created_at: string;
+}
+
+export interface UserSearchResult {
+  id: string;
+  username: string;
+}
+
+export interface FriendAPI {
+  id: string;
+  username: string;
+  status?: "online" | "dnd" | "offline";
 }
 
 export interface MessageAPI {
