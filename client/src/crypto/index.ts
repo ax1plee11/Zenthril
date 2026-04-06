@@ -179,26 +179,55 @@ export async function getOrCreateSessionKey(
   return rotateSessionKey(channelId);
 }
 
+// ─── Tauri detection ─────────────────────────────────────────────────────────
+
+/**
+ * Возвращает true если код выполняется внутри Tauri-приложения.
+ */
+export function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI__" in window;
+}
+
 // ─── Хранение приватного ключа ────────────────────────────────────────────────
 
 /**
- * Сохраняет приватный ключ X25519 в localStorage (base64).
- * В Tauri-окружении можно заменить на invoke("store_private_key").
+ * Сохраняет приватный ключ X25519.
+ * В Tauri-окружении использует invoke("store_private_key") для безопасного хранилища,
+ * иначе fallback на localStorage.
  */
-export function storePrivateKey(key: Uint8Array): void {
-  localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, bufferToBase64(key));
+export async function storePrivateKey(key: Uint8Array): Promise<void> {
+  const b64 = bufferToBase64(key);
+  if (isTauri()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("store_private_key", { key: b64 });
+  } else {
+    localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, b64);
+  }
 }
 
 /**
- * Загружает приватный ключ из localStorage.
+ * Загружает приватный ключ.
+ * В Tauri-окружении использует invoke("load_private_key"),
+ * иначе fallback на localStorage.
  * Возвращает null, если ключ не найден.
  */
-export function loadPrivateKey(): Uint8Array | null {
-  const raw = localStorage.getItem(PRIVATE_KEY_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return base64ToUint8Array(raw);
-  } catch {
-    return null;
+export async function loadPrivateKey(): Promise<Uint8Array | null> {
+  if (isTauri()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const raw = await invoke<string | null>("load_private_key");
+    if (!raw) return null;
+    try {
+      return base64ToUint8Array(raw);
+    } catch {
+      return null;
+    }
+  } else {
+    const raw = localStorage.getItem(PRIVATE_KEY_STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      return base64ToUint8Array(raw);
+    } catch {
+      return null;
+    }
   }
 }

@@ -161,17 +161,17 @@ describe("storePrivateKey / loadPrivateKey", () => {
     localStorage.removeItem("veltrix_private_key");
   });
 
-  it("сохранённый ключ можно загрузить обратно", () => {
+  it("сохранённый ключ можно загрузить обратно", async () => {
     const kp = generateKeyPair();
-    storePrivateKey(kp.secretKey);
-    const loaded = loadPrivateKey();
+    await storePrivateKey(kp.secretKey);
+    const loaded = await loadPrivateKey();
     expect(loaded).not.toBeNull();
     expect(loaded).toBeInstanceOf(Uint8Array);
     expect(loaded!.length).toBe(32);
   });
 
-  it("loadPrivateKey возвращает null, если ключ не сохранён", () => {
-    const result = loadPrivateKey();
+  it("loadPrivateKey возвращает null, если ключ не сохранён", async () => {
+    const result = await loadPrivateKey();
     expect(result).toBeNull();
   });
 
@@ -179,8 +179,8 @@ describe("storePrivateKey / loadPrivateKey", () => {
     const alice = generateKeyPair();
     const bob = generateKeyPair();
 
-    storePrivateKey(alice.secretKey);
-    const loadedPrivate = loadPrivateKey()!;
+    await storePrivateKey(alice.secretKey);
+    const loadedPrivate = (await loadPrivateKey())!;
 
     const sharedOriginal = await deriveSharedSecret(
       alice.secretKey,
