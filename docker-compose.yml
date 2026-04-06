@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: veltrix-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: veltrix
       POSTGRES_PASSWORD: veltrix
@@ -23,6 +24,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: veltrix-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -36,6 +38,7 @@ services:
   backend:
     build: ./backend
     container_name: veltrix-backend
+    restart: unless-stopped
     environment:
       DB_URL: postgres://veltrix@postgres:5432/veltrix?sslmode=disable
       REDIS_URL: redis://redis:6379

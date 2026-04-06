@@ -49,6 +49,13 @@ function generateKeyId(): string {
   return bufferToBase64(bytes);
 }
 
+/** Копия в BufferSource, совместимый с типами WebCrypto (TS 5.6+). */
+function toBufferSource(u8: Uint8Array): BufferSource {
+  const buf = new ArrayBuffer(u8.byteLength);
+  new Uint8Array(buf).set(u8);
+  return buf;
+}
+
 // ─── Генерация ключевой пары ─────────────────────────────────────────────────
 
 /**
@@ -85,7 +92,9 @@ export async function deriveSharedSecret(
   myPrivateKey: Uint8Array,
   theirPublicKey: Uint8Array,
 ): Promise<CryptoKey> {
-  const sharedBytes = x25519.getSharedSecret(myPrivateKey, theirPublicKey);
+  const sharedBytes = toBufferSource(
+    x25519.getSharedSecret(myPrivateKey, theirPublicKey),
+  );
   return crypto.subtle.importKey(
     "raw",
     sharedBytes,
@@ -135,7 +144,7 @@ export async function decrypt(
   payload: EncryptedPayload,
   key: CryptoKey,
 ): Promise<string> {
-  const iv = base64ToUint8Array(payload.iv);
+  const ivBytes = base64ToUint8Array(payload.iv);
   const ciphertextBytes = base64ToUint8Array(payload.ciphertext);
   const tagBytes = base64ToUint8Array(payload.tag);
 
@@ -145,9 +154,9 @@ export async function decrypt(
   combined.set(tagBytes, ciphertextBytes.length);
 
   const plainBuffer = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv, tagLength: 128 },
+    { name: "AES-GCM", iv: toBufferSource(ivBytes), tagLength: 128 },
     key,
-    combined,
+    toBufferSource(combined),
   );
 
   return new TextDecoder().decode(plainBuffer);

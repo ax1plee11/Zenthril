@@ -36,6 +36,13 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Проверяем глобальный бан
+		banned, err := s.IsGloballyBanned(r.Context(), userID)
+		if err == nil && banned {
+			writeError(w, http.StatusForbidden, "account_banned", "Your account has been banned")
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), userIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

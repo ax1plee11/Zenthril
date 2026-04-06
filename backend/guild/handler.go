@@ -10,14 +10,45 @@ import (
 	"veltrix-backend/auth"
 )
 
+// GuildNotifier — интерфейс для WS-уведомлений (разрывает цикл guild↔hub).
+type GuildNotifier interface {
+	BroadcastToUser(userID string, msg []byte)
+	BroadcastToGuild(guildID string, msg []byte)
+}
+
 // Handler содержит HTTP-обработчики для управления серверами.
 type Handler struct {
-	svc *Service
+	svc      *Service
+	notifier GuildNotifier
 }
 
 // NewHandler создаёт новый Handler.
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, n GuildNotifier) *Handler {
+	return &Handler{svc: svc, notifier: n}
+}
+
+// GetGuildMembers обрабатывает GET /api/v1/guilds/:guildId/members
+// Response 200: []{ id, username }
+func (h *Handler) GetGuildMembers(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	guildID := chi.URLParam(r, "guildId")
+
+	members, err := h.svc.GetGuildMembers(r.Context(), guildID, userID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "You are not a member of this guild")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to get members")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, members)
 }
 
 // CreateGuild обрабатывает POST /api/v1/guilds
@@ -100,7 +131,6 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // JoinByInvite обрабатывает POST /api/v1/invites/:code/join
-// Response 200: Guild или 410: invite_expired_or_invalid
 func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -118,6 +148,18 @@ func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to join guild")
 		return
+	}
+
+	// Уведомляем всех участников сервера о новом участнике
+	if h.notifier != nil {
+		username, _ := h.svc.GetUsername(r.Context(), userID)
+		msg, _ := json.Marshal(map[string]string{
+			"type":     "guild.member_joined",
+			"guild_id": guild.ID.String(),
+			"user_id":  userID,
+			"username": username,
+		})
+		h.notifier.BroadcastToGuild(guild.ID.String(), msg)
 	}
 
 	writeJSON(w, http.StatusOK, guild)

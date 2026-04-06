@@ -1,137 +1,133 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: dark;
-  color: #ffffffde;
-  background-color: #1a1a2e;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-  --accent: #7289da;
-  --bg-primary: #36393f;
-  --bg-secondary: #2f3136;
-  --bg-tertiary: #202225;
-  --text-primary: #dcddde;
-  --text-muted: #72767d;
+:root {
+  --accent:        #7c6af7;
+  --accent-hover:  #9b8df9;
+  --accent-dim:    rgba(124,106,247,0.15);
+  --bg-base:       #0d0e14;
+  --bg-surface:    #13141d;
+  --bg-elevated:   #1a1b27;
+  --bg-overlay:    #21223200;
+  --bg-input:      #0f1018;
+  --border:        rgba(255,255,255,0.06);
+  --border-accent: rgba(124,106,247,0.4);
+  --text-primary:  #e8e9f0;
+  --text-secondary:#9a9bb0;
+  --text-muted:    #5a5b70;
+  --green:         #3ecf8e;
+  --red:           #f04f5e;
+  --yellow:        #f5a623;
+  --glass:         rgba(255,255,255,0.03);
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md:     0 8px 32px rgba(0,0,0,0.6);
+  --shadow-lg:     0 24px 64px rgba(0,0,0,0.8);
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     16px;
+  --radius-xl:     24px;
+
+  /* Panel backgrounds — управляются через overlayDarkness */
+  --panel-bg:          #13141d;
+  --panel-bg-elevated: #1a1b27;
+  --panel-topbar:      #0d0e14;
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
 body {
-  min-width: 320px;
-  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-base, #0d0e14);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  gap: 1rem;
+#root {
+  height: 100%;
+  width: 100%;
+  background: transparent;
 }
 
-/* ─── Анимированный градиентный фон ─────────────────────────────────────── */
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
+/* ── Animations ────────────────────────────────────────────────────────── */
 @keyframes gradientShift {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
-
-@keyframes gradientShiftCustom {
-  0%   { background-position: 0% 0%; }
-  33%  { background-position: 100% 50%; }
-  66%  { background-position: 50% 100%; }
-  100% { background-position: 0% 0%; }
-}
-
-.animated-bg {
-  background: linear-gradient(
-    135deg,
-    var(--anim-color-1, #1a1a2e),
-    var(--anim-color-2, #16213e),
-    var(--anim-color-3, #0f3460),
-    var(--anim-color-4, #533483)
-  );
-  background-size: 400% 400%;
-  animation: gradientShift 8s ease infinite;
-}
-
-.animated-bg-custom {
-  background: linear-gradient(
-    120deg,
-    var(--anim-color-1, #1a1a2e),
-    var(--anim-color-2, #7289da33),
-    var(--anim-color-3, #16213e),
-    var(--anim-color-4, #7289da22)
-  );
-  background-size: 600% 600%;
-  animation: gradientShiftCustom 12s ease infinite;
-}
-
-/* ─── Анимации UI элементов ──────────────────────────────────────────────── */
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-16px); }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-12px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.05); }
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(124,106,247,0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(124,106,247,0); }
+  100% { box-shadow: 0 0 0 0 rgba(124,106,247,0); }
 }
-
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
-
-.fade-in {
-  animation: fadeIn 0.2s ease forwards;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.slide-in-left {
-  animation: slideInLeft 0.2s ease forwards;
+@keyframes moodSpin {
+  to { transform: rotate(360deg); }
 }
 
-/* ─── Кнопки с hover-эффектами ───────────────────────────────────────────── */
-
-button {
-  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+@keyframes moodPulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50%       { transform: scale(1.15); opacity: 1; }
 }
 
-button:hover:not(:disabled) {
-  opacity: 0.9;
+.fade-up    { animation: fadeUp 0.25s ease forwards; }
+.fade-in    { animation: fadeIn 0.2s ease forwards; }
+.slide-right { animation: slideRight 0.2s ease forwards; }
+
+/* ── App Background: прозрачность всех панелей ─────────────────────────── */
+body.has-app-bg {
+  background: transparent !important;
 }
 
-button:active:not(:disabled) {
-  transform: scale(0.97);
+/* Переопределяем фоновые переменные на прозрачные */
+body.has-app-bg {
+  --bg-base:     transparent;
+  --bg-surface:  rgba(13,14,20,0.45);
+  --bg-elevated: rgba(26,27,39,0.55);
+  --bg-input:    rgba(15,16,24,0.7);
+  --border:      rgba(255,255,255,0.08);
 }
 
-/* ─── Скроллбар ──────────────────────────────────────────────────────────── */
-
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary, #202225);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted, #72767d);
+/* ── Noise texture overlay ─────────────────────────────────────────────── */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
 }

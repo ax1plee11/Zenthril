@@ -11,22 +11,45 @@ dist/
 client/dist/
 backend/veltrix
 backend/veltrix.exe
+backend/vibrora-server.exe
 
 # Environment
 .env
 .env.local
+client/.env
+backend/.env
+
+# Local snapshots / exports
+.snapshots/
+
+# Accidental node artifacts outside client/
+backend/package-lock.json
 
 # Go
 *.test
 *.out
+*.exe
 
 # Tauri
 client/src-tauri/target/
+client/src-tauri/gen/
 
 # OS
 .DS_Store
 Thumbs.db
 
+# Logs
+*.log
+
 # IDE
 .vscode/
 *.swp
+.idea/
+
+# Certificates / keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer

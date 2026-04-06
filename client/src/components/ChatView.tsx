@@ -19,9 +19,9 @@ import type { EncryptedPayload } from "../types/index";
 import MessageItem from "./MessageItem";
 import MessageInput from "./MessageInput";
 import { showNotification } from "../notifications/index";
-
-const WS_URL = "ws://localhost:8080/ws";
-const TOKEN_KEY = "veltrix_token";
+import { useTheme } from "../store/theme";
+import { trackMessage } from "../store/mood";
+import { onWSEvent, sendWSEvent, connectGlobalWS } from "../store/wsGlobal";
 
 interface ChatViewProps {
   channelId: string | null;
@@ -32,97 +32,53 @@ interface ChatViewProps {
 
 const styles = {
   root: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column" as const,
-    background: "#36393f",
-    minWidth: 0,
+    flex: 1, display: "flex", flexDirection: "column" as const,
+    background: "transparent", minWidth: 0,
   } as React.CSSProperties,
-
   header: {
-    padding: "0 16px",
-    height: 48,
-    borderBottom: "1px solid #202225",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
+    padding: "0 20px", height: 52,
+    borderBottom: "1px solid var(--border)",
+    display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
+    background: "var(--panel-topbar)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 2px 8px rgba(0,0,0,0.2)",
   } as React.CSSProperties,
-
   headerIcon: {
-    color: "#72767d",
-    fontSize: 18,
-    fontWeight: 700,
+    color: "var(--accent)", display: "flex", alignItems: "center",
   } as React.CSSProperties,
-
   headerName: {
-    fontWeight: 700,
-    fontSize: 15,
-    color: "#fff",
+    fontWeight: 700, fontSize: 15, color: "var(--text-primary)",
   } as React.CSSProperties,
-
   messagesArea: {
-    flex: 1,
-    overflowY: "auto" as const,
-    display: "flex",
-    flexDirection: "column" as const,
-    paddingTop: 16,
+    flex: 1, overflowY: "auto" as const,
+    display: "flex", flexDirection: "column" as const, paddingTop: 12,
   } as React.CSSProperties,
-
   loadMoreBtn: {
-    margin: "8px auto",
-    padding: "6px 16px",
-    background: "#4f545c",
-    border: "none",
-    borderRadius: 4,
-    color: "#dcddde",
-    cursor: "pointer",
-    fontSize: 13,
-    display: "block",
+    margin: "8px auto", padding: "6px 20px",
+    background: "var(--bg-elevated)", border: "1px solid var(--border)",
+    borderRadius: 20, color: "var(--text-secondary)",
+    cursor: "pointer", fontSize: 12, fontWeight: 600, display: "block",
+    transition: "all 0.15s",
   } as React.CSSProperties,
-
   empty: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#72767d",
-    fontSize: 15,
+    flex: 1, display: "flex", flexDirection: "column" as const,
+    alignItems: "center", justifyContent: "center",
+    color: "var(--text-muted)", fontSize: 14, gap: 8,
   } as React.CSSProperties,
-
   noChannel: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#72767d",
-    gap: 8,
+    flex: 1, display: "flex", flexDirection: "column" as const,
+    alignItems: "center", justifyContent: "center",
+    color: "var(--text-muted)", gap: 12,
   } as React.CSSProperties,
-
-  noChannelIcon: {
-    fontSize: 48,
-    opacity: 0.3,
-  } as React.CSSProperties,
-
+  noChannelIcon: { fontSize: 48, opacity: 0.2 } as React.CSSProperties,
   dateDivider: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "16px 16px 8px",
+    display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 8px",
   } as React.CSSProperties,
-
-  dateLine: {
-    flex: 1,
-    height: 1,
-    background: "#3f4147",
-  } as React.CSSProperties,
-
+  dateLine: { flex: 1, height: 1, background: "var(--border)" } as React.CSSProperties,
   dateText: {
-    fontSize: 12,
-    color: "#72767d",
-    fontWeight: 600,
-    whiteSpace: "nowrap" as const,
+    fontSize: 11, color: "var(--text-muted)", fontWeight: 600,
+    whiteSpace: "nowrap" as const, letterSpacing: 0.3,
   } as React.CSSProperties,
 };
 
@@ -168,8 +124,8 @@ export default function ChatView({
   const [hasMore, setHasMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const channelIdRef = useRef<string | null>(null);
+  const { theme } = useTheme();
 
   // Прокрутка вниз при новых сообщениях
   const scrollToBottom = useCallback(() => {
@@ -204,88 +160,7 @@ export default function ChatView({
     [currentUserId, currentUsername, scrollToBottom],
   );
 
-  // Подключение WebSocket
-  const connectWS = useCallback(
-    (cId: string) => {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (!token) return;
-
-      // Закрываем предыдущее соединение
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-
-      const ws = new WebSocket(`${WS_URL}?token=${token}`);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        // Подписываемся на канал (Требование 3.2)
-        ws.send(JSON.stringify({ type: "subscribe", channel_id: cId }));
-      };
-
-      ws.onmessage = (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data as string);
-
-          if (data.type === "message.new" && data.message) {
-            const msg = data.message as MessageAPI;
-            if (msg.channel_id === channelIdRef.current) {
-              const enriched = enrichMessage(msg, currentUserId, currentUsername);
-              setMessages((prev) => {
-                // Избегаем дублей
-                if (prev.some((m) => m.id === enriched.id)) return prev;
-                return [...prev, enriched];
-              });
-              setTimeout(scrollToBottom, 50);
-
-              // Уведомление если окно не в фокусе (Требование 10.8)
-              if (!document.hasFocus()) {
-                const author = enriched.author_username ?? `user_${enriched.author_id.slice(0, 6)}`;
-                showNotification(author, enriched.decryptedContent ?? "Новое сообщение").catch(() => {});
-              }
-            }
-          }
-
-          if (data.type === "message.edited") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === data.message_id
-                  ? { ...m, payload: data.payload, edited: true }
-                  : m,
-              ),
-            );
-          }
-
-          if (data.type === "message.deleted") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === data.message_id ? { ...m, deleted: true } : m,
-              ),
-            );
-          }
-        } catch {
-          // Игнорируем невалидные сообщения
-        }
-      };
-
-      ws.onerror = () => {
-        console.warn("[ChatView] WebSocket error");
-      };
-
-      ws.onclose = () => {
-        // Переподключение через 3 сек если канал ещё активен
-        setTimeout(() => {
-          if (channelIdRef.current === cId) {
-            connectWS(cId);
-          }
-        }, 3000);
-      };
-    },
-    [currentUserId, currentUsername, scrollToBottom],
-  );
-
-  // При смене канала
+  // Подписка на WS-события через глобальный сокет
   useEffect(() => {
     channelIdRef.current = channelId;
 
@@ -297,15 +172,84 @@ export default function ChatView({
     setMessages([]);
     setHasMore(false);
     loadHistory(channelId);
-    connectWS(channelId);
+
+    // Убеждаемся что глобальный WS подключён, затем подписываемся на канал
+    const subscribeToChannel = () => {
+      sendWSEvent({ type: "subscribe", channel_id: channelId });
+    };
+
+    connectGlobalWS().then(subscribeToChannel).catch(() => {});
+
+    // Если WS уже подключён — подписываемся сразу
+    subscribeToChannel();
+
+    // Обработчики сообщений
+    const unsubNew = onWSEvent("message.new", (data) => {
+      const msg = data.message as MessageAPI;
+      if (!msg || msg.channel_id !== channelIdRef.current) return;
+      const enriched = enrichMessage(msg, currentUserId, currentUsername);
+
+      void (async () => {
+        try {
+          if (enriched.payload?.tag) {
+            const { decrypt: dec, getOrCreateSessionKey: getKey } = await import("../crypto/index");
+            const key = await getKey(enriched.channel_id);
+            const payload = fromApiPayload(enriched.payload);
+            const text = await dec(payload, key);
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === enriched.id)) return prev;
+              return [...prev, { ...enriched, decryptedContent: text }];
+            });
+          } else {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === enriched.id)) return prev;
+              return [...prev, enriched];
+            });
+          }
+        } catch {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === enriched.id)) return prev;
+            return [...prev, enriched];
+          });
+        }
+      })();
+
+      setTimeout(scrollToBottom, 50);
+      if (!document.hasFocus()) {
+        const author = enriched.author_username ?? `user_${enriched.author_id.slice(0, 6)}`;
+        showNotification(author, "New message").catch(() => {});
+      }
+    });
+
+    const unsubEdited = onWSEvent("message.edited", (data) => {
+      setMessages((prev) =>
+        prev.map((m) => m.id === data.message_id ? { ...m, payload: data.payload as MessageAPI["payload"], edited: true } : m)
+      );
+    });
+
+    const unsubDeleted = onWSEvent("message.deleted", (data) => {
+      setMessages((prev) =>
+        prev.map((m) => m.id === data.message_id ? { ...m, deleted: true } : m)
+      );
+    });
+
+    // При переподключении WS — переподписываемся на канал
+    const unsubReconnect = onWSEvent("ws.connected", () => {
+      if (channelIdRef.current) {
+        sendWSEvent({ type: "subscribe", channel_id: channelIdRef.current });
+      }
+    });
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+      if (channelIdRef.current) {
+        sendWSEvent({ type: "unsubscribe", channel_id: channelId });
       }
+      unsubNew();
+      unsubEdited();
+      unsubDeleted();
+      unsubReconnect();
     };
-  }, [channelId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [channelId, currentUserId, currentUsername, scrollToBottom, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Загрузка ещё (прокрутка вверх)
   const loadMore = useCallback(() => {
@@ -326,6 +270,7 @@ export default function ChatView({
       const apiPayload = toApiPayload(encrypted);
 
       const msg = await api.messages.send(channelId, apiPayload);
+      trackMessage();
       const enriched = enrichMessage(
         { ...msg, decryptedContent: text },
         currentUserId,
@@ -371,73 +316,76 @@ export default function ChatView({
     );
   }, []);
 
-  // Дешифрование входящих сообщений (для MVP — показываем ciphertext если нет ключа)
+  // Дешифрование входящих сообщений
   useEffect(() => {
     if (!channelId) return;
+
+    let cancelled = false;
 
     const decryptMessages = async () => {
       try {
         const sessionKey = await getOrCreateSessionKey(channelId);
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.decryptedContent !== undefined) return m;
-            // Пробуем дешифровать
-            const payload = fromApiPayload(m.payload);
-            // Для MVP: если нет tag — показываем ciphertext
-            if (!payload.tag) return m;
-            return m; // Дешифрование асинхронное, делаем ниже
-          }),
-        );
-
-        // Асинхронное дешифрование
         const { decrypt } = await import("../crypto/index");
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.decryptedContent !== undefined) return m;
-            return m; // Будет дешифровано в следующем эффекте
-          }),
-        );
 
-        // Дешифруем все сообщения без decryptedContent
-        const toDecrypt = messages.filter(
-          (m) => m.decryptedContent === undefined && !m.deleted && m.payload.tag,
-        );
+        // Берём актуальный список через функциональный setState
+        setMessages((prev) => {
+          const toDecrypt = prev.filter(
+            (m) => m.decryptedContent === undefined && !m.deleted && m.payload?.tag,
+          );
+          if (toDecrypt.length === 0) return prev;
 
-        if (toDecrypt.length === 0) return;
-
-        const decrypted = await Promise.allSettled(
-          toDecrypt.map(async (m) => {
-            const payload = fromApiPayload(m.payload);
-            const text = await decrypt(payload, sessionKey);
-            return { id: m.id, text };
-          }),
-        );
-
-        setMessages((prev) =>
-          prev.map((m) => {
-            const result = decrypted.find(
-              (r) => r.status === "fulfilled" && r.value.id === m.id,
+          // Запускаем асинхронное дешифрование и обновляем по мере готовности
+          Promise.allSettled(
+            toDecrypt.map(async (m) => {
+              const payload = fromApiPayload(m.payload);
+              const text = await decrypt(payload, sessionKey);
+              return { id: m.id, text };
+            }),
+          ).then((results) => {
+            if (cancelled) return;
+            setMessages((current) =>
+              current.map((m) => {
+                const r = results.find(
+                  (x) => x.status === "fulfilled" && x.value.id === m.id,
+                );
+                if (r && r.status === "fulfilled") {
+                  return { ...m, decryptedContent: r.value.text };
+                }
+                return m;
+              }),
             );
-            if (result && result.status === "fulfilled") {
-              return { ...m, decryptedContent: result.value.text };
-            }
-            return m;
-          }),
-        );
+          });
+
+          return prev; // Не меняем state синхронно
+        });
       } catch {
-        // Ключ недоступен — показываем ciphertext
+        // Ключ недоступен
       }
     };
 
     decryptMessages();
+    return () => { cancelled = true; };
   }, [channelId, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!channelId) {
     return (
       <div style={styles.root}>
         <div style={styles.noChannel}>
-          <div style={styles.noChannelIcon}>💬</div>
-          <div>Выберите канал для начала общения</div>
+          <div style={{ opacity: 0.5 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div style={{
+            fontSize: 17, fontWeight: 700, color: "#fff",
+            textShadow: "0 1px 8px rgba(0,0,0,0.8)",
+          }}>No channel selected</div>
+          <div style={{
+            fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center",
+            textShadow: "0 1px 6px rgba(0,0,0,0.8)",
+          }}>
+            Pick a channel from the sidebar<br/>to start chatting
+          </div>
         </div>
       </div>
     );
@@ -447,25 +395,54 @@ export default function ChatView({
     <div style={styles.root}>
       {/* Заголовок */}
       <div style={styles.header}>
-        <span style={styles.headerIcon}>#</span>
+        <span style={styles.headerIcon}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </span>
         <span style={styles.headerName}>{channelName}</span>
+        <div style={{ flex: 1 }} />
+        <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          End-to-end encrypted
+        </div>
       </div>
 
       {/* Область сообщений */}
-      <div style={styles.messagesArea} ref={messagesAreaRef}>
+      <div style={{
+        ...styles.messagesArea,
+        position: "relative" as const,
+      }} ref={messagesAreaRef}>
+        {/* Chat background layer */}
+        {theme.chatBackground && (
+          <div style={{
+            position: "absolute" as const, inset: 0, zIndex: 0, pointerEvents: "none" as const,
+            opacity: (theme.chatBgOpacity ?? 100) / 100,
+            backgroundImage: "var(--chat-bg-pattern, none), var(--chat-bg-image, none)",
+            backgroundSize: "var(--chat-bg-size, auto), cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "repeat, no-repeat",
+          }} />
+        )}
+        <div style={{ position: "relative" as const, zIndex: 1, display: "flex", flexDirection: "column" as const, flex: 1 }}>
         {hasMore && (
           <button
             style={styles.loadMoreBtn}
             onClick={loadMore}
             disabled={loading}
           >
-            {loading ? "Загрузка..." : "Загрузить ещё"}
+            {loading ? "Loading..." : "Load more"}
           </button>
         )}
 
         {messages.length === 0 && !loading && (
           <div style={styles.empty}>
-            Нет сообщений. Напишите первым!
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.2 }}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <div>No messages yet. Say hello!</div>
           </div>
         )}
 
@@ -480,6 +457,7 @@ export default function ChatView({
         ))}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Поле ввода */}

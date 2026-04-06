@@ -396,6 +396,86 @@ func (s *Service) GetGuildChannels(ctx context.Context, guildID, userID string) 
 	return channels, nil
 }
 
+// GetGuildMembers возвращает список участников сервера (id + username).
+func (s *Service) GetGuildMembers(ctx context.Context, guildID, requesterID string) ([]map[string]string, error) {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requester id: %w", err)
+	}
+
+	if err := s.requireMember(ctx, guildUUID, requesterUUID); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.Query(ctx,
+		`SELECT u.id, u.username
+		 FROM guild_members gm
+		 JOIN users u ON u.id = gm.user_id
+		 WHERE gm.guild_id = $1 AND gm.banned = FALSE
+		 ORDER BY u.username ASC`,
+		guildUUID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query members: %w", err)
+	}
+	defer rows.Close()
+
+	var members []map[string]string
+	for rows.Next() {
+		var id, username string
+		if err := rows.Scan(&id, &username); err != nil {
+			return nil, fmt.Errorf("scan member: %w", err)
+		}
+		members = append(members, map[string]string{"id": id, "username": username})
+	}
+	if members == nil {
+		members = []map[string]string{}
+	}
+	return members, nil
+}
+
+// GetUsername возвращает username пользователя по ID.
+func (s *Service) GetUsername(ctx context.Context, userID string) (string, error) {
+	uUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return "", err
+	}
+	var username string
+	err = s.db.QueryRow(ctx, `SELECT username FROM users WHERE id=$1`, uUUID).Scan(&username)
+	return username, err
+}
+
+// UserHasChannelAccess возвращает true, если пользователь — участник гильдии канала и не забанен.
+func (s *Service) UserHasChannelAccess(ctx context.Context, userID, channelID string) (bool, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, fmt.Errorf("invalid user id: %w", err)
+	}
+	chUUID, err := uuid.Parse(channelID)
+	if err != nil {
+		return false, fmt.Errorf("invalid channel id: %w", err)
+	}
+
+	var ok bool
+	err = s.db.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM channels c
+			INNER JOIN guild_members gm ON gm.guild_id = c.guild_id
+				AND gm.user_id = $2 AND gm.banned = FALSE
+			WHERE c.id = $1
+		)`,
+		chUUID, userUUID,
+	).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("channel access: %w", err)
+	}
+	return ok, nil
+}
+
 // requireMember проверяет, что пользователь является активным участником сервера.
 func (s *Service) requireMember(ctx context.Context, guildID, userID uuid.UUID) error {
 	var exists bool

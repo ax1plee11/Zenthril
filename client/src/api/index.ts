@@ -1,8 +1,20 @@
 /**
  * API клиент — обёртка над fetch для Vibrora
+ * BASE_URL автоматически определяется по текущему хосту (работает с телефона)
  */
 
-const BASE_URL = "http://localhost:8080";
+/** Origin бэкенда (тот же хост, что у клиента — удобно с телефона в LAN) */
+export function getBackendOrigin(): string {
+  return `${window.location.protocol}//${window.location.hostname}:8080`;
+}
+
+/** WebSocket к тому же хосту, что и страница */
+export function getWebSocketUrl(path = "/ws"): string {
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.hostname}:8080${path}`;
+}
+
+const BASE_URL = getBackendOrigin();
 const TOKEN_KEY = "veltrix_token";
 
 function getToken(): string | null {
@@ -77,6 +89,10 @@ export const api = {
       }, false),
 
     logout: () => request<void>("POST", "/api/v1/auth/logout"),
+
+    /** Одноразовый билет для WebSocket (не передавать JWT в URL) */
+    wsTicket: () =>
+      request<{ ticket: string }>("POST", "/api/v1/auth/ws-ticket"),
   },
 
   guilds: {
@@ -90,6 +106,23 @@ export const api = {
         name,
         type,
       }),
+    createInvite: (guildId: string) =>
+      request<{ code: string }>("POST", `/api/v1/guilds/${guildId}/invites`),
+    joinByInvite: (code: string) =>
+      request<GuildAPI>("POST", `/api/v1/invites/${code}/join`),
+    members: (guildId: string) =>
+      request<{ id: string; username: string }[]>("GET", `/api/v1/guilds/${guildId}/members`),
+    banMember: (guildId: string, userId: string) =>
+      request<void>("POST", `/api/v1/guilds/${guildId}/members/${userId}/ban`),
+    kickMember: (guildId: string, userId: string) =>
+      request<void>("DELETE", `/api/v1/guilds/${guildId}/members/${userId}`),
+  },
+
+  admin: {
+    globalBan: (userId: string, reason: string) =>
+      request<void>("POST", `/api/v1/admin/users/${userId}/ban`, { reason }),
+    globalUnban: (userId: string) =>
+      request<void>("DELETE", `/api/v1/admin/users/${userId}/ban`),
   },
 
   users: {
@@ -98,9 +131,13 @@ export const api = {
   },
 
   friends: {
-    list: () => request<FriendAPI[]>("GET", "/api/v1/friends"),
+    list: () => request<FriendUser[]>("GET", "/api/v1/friends"),
     sendRequest: (userId: string) =>
       request<void>("POST", "/api/v1/friends/request", { user_id: userId }),
+    accept: (userId: string) =>
+      request<void>("POST", `/api/v1/friends/${userId}/accept`),
+    decline: (userId: string) =>
+      request<void>("DELETE", `/api/v1/friends/${userId}`),
   },
 
   messages: {
@@ -159,6 +196,13 @@ export interface FriendAPI {
   id: string;
   username: string;
   status?: "online" | "dnd" | "offline";
+}
+
+export interface FriendUser {
+  id: string;
+  username: string;
+  status: "pending" | "accepted";
+  direction?: "incoming" | "outgoing";
 }
 
 export interface MessageAPI {

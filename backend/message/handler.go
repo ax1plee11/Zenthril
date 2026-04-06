@@ -45,6 +45,10 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.svc.SendMessage(r.Context(), channelID, userID, payload)
 	if err != nil {
+		if errors.Is(err, ErrNotChannelMember) {
+			writeError(w, http.StatusForbidden, "forbidden", "You do not have access to this channel")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to send message")
 		return
 	}
@@ -78,6 +82,10 @@ func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.svc.GetHistory(r.Context(), channelID, userID, before, limit)
 	if err != nil {
+		if errors.Is(err, ErrNotChannelMember) {
+			writeError(w, http.StatusForbidden, "forbidden", "You do not have access to this channel")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to get messages")
 		return
 	}
@@ -108,6 +116,10 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.svc.EditMessage(r.Context(), messageID, userID, payload)
 	if err != nil {
+		if errors.Is(err, ErrNotChannelMember) {
+			writeError(w, http.StatusForbidden, "forbidden", "You do not have access to this channel")
+			return
+		}
 		if errors.Is(err, ErrForbidden) {
 			writeError(w, http.StatusForbidden, "forbidden", "You are not the author of this message")
 			return
@@ -136,6 +148,10 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 
 	err := h.svc.DeleteMessage(r.Context(), messageID, userID)
 	if err != nil {
+		if errors.Is(err, ErrNotChannelMember) {
+			writeError(w, http.StatusForbidden, "forbidden", "You do not have access to this channel")
+			return
+		}
 		if errors.Is(err, ErrForbidden) {
 			writeError(w, http.StatusForbidden, "forbidden", "You are not the author of this message")
 			return

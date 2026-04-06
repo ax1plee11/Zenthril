@@ -16,5 +16,8 @@ const localStorageMock = {
   key: (index: number) => Array.from(store.keys())[index] ?? null,
 };
 
-// @ts-expect-error — полифил для Node.js
-globalThis.localStorage = localStorageMock;
+Object.defineProperty(globalThis, "localStorage", {
+  value: localStorageMock,
+  writable: true,
+  configurable: true,
+});

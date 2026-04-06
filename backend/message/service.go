@@ -11,26 +11,43 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"veltrix-backend/guild"
 	"veltrix-backend/hub"
 	"veltrix-backend/models"
 )
 
 var (
-	ErrNotFound  = errors.New("not_found")
-	ErrForbidden = errors.New("forbidden")
+	ErrNotFound         = errors.New("not_found")
+	ErrForbidden        = errors.New("forbidden")
+	ErrNotChannelMember = errors.New("not_channel_member")
 )
 
 const maxLimit = 50
 
 // Service реализует бизнес-логику работы с сообщениями.
 type Service struct {
-	db  *pgxpool.Pool
-	hub *hub.Hub
+	db    *pgxpool.Pool
+	hub   *hub.Hub
+	guild *guild.Service
 }
 
 // NewService создаёт новый MessageService.
-func NewService(db *pgxpool.Pool, h *hub.Hub) *Service {
-	return &Service{db: db, hub: h}
+func NewService(db *pgxpool.Pool, h *hub.Hub, g *guild.Service) *Service {
+	return &Service{db: db, hub: h, guild: g}
+}
+
+func (s *Service) requireChannelAccess(ctx context.Context, userID, channelID string) error {
+	if s.guild == nil {
+		return fmt.Errorf("guild service not configured")
+	}
+	ok, err := s.guild.UserHasChannelAccess(ctx, userID, channelID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrNotChannelMember
+	}
+	return nil
 }
 
 // SendMessage сохраняет сообщение в БД и рассылает событие через hub.
@@ -42,6 +59,10 @@ func (s *Service) SendMessage(ctx context.Context, channelID, authorID string, p
 	authorUUID, err := uuid.Parse(authorID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid author id: %w", err)
+	}
+
+	if err := s.requireChannelAccess(ctx, authorID, channelID); err != nil {
+		return nil, err
 	}
 
 	var msg models.Message
@@ -72,6 +93,10 @@ func (s *Service) GetHistory(ctx context.Context, channelID, userID string, befo
 
 	if limit <= 0 || limit > maxLimit {
 		limit = maxLimit
+	}
+
+	if err := s.requireChannelAccess(ctx, userID, channelID); err != nil {
+		return nil, err
 	}
 
 	var rows pgx.Rows
@@ -139,6 +164,21 @@ func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, p
 		return nil, fmt.Errorf("invalid author id: %w", err)
 	}
 
+	var chID uuid.UUID
+	err = s.db.QueryRow(ctx,
+		`SELECT channel_id FROM messages WHERE id = $1 AND deleted = FALSE`,
+		msgUUID,
+	).Scan(&chID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load message channel: %w", err)
+	}
+	if err := s.requireChannelAccess(ctx, authorID, chID.String()); err != nil {
+		return nil, err
+	}
+
 	var msg models.Message
 	err = s.db.QueryRow(ctx,
 		`UPDATE messages
@@ -181,6 +221,21 @@ func (s *Service) DeleteMessage(ctx context.Context, messageID, authorID string)
 	authorUUID, err := uuid.Parse(authorID)
 	if err != nil {
 		return fmt.Errorf("invalid author id: %w", err)
+	}
+
+	var chID uuid.UUID
+	err = s.db.QueryRow(ctx,
+		`SELECT channel_id FROM messages WHERE id = $1 AND deleted = FALSE`,
+		msgUUID,
+	).Scan(&chID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("load message channel: %w", err)
+	}
+	if err := s.requireChannelAccess(ctx, authorID, chID.String()); err != nil {
+		return err
 	}
 
 	var channelID uuid.UUID

@@ -2,9 +2,12 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -110,4 +113,76 @@ func (s *Service) IsTokenBlacklisted(ctx context.Context, token string) (bool, e
 // ValidateTokenPublic проверяет JWT-токен и возвращает userID (публичный метод для использования вне пакета).
 func (s *Service) ValidateTokenPublic(token string) (string, error) {
 	return ValidateToken(token, s.jwtSecret)
+}
+
+const wsTicketTTL = 2 * time.Minute
+
+// IssueWSTicket выдаёт одноразовый билет для подключения WebSocket (не кладёт JWT в URL).
+func (s *Service) IssueWSTicket(ctx context.Context, userID string) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("random ticket: %w", err)
+	}
+	ticket := base64.RawURLEncoding.EncodeToString(b)
+	key := "ws:ticket:" + ticket
+	if err := s.redis.Set(ctx, key, userID, wsTicketTTL).Err(); err != nil {
+		return "", fmt.Errorf("store ws ticket: %w", err)
+	}
+	return ticket, nil
+}
+
+// IsGloballyBanned проверяет, забанен ли пользователь глобально (во всём приложении).
+func (s *Service) IsGloballyBanned(ctx context.Context, userID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM global_bans
+			WHERE user_id = $1
+			AND (expires_at IS NULL OR expires_at > NOW())
+		)`,
+		userID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check global ban: %w", err)
+	}
+	return exists, nil
+}
+
+// GlobalBan банит пользователя глобально. bannedBy — UUID администратора (может быть пустым).
+func (s *Service) GlobalBan(ctx context.Context, userID, bannedBy, reason string) error {
+	_, err := s.db.Exec(ctx,
+		`INSERT INTO global_bans (user_id, banned_by, reason)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (user_id) DO UPDATE SET reason = $3, expires_at = NULL, created_at = NOW()`,
+		userID, bannedBy, reason,
+	)
+	if err != nil {
+		return fmt.Errorf("global ban: %w", err)
+	}
+	return nil
+}
+
+// GlobalUnban снимает глобальный бан.
+func (s *Service) GlobalUnban(ctx context.Context, userID string) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM global_bans WHERE user_id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("global unban: %w", err)
+	}
+	return nil
+}
+
+// ConsumeWSTicket проверяет и удаляет билет, возвращает userID.
+func (s *Service) ConsumeWSTicket(ctx context.Context, ticket string) (string, error) {
+	if ticket == "" {
+		return "", errors.New("missing ticket")
+	}
+	key := "ws:ticket:" + ticket
+	userID, err := s.redis.GetDel(ctx, key).Result()
+	if err == redis.Nil {
+		return "", errors.New("invalid or expired ticket")
+	}
+	if err != nil {
+		return "", fmt.Errorf("consume ws ticket: %w", err)
+	}
+	return userID, nil
 }
