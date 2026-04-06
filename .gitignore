@@ -2,6 +2,10 @@
 node_modules/
 client/node_modules/
 
+# Go module cache
+pkg/
+backend/pkg/
+
 # Build outputs
 dist/
 client/dist/
