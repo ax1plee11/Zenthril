@@ -1,7 +1,7 @@
 {
-  "productName": "Veltrix",
+  "productName": "Vibrora",
   "version": "0.1.0",
-  "identifier": "com.veltrix.app",
+  "identifier": "com.vibrora.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Veltrix",
+        "title": "Vibrora",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

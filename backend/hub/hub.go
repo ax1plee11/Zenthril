@@ -31,20 +31,22 @@ type Client struct {
 
 // Hub управляет подписками клиентов на каналы.
 type Hub struct {
-	channels   map[string]map[*Client]bool // channelID -> clients
-	users      map[string]map[*Client]bool // userID -> clients
-	mu         sync.RWMutex
-	register   chan *Client
-	unregister chan *Client
+	channels      map[string]map[*Client]bool // channelID -> clients
+	users         map[string]map[*Client]bool // userID -> clients
+	voiceChannels map[string]map[string]bool  // channelID -> set of userIDs
+	mu            sync.RWMutex
+	register      chan *Client
+	unregister    chan *Client
 }
 
 // NewHub создаёт новый Hub.
 func NewHub() *Hub {
 	return &Hub{
-		channels:   make(map[string]map[*Client]bool),
-		users:      make(map[string]map[*Client]bool),
-		register:   make(chan *Client, 64),
-		unregister: make(chan *Client, 64),
+		channels:      make(map[string]map[*Client]bool),
+		users:         make(map[string]map[*Client]bool),
+		voiceChannels: make(map[string]map[string]bool),
+		register:      make(chan *Client, 64),
+		unregister:    make(chan *Client, 64),
 	}
 }
 
@@ -68,6 +70,15 @@ func (h *Hub) Run() {
 					delete(clients, client)
 					if len(clients) == 0 {
 						delete(h.channels, channelID)
+					}
+				}
+			}
+			// Удаляем из голосовых каналов
+			for channelID, users := range h.voiceChannels {
+				if users[client.UserID] {
+					delete(users, client.UserID)
+					if len(users) == 0 {
+						delete(h.voiceChannels, channelID)
 					}
 				}
 			}
@@ -147,8 +158,11 @@ func (h *Hub) BroadcastToUser(userID string, msg []byte) {
 
 // wsEvent — входящее событие от клиента.
 type wsEvent struct {
-	Type      string `json:"type"`
-	ChannelID string `json:"channel_id,omitempty"`
+	Type         string          `json:"type"`
+	ChannelID    string          `json:"channel_id,omitempty"`
+	TargetUserID string          `json:"target_user_id,omitempty"`
+	SDP          json.RawMessage `json:"sdp,omitempty"`
+	Candidate    json.RawMessage `json:"candidate,omitempty"`
 }
 
 // writePump читает из канала Send и пишет в WebSocket.
@@ -197,8 +211,73 @@ func (c *Client) readPump() {
 			case c.Send <- pong:
 			default:
 			}
+
+		case "voice.join":
+			if evt.ChannelID != "" {
+				c.hub.voiceJoin(c, evt.ChannelID)
+			}
+		case "voice.leave":
+			if evt.ChannelID != "" {
+				c.hub.voiceLeave(c, evt.ChannelID)
+			}
+		case "voice.signal":
+			if evt.ChannelID != "" && evt.TargetUserID != "" && evt.SDP != nil {
+				msg, _ := json.Marshal(map[string]interface{}{
+					"type":       "voice.signal",
+					"channel_id": evt.ChannelID,
+					"from_user_id": c.UserID,
+					"sdp":        evt.SDP,
+				})
+				c.hub.BroadcastToUser(evt.TargetUserID, msg)
+			}
+		case "voice.ice":
+			if evt.ChannelID != "" && evt.TargetUserID != "" && evt.Candidate != nil {
+				msg, _ := json.Marshal(map[string]interface{}{
+					"type":         "voice.ice",
+					"channel_id":   evt.ChannelID,
+					"from_user_id": c.UserID,
+					"candidate":    evt.Candidate,
+				})
+				c.hub.BroadcastToUser(evt.TargetUserID, msg)
+			}
 		}
 	}
+}
+
+// voiceJoin добавляет клиента в голосовой канал и рассылает voice.user_joined.
+func (h *Hub) voiceJoin(c *Client, channelID string) {
+	h.mu.Lock()
+	if h.voiceChannels[channelID] == nil {
+		h.voiceChannels[channelID] = make(map[string]bool)
+	}
+	h.voiceChannels[channelID][c.UserID] = true
+	h.mu.Unlock()
+
+	msg, _ := json.Marshal(map[string]string{
+		"type":       "voice.user_joined",
+		"channel_id": channelID,
+		"user_id":    c.UserID,
+	})
+	h.Broadcast(channelID, msg)
+}
+
+// voiceLeave убирает клиента из голосового канала и рассылает voice.user_left.
+func (h *Hub) voiceLeave(c *Client, channelID string) {
+	h.mu.Lock()
+	if users, ok := h.voiceChannels[channelID]; ok {
+		delete(users, c.UserID)
+		if len(users) == 0 {
+			delete(h.voiceChannels, channelID)
+		}
+	}
+	h.mu.Unlock()
+
+	msg, _ := json.Marshal(map[string]string{
+		"type":       "voice.user_left",
+		"channel_id": channelID,
+		"user_id":    c.UserID,
+	})
+	h.Broadcast(channelID, msg)
 }
 
 // ServeWS выполняет WebSocket upgrade и аутентификацию через JWT query param ?token=<jwt>.

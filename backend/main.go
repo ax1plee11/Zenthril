@@ -83,7 +83,7 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok","app":"veltrix"}`))
+		_, _ = w.Write([]byte(`{"status":"ok","app":"vibrora"}`))
 	})
 
 	// API v1
@@ -141,7 +141,7 @@ func main() {
 		r.Get("/peers", notImplemented)
 	})
 
-	log.Printf("Veltrix node starting on %s", cfg.HTTPAddr)
+	log.Printf("Vibrora node starting on %s", cfg.HTTPAddr)
 
 	if cfg.TLSCertFile != "" && cfg.TLSKeyFile != "" {
 		log.Fatal(http.ListenAndServeTLS(cfg.HTTPAddr, cfg.TLSCertFile, cfg.TLSKeyFile, r))
