@@ -216,6 +216,153 @@ func (h *Handler) GetGuildChannels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, channels)
 }
 
+// CreateRole обрабатывает POST /api/v1/guilds/:guildId/roles
+// Response 201: Role
+func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	guildID := chi.URLParam(r, "guildId")
+
+	var req struct {
+		Name        string `json:"name"`
+		Permissions int64  `json:"permissions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "name is required")
+		return
+	}
+
+	role, err := h.svc.CreateRole(r.Context(), guildID, userID, req.Name, req.Permissions)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to create role")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, role)
+}
+
+// AssignRole обрабатывает PATCH /api/v1/guilds/:guildId/members/:userId/role
+// Response 200
+func (h *Handler) AssignRole(w http.ResponseWriter, r *http.Request) {
+	requesterID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	guildID := chi.URLParam(r, "guildId")
+	targetUserID := chi.URLParam(r, "userId")
+
+	var req struct {
+		RoleID string `json:"role_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+	if req.RoleID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "role_id is required")
+		return
+	}
+
+	err := h.svc.AssignRole(r.Context(), guildID, requesterID, targetUserID, req.RoleID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Member or role not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to assign role")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// MuteMember обрабатывает POST /api/v1/guilds/:guildId/members/:userId/mute
+// Response 204
+func (h *Handler) MuteMember(w http.ResponseWriter, r *http.Request) {
+	requesterID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	guildID := chi.URLParam(r, "guildId")
+	targetUserID := chi.URLParam(r, "userId")
+
+	var req struct {
+		DurationSeconds int `json:"duration_seconds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+	if req.DurationSeconds <= 0 {
+		req.DurationSeconds = 300 // default 5 min
+	}
+
+	err := h.svc.MuteMember(r.Context(), guildID, requesterID, targetUserID, req.DurationSeconds)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Member not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to mute member")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// BanMember обрабатывает POST /api/v1/guilds/:guildId/members/:userId/ban
+// Response 204
+func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
+	requesterID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	guildID := chi.URLParam(r, "guildId")
+	targetUserID := chi.URLParam(r, "userId")
+
+	err := h.svc.BanMember(r.Context(), guildID, requesterID, targetUserID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Member not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to ban member")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	ErrNotFound       = errors.New("not_found")
-	ErrForbidden      = errors.New("forbidden")
-	ErrInviteExpired  = errors.New("invite_expired_or_invalid")
-	ErrAlreadyMember  = errors.New("already_member")
+	ErrNotFound      = errors.New("not_found")
+	ErrForbidden     = errors.New("forbidden")
+	ErrInviteExpired = errors.New("invite_expired_or_invalid")
+	ErrAlreadyMember = errors.New("already_member")
 )
 
 // RoleLevel определяет уровни ролей.
@@ -432,6 +432,186 @@ func (s *Service) getMemberLevel(ctx context.Context, guildID, userID uuid.UUID)
 		return 0, fmt.Errorf("query member level: %w", err)
 	}
 	return level, nil
+}
+
+// CreateRole создаёт новую роль в сервере. Требует прав администратора (level>=50).
+func (s *Service) CreateRole(ctx context.Context, guildID, requesterID, name string, permissions int64) (*models.Role, error) {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requester id: %w", err)
+	}
+
+	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
+	if err != nil {
+		return nil, ErrForbidden
+	}
+	if level < RoleLevelAdmin {
+		return nil, ErrForbidden
+	}
+
+	var role models.Role
+	err = s.db.QueryRow(ctx,
+		`INSERT INTO roles (guild_id, name, level, permissions)
+		 VALUES ($1, $2, $3, $4)
+		 RETURNING id, guild_id, name, level, permissions`,
+		guildUUID, name, RoleLevelMember, permissions,
+	).Scan(&role.ID, &role.GuildID, &role.Name, &role.Level, &role.Permissions)
+	if err != nil {
+		return nil, fmt.Errorf("insert role: %w", err)
+	}
+
+	return &role, nil
+}
+
+// AssignRole назначает роль участнику сервера. Требует прав администратора (level>=50).
+func (s *Service) AssignRole(ctx context.Context, guildID, requesterID, targetUserID, roleID string) error {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return fmt.Errorf("invalid requester id: %w", err)
+	}
+	targetUUID, err := uuid.Parse(targetUserID)
+	if err != nil {
+		return fmt.Errorf("invalid target user id: %w", err)
+	}
+	roleUUID, err := uuid.Parse(roleID)
+	if err != nil {
+		return fmt.Errorf("invalid role id: %w", err)
+	}
+
+	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
+	if err != nil {
+		return ErrForbidden
+	}
+	if level < RoleLevelAdmin {
+		return ErrForbidden
+	}
+
+	// Проверяем, что роль принадлежит этому серверу
+	var exists bool
+	err = s.db.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM roles WHERE id = $1 AND guild_id = $2)`,
+		roleUUID, guildUUID,
+	).Scan(&exists)
+	if err != nil || !exists {
+		return ErrNotFound
+	}
+
+	result, err := s.db.Exec(ctx,
+		`UPDATE guild_members SET role_id = $1
+		 WHERE guild_id = $2 AND user_id = $3 AND banned = FALSE`,
+		roleUUID, guildUUID, targetUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("update member role: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// MuteMember заглушает участника сервера на указанное количество секунд. Требует прав администратора (level>=50).
+func (s *Service) MuteMember(ctx context.Context, guildID, requesterID, targetUserID string, durationSeconds int) error {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return fmt.Errorf("invalid requester id: %w", err)
+	}
+	targetUUID, err := uuid.Parse(targetUserID)
+	if err != nil {
+		return fmt.Errorf("invalid target user id: %w", err)
+	}
+
+	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
+	if err != nil {
+		return ErrForbidden
+	}
+	if level < RoleLevelAdmin {
+		return ErrForbidden
+	}
+
+	// Нельзя заглушить владельца
+	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if targetLevel >= RoleLevelOwner {
+		return ErrForbidden
+	}
+
+	muteUntil := time.Now().Add(time.Duration(durationSeconds) * time.Second)
+	result, err := s.db.Exec(ctx,
+		`UPDATE guild_members SET muted_until = $1
+		 WHERE guild_id = $2 AND user_id = $3 AND banned = FALSE`,
+		muteUntil, guildUUID, targetUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("mute member: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// BanMember банит участника сервера. Требует прав администратора (level>=50).
+func (s *Service) BanMember(ctx context.Context, guildID, requesterID, targetUserID string) error {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return fmt.Errorf("invalid requester id: %w", err)
+	}
+	targetUUID, err := uuid.Parse(targetUserID)
+	if err != nil {
+		return fmt.Errorf("invalid target user id: %w", err)
+	}
+
+	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
+	if err != nil {
+		return ErrForbidden
+	}
+	if level < RoleLevelAdmin {
+		return ErrForbidden
+	}
+
+	// Нельзя забанить владельца
+	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if targetLevel >= RoleLevelOwner {
+		return ErrForbidden
+	}
+
+	result, err := s.db.Exec(ctx,
+		`UPDATE guild_members SET banned = TRUE
+		 WHERE guild_id = $1 AND user_id = $2`,
+		guildUUID, targetUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("ban member: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 // generateInviteCode генерирует случайный код из 8 символов (base64url без padding).
