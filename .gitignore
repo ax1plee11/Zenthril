@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Build outputs
+dist/
+client/dist/
+backend/veltrix
+backend/veltrix.exe
+
+# Environment
+.env
+.env.local
+
+# Go
+*.test
+*.out
+
+# Tauri
+client/src-tauri/target/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.swp
