@@ -12,6 +12,7 @@ import (
 	"veltrix-backend/auth"
 	"veltrix-backend/config"
 	"veltrix-backend/db"
+	"veltrix-backend/guild"
 )
 
 func main() {
@@ -41,6 +42,10 @@ func main() {
 	authSvc := auth.NewService(database, rdb, cfg.JWTSecret)
 	authHandler := auth.NewHandler(authSvc)
 
+	// Инициализируем GuildService и Handler
+	guildSvc := guild.NewService(database, cfg.HTTPAddr)
+	guildHandler := guild.NewHandler(guildSvc)
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -61,8 +66,19 @@ func main() {
 			r.Post("/logout", authHandler.Logout)
 		})
 		r.Route("/guilds", func(r chi.Router) {
-			r.Get("/", notImplemented)
-			r.Post("/", notImplemented)
+			r.Use(authSvc.Middleware)
+			r.Get("/", guildHandler.GetUserGuilds)
+			r.Post("/", guildHandler.CreateGuild)
+			r.Route("/{guildId}", func(r chi.Router) {
+				r.Post("/invites", guildHandler.CreateInvite)
+				r.Delete("/members/{userId}", guildHandler.RemoveMember)
+				r.Post("/channels", guildHandler.CreateChannel)
+				r.Get("/channels", guildHandler.GetGuildChannels)
+			})
+		})
+		r.Route("/invites", func(r chi.Router) {
+			r.Use(authSvc.Middleware)
+			r.Post("/{code}/join", guildHandler.JoinByInvite)
 		})
 	})
 
