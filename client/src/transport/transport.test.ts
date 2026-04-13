@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-this-alias -- моки WebSocket в конструкторе сохраняют ссылку на экземпляр */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TransportLayer, type WSEvent } from "./index";
 

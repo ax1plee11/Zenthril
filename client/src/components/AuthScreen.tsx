@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { api } from "../api/index";
 import { saveAuth } from "../store/auth";
 import { generateKeyPair, exportPublicKey, storePrivateKey } from "../crypto/index";
+import { apiErrorFields } from "../util/errors";
 
 interface AuthScreenProps { onAuth: () => void; }
 type Tab = "login" | "register";
@@ -12,29 +13,61 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
+  const checkTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Клиентская валидация
+    const trimUser = username.trim();
+    const trimPass = password.trim();
+
+    if (trimUser.length < 2) {
+      setError("Имя пользователя должно быть не менее 2 символов");
+      return;
+    }
+    if (trimUser.length > 32) {
+      setError("Имя пользователя не может быть длиннее 32 символов");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(trimUser)) {
+      setError("Имя пользователя может содержать только буквы, цифры, _, . и -");
+      return;
+    }
+    if (tab === "register" && usernameStatus === "taken") {
+      setError("Это имя уже занято — выберите другое");
+      return;
+    }
+    if (tab === "register" && trimPass.length < 6) {
+      setError("Пароль должен быть не менее 6 символов");
+      return;
+    }
+
     setLoading(true);
     try {
       if (tab === "register") {
         const keyPair    = generateKeyPair();
         const pubKeyB64  = exportPublicKey(keyPair.publicKey);
-        const res        = await api.auth.register(username, password, pubKeyB64);
+        const res        = await api.auth.register(trimUser, password, pubKeyB64);
         storePrivateKey(keyPair.secretKey);
-        saveAuth(res.token, { id: res.user_id, username, public_key: pubKeyB64 });
+        saveAuth(res.token, { id: res.user_id, username: trimUser, public_key: pubKeyB64 });
       } else {
-        const res = await api.auth.login(username, password);
+        const res = await api.auth.login(trimUser, password);
         saveAuth(res.token, { id: res.user.id, username: res.user.username, public_key: res.user.public_key });
       }
       onAuth();
-    } catch {
-      setError("Неверные данные. Попробуйте ещё раз.");
+    } catch (err: unknown) {
+      const { code, message } = apiErrorFields(err);
+      if (code === "username_taken") setError("Это имя уже занято");
+      else if (code === "invalid_credentials") setError("Неверное имя пользователя или пароль");
+      else if (code === "account_banned") setError("Аккаунт заблокирован");
+      else setError(message ?? "Что-то пошло не так. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
-  }, [tab, username, password, onAuth]);
+  }, [tab, username, password, usernameStatus, onAuth]);
 
   return (
     <div style={s.root}>
@@ -64,11 +97,11 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
         {/* Tabs */}
         <div style={s.tabs}>
           {(["login","register"] as Tab[]).map(t => (
-            <button key={t} style={s.tab(tab === t)} onClick={() => { setTab(t); setError(null); }}>
+            <button key={t} style={s.tab(tab === t)} onClick={() => { setTab(t); setError(null); setUsernameStatus("idle"); }}>
               {t === "login" ? "Sign In" : "Create Account"}
             </button>
           ))}
-          <div style={s.tabIndicator(tab === "register")} />
+          <div style={s.tabIndicator()} />
         </div>
 
         <form onSubmit={handleSubmit} style={s.form}>
@@ -81,10 +114,47 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
                 </svg>
               </span>
               <input style={s.input} type="text" value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="your_username" required minLength={1} maxLength={32}
-                autoComplete="username" />
+                onChange={e => {
+                  const val = e.target.value;
+                  setUsername(val);
+                  setError(null);
+                  setUsernameStatus("idle");
+                  if (tab === "register" && val.trim().length >= 2 && /^[a-zA-Z0-9_.-]+$/.test(val.trim())) {
+                    if (checkTimer.current) clearTimeout(checkTimer.current);
+                    setUsernameStatus("checking");
+                    checkTimer.current = setTimeout(async () => {
+                      try {
+                        const res = await api.users.search(val.trim());
+                        const exact = res.some(u => u.username.toLowerCase() === val.trim().toLowerCase());
+                        setUsernameStatus(exact ? "taken" : "available");
+                      } catch {
+                        setUsernameStatus("idle");
+                      }
+                    }, 500);
+                  }
+                }}
+                placeholder="your_username" required minLength={2} maxLength={32}
+                autoComplete="username" autoFocus />
             </div>
+            {tab === "register" && (
+              <div style={{ fontSize: 11, marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
+                {usernameStatus === "checking" && (
+                  <><div style={{ width: 8, height: 8, border: "1.5px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                  <span style={{ color: "var(--text-muted)" }}>Проверяем...</span></>
+                )}
+                {usernameStatus === "taken" && (
+                  <><span style={{ color: "#f04f5e" }}>✕</span>
+                  <span style={{ color: "#f04f5e" }}>Имя уже занято</span></>
+                )}
+                {usernameStatus === "available" && (
+                  <><span style={{ color: "#3ecf8e" }}>✓</span>
+                  <span style={{ color: "#3ecf8e" }}>Имя свободно</span></>
+                )}
+                {usernameStatus === "idle" && (
+                  <span style={{ color: "var(--text-muted)" }}>2–32 символа, только буквы, цифры, _, . и -</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={s.field}>
@@ -96,10 +166,15 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
                 </svg>
               </span>
               <input style={s.input} type="password" value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••" required minLength={1}
+                onChange={e => { setPassword(e.target.value); setError(null); }}
+                placeholder="••••••••" required minLength={tab === "register" ? 6 : 1}
                 autoComplete={tab === "register" ? "new-password" : "current-password"} />
             </div>
+            {tab === "register" && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                Минимум 6 символов
+              </div>
+            )}
           </div>
 
           {error && (
@@ -170,7 +245,7 @@ const s = {
     transition: "all 0.2s", position: "relative" as const, zIndex: 1,
     boxShadow: active ? "var(--shadow-sm)" : "none",
   }),
-  tabIndicator: (_right: boolean): React.CSSProperties => ({ display: "none" }),
+  tabIndicator: (): React.CSSProperties => ({ display: "none" }),
   form: { display: "flex", flexDirection: "column" as const, gap: 16 } as React.CSSProperties,
   field: { display: "flex", flexDirection: "column" as const, gap: 6 } as React.CSSProperties,
   label: { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", letterSpacing: 0.3 } as React.CSSProperties,

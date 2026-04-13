@@ -13,8 +13,29 @@ const CATEGORIES = ["trending","meme","anime","funny","reaction","love","gaming"
 
 interface GifItem { id: string; url: string; preview: string; }
 
-const TENOR_KEY = (import.meta as any).env?.VITE_TENOR_KEY as string | undefined;
-const GIPHY_KEY = (import.meta as any).env?.VITE_GIPHY_KEY as string | undefined;
+interface TenorMediaFmt { url?: string }
+interface TenorGifResult {
+  id?: string;
+  media_formats?: {
+    gif?: TenorMediaFmt;
+    mediumgif?: TenorMediaFmt;
+    tinygif?: TenorMediaFmt;
+  };
+}
+
+interface GiphyImageSet { url?: string }
+interface GiphyItem {
+  id: string;
+  images?: {
+    original?: GiphyImageSet;
+    downsized_large?: GiphyImageSet;
+    fixed_height_small?: GiphyImageSet;
+    downsized_small?: GiphyImageSet;
+  };
+}
+
+const TENOR_KEY = import.meta.env.VITE_TENOR_KEY;
+const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY;
 
 async function normalizeGifUrl(input: string): Promise<string> {
   const url = input.trim();
@@ -29,7 +50,7 @@ async function normalizeGifUrl(input: string): Promise<string> {
       const res = await fetch(
         `https://tenor.googleapis.com/v2/posts?ids=${encodeURIComponent(id)}&key=${encodeURIComponent(TENOR_KEY)}&media_filter=gif,mediumgif,tinygif`,
       );
-      const data = (await res.json()) as { results?: any[] };
+      const data = (await res.json()) as { results?: TenorGifResult[] };
       const g = (data.results ?? [])[0];
       const fmt = g?.media_formats ?? {};
       const direct = fmt.gif?.url || fmt.mediumgif?.url || fmt.tinygif?.url;
@@ -44,8 +65,8 @@ async function normalizeGifUrl(input: string): Promise<string> {
     const id = m?.[1];
     if (id) {
       const res = await fetch(`https://api.giphy.com/v1/gifs/${encodeURIComponent(id)}?api_key=${encodeURIComponent(GIPHY_KEY)}`);
-      const data = await res.json();
-      const direct = data?.data?.images?.original?.url ?? data?.data?.images?.downsized_large?.url;
+      const data = (await res.json()) as { data?: GiphyItem };
+      const direct = data.data?.images?.original?.url ?? data.data?.images?.downsized_large?.url;
       if (direct) return direct;
     }
   }
@@ -59,8 +80,8 @@ async function fetchTenor(q: string): Promise<GifItem[]> {
     ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(TENOR_KEY)}&limit=20&media_filter=gif,mediumgif,tinygif`
     : `https://tenor.googleapis.com/v2/featured?key=${encodeURIComponent(TENOR_KEY)}&limit=20&media_filter=gif,mediumgif,tinygif`;
   const res  = await fetch(endpoint);
-  const data = await res.json() as { results?: any[] };
-  return (data.results ?? []).map((g: any) => {
+  const data = (await res.json()) as { results?: TenorGifResult[] };
+  return (data.results ?? []).map((g: TenorGifResult) => {
     const fmt = g.media_formats ?? {};
     // Приоритет качества: gif > mediumgif > tinygif
     const url     = fmt.gif?.url || fmt.mediumgif?.url || fmt.tinygif?.url || "";
@@ -75,8 +96,8 @@ async function fetchGiphy(q: string): Promise<GifItem[]> {
     ? `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(GIPHY_KEY)}&q=${encodeURIComponent(q)}&limit=20&rating=g`
     : `https://api.giphy.com/v1/gifs/trending?api_key=${encodeURIComponent(GIPHY_KEY)}&limit=20&rating=g`;
   const res  = await fetch(endpoint);
-  const data = await res.json();
-  return (data.data ?? []).map((g: any) => ({
+  const data = (await res.json()) as { data?: GiphyItem[] };
+  return (data.data ?? []).map((g: GiphyItem) => ({
     id: g.id,
     // original — полное качество, без даунскейла
     url: g.images?.original?.url ?? g.images?.downsized_large?.url ?? "",

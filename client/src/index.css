@@ -95,6 +95,11 @@ body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes typingDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
 @keyframes moodSpin {
   to { transform: rotate(360deg); }
 }

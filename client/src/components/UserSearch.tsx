@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api/index";
+import { apiErrorFields } from "../util/errors";
 import type { UserSearchResult, FriendUser } from "../api/index";
 
 interface Props {
@@ -69,8 +70,8 @@ export default function UserSearch({ onClose, onSendInvite }: Props) {
       await api.friends.sendRequest(userId);
       showToast(`Запрос отправлен ${username}`);
       loadFriends();
-    } catch (err: any) {
-      const code = err?.code;
+    } catch (err: unknown) {
+      const { code } = apiErrorFields(err);
       if (code === "already_friends") showToast("Уже в друзьях");
       else if (code === "request_pending") showToast("Запрос уже отправлен");
       else showToast("Ошибка отправки запроса");

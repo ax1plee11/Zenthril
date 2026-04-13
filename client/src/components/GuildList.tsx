@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { GuildAPI } from "../api/index";
 import { api } from "../api/index";
+import { apiErrorFields } from "../util/errors";
 
 interface GuildListProps {
   guilds: GuildAPI[];
@@ -71,8 +72,8 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
     try {
       await onCreateGuild(name.trim());
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to create server");
+    } catch (err: unknown) {
+      setError(apiErrorFields(err).message ?? "Failed to create server");
     } finally { setLoading(false); }
   }
 
@@ -85,8 +86,8 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
       const guild = await api.guilds.joinByInvite(code);
       onJoinGuild?.(guild);
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? "Invalid or expired invite");
+    } catch (err: unknown) {
+      setError(apiErrorFields(err).message ?? "Invalid or expired invite");
     } finally { setLoading(false); }
   }
 

@@ -16,7 +16,7 @@ import {
   getOrCreateSessionKey,
 } from "../crypto/index";
 import type { EncryptedPayload } from "../types/index";
-import MessageItem from "./MessageItem";
+import MessageItem, { canGroup, formatDateDivider } from "./MessageItem";
 import MessageInput from "./MessageInput";
 import { showNotification } from "../notifications/index";
 import { useTheme } from "../store/theme";
@@ -34,6 +34,7 @@ const styles = {
   root: {
     flex: 1, display: "flex", flexDirection: "column" as const,
     background: "transparent", minWidth: 0,
+    position: "relative" as const,
   } as React.CSSProperties,
   header: {
     padding: "0 20px", height: 52,
@@ -122,10 +123,25 @@ export default function ChatView({
   const [messages, setMessages] = useState<MessageAPI[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const channelIdRef = useRef<string | null>(null);
   const { theme } = useTheme();
+
+  // Показываем кнопку scroll-to-bottom когда прокрутили вверх
+  useEffect(() => {
+    const el = messagesAreaRef.current;
+    if (!el) return;
+    const handler = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollBtn(distFromBottom > 200);
+    };
+    el.addEventListener("scroll", handler, { passive: true });
+    return () => el.removeEventListener("scroll", handler);
+  }, []);
 
   // Прокрутка вниз при новых сообщениях
   const scrollToBottom = useCallback(() => {
@@ -163,6 +179,7 @@ export default function ChatView({
   // Подписка на WS-события через глобальный сокет
   useEffect(() => {
     channelIdRef.current = channelId;
+    const typingTimersMap = typingTimers.current;
 
     if (!channelId) {
       setMessages([]);
@@ -240,6 +257,21 @@ export default function ChatView({
       }
     });
 
+    // Typing indicator
+    const unsubTyping = onWSEvent("typing", (data) => {
+      if (data.channel_id !== channelIdRef.current) return;
+      const userId = data.user_id as string;
+      setTypingUsers(prev => new Set(prev).add(userId));
+      // Убираем через 3 секунды
+      const existing = typingTimersMap.get(userId);
+      if (existing) clearTimeout(existing);
+      const t = setTimeout(() => {
+        setTypingUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
+        typingTimersMap.delete(userId);
+      }, 3000);
+      typingTimersMap.set(userId, t);
+    });
+
     return () => {
       if (channelIdRef.current) {
         sendWSEvent({ type: "unsubscribe", channel_id: channelId });
@@ -248,8 +280,12 @@ export default function ChatView({
       unsubEdited();
       unsubDeleted();
       unsubReconnect();
+      unsubTyping();
+      typingTimersMap.forEach((t) => clearTimeout(t));
+      typingTimersMap.clear();
+      setTypingUsers(new Set());
     };
-  }, [channelId, currentUserId, currentUsername, scrollToBottom, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [channelId, currentUserId, currentUsername, scrollToBottom, loadHistory]);
 
   // Загрузка ещё (прокрутка вверх)
   const loadMore = useCallback(() => {
@@ -365,7 +401,7 @@ export default function ChatView({
 
     decryptMessages();
     return () => { cancelled = true; };
-  }, [channelId, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [channelId, messages.length]);
 
   if (!channelId) {
     return (
@@ -446,24 +482,102 @@ export default function ChatView({
           </div>
         )}
 
-        {messages.map((msg) => (
-          <MessageItem
-            key={msg.id}
-            message={msg}
-            currentUserId={currentUserId}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))}
+        {messages.map((msg, idx) => {
+          const prev = messages[idx - 1];
+          const grouped = !!prev && canGroup(prev, msg);
+          const showDate = !prev ||
+            new Date(msg.created_at).toDateString() !== new Date(prev.created_at).toDateString();
+          return (
+            <React.Fragment key={msg.id}>
+              {showDate && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "16px 20px 8px", userSelect: "none" as const,
+                }}>
+                  <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+                  <span style={{
+                    fontSize: 11, color: "var(--text-muted)", fontWeight: 600,
+                    padding: "2px 10px", borderRadius: 20,
+                    background: "var(--bg-elevated)", border: "1px solid var(--border)",
+                    whiteSpace: "nowrap" as const,
+                  }}>
+                    {formatDateDivider(msg.created_at)}
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+                </div>
+              )}
+              <MessageItem
+                message={msg}
+                currentUserId={currentUserId}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                grouped={grouped}
+              />
+            </React.Fragment>
+          );
+        })}
 
         <div ref={messagesEndRef} />
         </div>
       </div>
 
+      {/* Scroll-to-bottom button */}
+      {showScrollBtn && (
+        <button
+          onClick={scrollToBottom}
+          style={{
+            position: "absolute" as const, bottom: 80, right: 24, zIndex: 10,
+            width: 40, height: 40, borderRadius: "50%", border: "none",
+            background: "var(--accent)", color: "#fff", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 16px rgba(124,106,247,0.5)",
+            animation: "fadeUp 0.2s ease",
+            transition: "transform 0.15s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.1)")}
+          onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+          title="Scroll to bottom"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+      )}
+
+      {/* Typing indicator */}
+      {typingUsers.size > 0 && (
+        <div style={{
+          padding: "4px 20px 6px",
+          fontSize: 12, color: "var(--text-muted)",
+          display: "flex", alignItems: "center", gap: 6,
+          minHeight: 24,
+        }}>
+          <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                width: 5, height: 5, borderRadius: "50%",
+                background: "var(--accent)",
+                animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+              }} />
+            ))}
+          </div>
+          <span>
+            {typingUsers.size === 1
+              ? "кто-то печатает..."
+              : `${typingUsers.size} человека печатают...`}
+          </span>
+        </div>
+      )}
+
       {/* Поле ввода */}
       <MessageInput
         channelName={channelName}
         onSend={handleSend}
+        onTyping={() => {
+          if (channelIdRef.current) {
+            sendWSEvent({ type: "typing", channel_id: channelIdRef.current });
+          }
+        }}
         disabled={!channelId}
       />
     </div>

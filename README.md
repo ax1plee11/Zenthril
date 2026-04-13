@@ -9,6 +9,33 @@
 - **Шифрование**: X25519 + AES-256-GCM (E2EE)
 - **Аутентификация**: JWT + Argon2id
 
+## Документы
+
+- [SECURITY.md](SECURITY.md) — как сообщать об уязвимостях
+- [docs/PRIVACY.md](docs/PRIVACY.md) — черновик политики конфиденциальности для публичного сервиса
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — публичный хостинг: TLS, `VITE_API_BASE`, CORS/WS, бэкапы
+
+## Качество кода (локально)
+
+**Бэкенд** (`backend/`):
+
+```bash
+go vet ./...
+go test ./... -count=1
+# go test -race ./...   # на Linux/macOS и Windows amd64; на win/386 недоступен
+```
+
+Линтер: [golangci-lint](https://golangci-lint.run/) с конфигом `backend/.golangci.yml` (тот же запускается в CI).
+
+**Клиент** (`client/`):
+
+```bash
+npm run lint
+npm run test
+npm run test:coverage
+npm run build
+```
+
 ## Структура
 
 ```
@@ -51,6 +78,7 @@ npm run dev -- --host 0.0.0.0 --port 1420
 
 Скопируй `client/.env.example` → `client/.env`.
 
+- `VITE_API_BASE` (для прод-сборки) — origin бэкенда, например `https://api.example.com` (см. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
 - `VITE_TENOR_KEY` (опционально) — поиск/нормализация Tenor
 - `VITE_GIPHY_KEY` (опционально) — поиск/нормализация Giphy
 

@@ -4,7 +4,7 @@ import type { GuildAPI, ChannelAPI } from "../api/index";
 import { useAuth } from "../store/auth";
 import { useTheme } from "../store/theme";
 import { DEFAULT_TOPBAR_ITEMS } from "../store/theme";
-import { connectGlobalWS, onWSEvent, sendWSEvent } from "../store/wsGlobal";
+import { connectGlobalWS, onWSEvent, sendWSEvent, isWSConnected } from "../store/wsGlobal";
 import GuildList from "./GuildList";
 import ChannelList from "./ChannelList";
 import ChatView from "./ChatView";
@@ -25,6 +25,7 @@ export default function MainLayout() {
   const [showSearch, setShowSearch]       = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu]     = useState(false);
+  const [wsOnline, setWsOnline] = useState(true);
   const [inviteToast, setInviteToast]     = useState<{ code: string } | null>(null);
   const [friendToast, setFriendToast]     = useState<{ type: "request" | "accepted"; username: string; userId: string } | null>(null);
   const unreadCount   = useUnreadCount();
@@ -39,7 +40,10 @@ export default function MainLayout() {
     const u1 = onWSEvent("invite.received", (d) => setInviteToast({ code: d.invite_code as string }));
     const u2 = onWSEvent("friend.request",  (d) => setFriendToast({ type: "request",  username: d.from_username as string, userId: d.from_user_id as string }));
     const u3 = onWSEvent("friend.accepted", (d) => setFriendToast({ type: "accepted", username: d.from_username as string, userId: d.from_user_id as string }));
-    return () => { u1(); u2(); u3(); };
+    const u4 = onWSEvent("ws.connected",    () => setWsOnline(true));
+    // Проверяем статус каждые 5 сек
+    const interval = setInterval(() => setWsOnline(isWSConnected()), 5000);
+    return () => { u1(); u2(); u3(); u4(); clearInterval(interval); };
   }, []);
 
   // Закрытие меню профиля по клику вне
@@ -120,11 +124,22 @@ export default function MainLayout() {
           </svg>
         </div>
 
-        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginRight: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginRight: 4 }}>
           Zenthril
         </span>
 
-        {/* Spacer */}
+        {/* WS offline indicator */}
+        {!wsOnline && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "2px 8px", borderRadius: 20,
+            background: "rgba(240,79,94,0.15)", border: "1px solid rgba(240,79,94,0.3)",
+            fontSize: 11, color: "#f04f5e", fontWeight: 600,
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#f04f5e" }} />
+            Нет соединения
+          </div>
+        )}        {/* Spacer */}
         <div style={{ flex: 1 }} />
 
         {/* Dynamic topbar items from theme */}

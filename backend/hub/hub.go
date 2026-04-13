@@ -209,6 +209,26 @@ func (h *Hub) BroadcastToUser(userID string, msg []byte) {
 	}
 }
 
+// BroadcastExcept отправляет сообщение всем в канале кроме указанного клиента.
+func (h *Hub) BroadcastExcept(channelID string, except *Client, msg []byte) {
+	h.mu.RLock()
+	clients := h.channels[channelID]
+	targets := make([]*Client, 0, len(clients))
+	for c := range clients {
+		if c != except {
+			targets = append(targets, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range targets {
+		select {
+		case c.Send <- msg:
+		default:
+			h.unregister <- c
+		}
+	}
+}
+
 // BroadcastToGuild отправляет сообщение всем подключённым участникам сервера.
 func (h *Hub) BroadcastToGuild(guildID string, msg []byte) {
 	h.mu.RLock()
@@ -296,6 +316,17 @@ func (c *Client) readPump() {
 			select {
 			case c.Send <- pong:
 			default:
+			}
+
+		case "typing":
+			// Рассылаем typing event всем в канале кроме отправителя
+			if evt.ChannelID != "" && c.hub.userHasChannelAccess(c.UserID, evt.ChannelID) {
+				msg, _ := json.Marshal(map[string]string{
+					"type":       "typing",
+					"channel_id": evt.ChannelID,
+					"user_id":    c.UserID,
+				})
+				c.hub.BroadcastExcept(evt.ChannelID, c, msg)
 			}
 
 		case "invite.send":

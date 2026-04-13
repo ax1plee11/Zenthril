@@ -1,15 +1,39 @@
 /**
- * API клиент — обёртка над fetch для Vibrora
- * BASE_URL автоматически определяется по текущему хосту (работает с телефона)
+ * API клиент — fetch к бэкенду.
+ * Локально: тот же хост, порт 8080. Продакшен: задайте `VITE_API_BASE` при сборке (см. docs/DEPLOYMENT.md).
  */
 
-/** Origin бэкенда (тот же хост, что у клиента — удобно с телефона в LAN) */
+function trimTrailingSlash(s: string): string {
+  return s.replace(/\/+$/, "");
+}
+
+/**
+ * Origin бэкенда без завершающего слэша.
+ * `VITE_API_BASE` — полный origin, например `https://api.example.com` (встраивается на этапе `vite build`).
+ */
 export function getBackendOrigin(): string {
+  const raw = import.meta.env.VITE_API_BASE?.trim();
+  if (raw) {
+    return trimTrailingSlash(raw);
+  }
   return `${window.location.protocol}//${window.location.hostname}:8080`;
 }
 
-/** WebSocket к тому же хосту, что и страница */
+/** WebSocket к тому же API-origin (или к хосту страницы :8080 в dev). */
 export function getWebSocketUrl(path = "/ws"): string {
+  const raw = import.meta.env.VITE_API_BASE?.trim();
+  if (raw) {
+    const base = trimTrailingSlash(raw);
+    let u: URL;
+    try {
+      u = new URL(base);
+    } catch {
+      return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8080${path}`;
+    }
+    const wsProto = u.protocol === "https:" ? "wss:" : "ws:";
+    const p = path.startsWith("/") ? path : `/${path}`;
+    return `${wsProto}//${u.host}${p}`;
+  }
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.hostname}:8080${path}`;
 }

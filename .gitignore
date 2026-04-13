@@ -9,6 +9,7 @@ backend/pkg/
 # Build outputs
 dist/
 client/dist/
+client/coverage/
 backend/veltrix
 backend/veltrix.exe
 backend/vibrora-server.exe

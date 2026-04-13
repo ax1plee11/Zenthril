@@ -11,7 +11,7 @@ interface ChannelListProps {
   currentUserId: string;
 }
 
-function ChannelItem({ ch, selected, onClick }: { ch: ChannelAPI; selected: boolean; onClick: () => void }) {
+function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; selected: boolean; onClick: () => void; unread?: number }) {
   const [hovered, setHovered] = useState(false);
   const isVoice = ch.type === "voice";
 
@@ -22,8 +22,8 @@ function ChannelItem({ ch, selected, onClick }: { ch: ChannelAPI; selected: bool
         padding: "7px 10px", margin: "1px 6px", borderRadius: "var(--radius-sm)",
         cursor: "pointer",
         background: selected ? "rgba(124,106,247,0.15)" : hovered ? "rgba(255,255,255,0.04)" : "transparent",
-        color: selected ? "var(--text-primary)" : hovered ? "var(--text-secondary)" : "var(--text-muted)",
-        fontSize: 14, fontWeight: selected ? 600 : 400,
+        color: selected ? "var(--text-primary)" : unread > 0 ? "var(--text-primary)" : hovered ? "var(--text-secondary)" : "var(--text-muted)",
+        fontSize: 14, fontWeight: selected || unread > 0 ? 600 : 400,
         transition: "all 0.15s", userSelect: "none" as const,
         borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
       }}
@@ -44,9 +44,20 @@ function ChannelItem({ ch, selected, onClick }: { ch: ChannelAPI; selected: bool
           </svg>
         )}
       </span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, flex: 1 }}>
         {ch.name}
       </span>
+      {unread > 0 && (
+        <span style={{
+          minWidth: 18, height: 18, borderRadius: 9,
+          background: "var(--accent)", color: "#fff",
+          fontSize: 10, fontWeight: 800,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "0 4px", flexShrink: 0,
+        }}>
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
     </div>
   );
 }
@@ -56,6 +67,25 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
   const voiceChannels = channels.filter(c => c.type === "voice");
   const [showManage, setShowManage] = useState(false);
   const isOwner = guild?.owner_id === currentUserId;
+  // Счётчики непрочитанных: channelId → count
+  const [unread, setUnread] = useState<Record<string, number>>({});
+
+  // Слушаем новые сообщения — если канал не выбран, увеличиваем счётчик
+  useEffect(() => {
+    const unsub = onWSEvent("message.new", (data) => {
+      const msg = data.message as { channel_id: string };
+      if (!msg?.channel_id) return;
+      if (msg.channel_id === selectedChannelId) return; // уже читаем
+      setUnread(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+    });
+    return unsub;
+  }, [selectedChannelId]);
+
+  // Сбрасываем счётчик при выборе канала
+  const handleSelect = (id: string) => {
+    setUnread(prev => { const n = { ...prev }; delete n[id]; return n; });
+    onSelect(id);
+  };
 
   return (
     <div style={{
@@ -125,7 +155,7 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
               Text Channels
             </div>
             {textChannels.map(ch => (
-              <ChannelItem key={ch.id} ch={ch} selected={ch.id === selectedChannelId} onClick={() => onSelect(ch.id)} />
+              <ChannelItem key={ch.id} ch={ch} selected={ch.id === selectedChannelId} onClick={() => handleSelect(ch.id)} unread={unread[ch.id] ?? 0} />
             ))}
           </>
         )}
@@ -144,7 +174,7 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
               Voice Channels
             </div>
             {voiceChannels.map(ch => (
-              <ChannelItem key={ch.id} ch={ch} selected={ch.id === selectedChannelId} onClick={() => onSelect(ch.id)} />
+              <ChannelItem key={ch.id} ch={ch} selected={ch.id === selectedChannelId} onClick={() => handleSelect(ch.id)} unread={0} />
             ))}
           </>
         )}

@@ -5,10 +5,11 @@ import { trackTyping } from "../store/mood";
 interface MessageInputProps {
   channelName: string;
   onSend: (text: string) => Promise<void>;
+  onTyping?: () => void;
   disabled?: boolean;
 }
 
-export default function MessageInput({ channelName, onSend, disabled = false }: MessageInputProps) {
+export default function MessageInput({ channelName, onSend, onTyping, disabled = false }: MessageInputProps) {
   const [text, setText]         = useState("");
   const [sending, setSending]   = useState(false);
   const [focused, setFocused]   = useState(false);
@@ -34,10 +35,11 @@ export default function MessageInput({ channelName, onSend, disabled = false }: 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
     trackTyping();
+    onTyping?.();
     const el = e.target;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
-  }, []);
+  }, [onTyping]);
 
   const handleGifSelect = useCallback((url: string) => {
     handleSend(url);
