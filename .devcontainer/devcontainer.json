@@ -1,0 +1,39 @@
+{
+  "name": "Zenthril Dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.22" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  "forwardPorts": [1420, 8080, 5432, 6379],
+  "portsAttributes": {
+    "1420": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
+    "8080": { "label": "Backend (Go)",    "onAutoForward": "notify" },
+    "5432": { "label": "PostgreSQL",      "onAutoForward": "silent" },
+    "6379": { "label": "Redis",           "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "npm install --prefix client",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-azuretools.vscode-docker",
+        "humao.rest-client"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[go]": { "editor.defaultFormatter": "golang.go" }
+      }
+    }
+  }
+}
