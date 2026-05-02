@@ -14,7 +14,7 @@ const BG_PRESETS = [
   { id: "ocean",   label: "Ocean",   preview: "linear-gradient(135deg,#0f2027,#203a43,#2c5364,#1a6b8a)" },
   { id: "fire",    label: "Fire",    preview: "linear-gradient(135deg,#1a0000,#7f0000,#cc2200,#ff6600)" },
   { id: "forest",  label: "Forest",  preview: "linear-gradient(135deg,#0a2e0a,#1a5c1a,#0d3b0d,#2d7a2d)" },
-  { id: "neon",    label: "Neon",    preview: "linear-gradient(135deg,#0d0221,#7c6af7,#0d0221,#f72585)" },
+  { id: "neon",    label: "Neon",    preview: "linear-gradient(135deg,#0d0221,#8B9DFF,#0d0221,#A8FFDA)" },
   { id: "custom",  label: "Accent",  preview: "" },
 ];
 
@@ -62,7 +62,7 @@ export default function ThemeSettings({ onClose }: Props) {
     }
   }
 
-  const accentPresets = ["#7c6af7","#3ecf8e","#f5a623","#f04f5e","#06b6d4","#ec4899","#8b5cf6","#14b8a6","#f97316","#ef4444"];
+  const accentPresets = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF","#8b5cf6","#14b8a6","#f97316","#ef4444"];
 
   return (
     <div style={{
@@ -396,9 +396,9 @@ export default function ThemeSettings({ onClose }: Props) {
             }}>Cancel</button>
             <button onClick={handleApply} style={{
               padding: "9px 20px",
-              background: applied ? "rgba(62,207,142,0.2)" : "linear-gradient(135deg, #7c6af7, #a78bfa)",
-              border: applied ? "1px solid rgba(62,207,142,0.4)" : "none",
-              borderRadius: "var(--radius-sm)", color: applied ? "#3ecf8e" : "#fff",
+              background: applied ? "rgba(168, 255, 218, 0.2)" : "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
+              border: applied ? "1px solid rgba(168, 255, 218, 0.4)" : "none",
+              borderRadius: "var(--radius-sm)", color: applied ? "#A8FFDA" : "#fff",
               cursor: "pointer", fontSize: 13, fontWeight: 700,
               boxShadow: applied ? "none" : "0 4px 12px rgba(124,106,247,0.4)",
               transition: "all 0.2s",

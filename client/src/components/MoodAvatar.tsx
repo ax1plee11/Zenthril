@@ -88,7 +88,7 @@ export default function MoodAvatar({ username, size = 32, showTooltip = true, on
         width: size * 0.35, height: size * 0.35,
         borderRadius: "50%",
         background: mood.color,
-        border: "2px solid var(--bg-base, #0d0e14)",
+        border: "2px solid var(--bg-base, #0E1116)",
         zIndex: 2,
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: size * 0.18,
@@ -105,13 +105,15 @@ export default function MoodAvatar({ username, size = 32, showTooltip = true, on
           bottom: "calc(100% + 8px)",
           left: "50%",
           transform: "translateX(-50%)",
-          background: "var(--bg-elevated, #1a1b27)",
+          background: "var(--surface, rgba(255, 255, 255, 0.05))",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
           border: `1px solid ${mood.color}44`,
-          borderRadius: 10,
+          borderRadius: 12,
           padding: "8px 12px",
           zIndex: 100,
           whiteSpace: "nowrap",
-          boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 12px ${mood.glowColor}`,
+          boxShadow: `var(--shadow), 0 0 12px ${mood.glowColor}`,
           animation: "fadeUp 0.15s ease",
           pointerEvents: "none",
         }}>
@@ -119,7 +121,7 @@ export default function MoodAvatar({ username, size = 32, showTooltip = true, on
             <span style={{ fontSize: 16 }}>{mood.emoji}</span>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: mood.color }}>{mood.label}</div>
-              <div style={{ fontSize: 10, color: "var(--text-muted, #5a5b70)" }}>{mood.description}</div>
+              <div style={{ fontSize: 10, color: "var(--text-secondary, #9AA4B2)" }}>{mood.description}</div>
             </div>
           </div>
           {/* Arrow */}

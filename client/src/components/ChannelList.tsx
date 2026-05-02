@@ -21,11 +21,11 @@ function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; se
         display: "flex", alignItems: "center", gap: 8,
         padding: "7px 10px", margin: "1px 6px", borderRadius: "var(--radius-sm)",
         cursor: "pointer",
-        background: selected ? "rgba(124,106,247,0.15)" : hovered ? "rgba(255,255,255,0.04)" : "transparent",
+        background: selected ? "rgba(139, 157, 255, 0.15)" : hovered ? "rgba(255,255,255,0.04)" : "transparent",
         color: selected ? "var(--text-primary)" : unread > 0 ? "var(--text-primary)" : hovered ? "var(--text-secondary)" : "var(--text-muted)",
         fontSize: 14, fontWeight: selected || unread > 0 ? 600 : 400,
         transition: "all 0.15s", userSelect: "none" as const,
-        borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
+        borderLeft: selected ? "2px solid var(--primary)" : "2px solid transparent",
       }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
@@ -50,7 +50,7 @@ function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; se
       {unread > 0 && (
         <span style={{
           minWidth: 18, height: 18, borderRadius: 9,
-          background: "var(--accent)", color: "#fff",
+          background: "var(--primary)", color: "#fff",
           fontSize: 10, fontWeight: 800,
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: "0 4px", flexShrink: 0,
@@ -103,7 +103,7 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                background: "linear-gradient(135deg, var(--accent), #a78bfa)",
+                background: "linear-gradient(135deg, var(--primary), var(--accent))",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 12, fontWeight: 700, color: "#fff",
               }}>
@@ -398,7 +398,7 @@ function MemberManageModal({ guild, currentUserId, onClose }: {
                       {/* Avatar */}
                       <div style={{
                         width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                        background: `linear-gradient(135deg, #7c6af7, #a78bfa)`,
+                        background: `linear-gradient(135deg, var(--primary), var(--accent))`,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 13, fontWeight: 700, color: "#fff",
                       }}>
@@ -500,12 +500,13 @@ function MemberManageModal({ guild, currentUserId, onClose }: {
                 </div>
               ) : (
                 <button onClick={handleCreateInvite} disabled={inviteLoading} style={{
-                  padding: "12px", borderRadius: 10,
-                  background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
+                  padding: "12px", borderRadius: 12,
+                  background: "linear-gradient(135deg, var(--primary), var(--accent))",
                   border: "none", color: "#fff", cursor: "pointer",
                   fontSize: 13, fontWeight: 700,
-                  boxShadow: "0 4px 12px rgba(124,106,247,0.4)",
+                  boxShadow: "var(--shadow)",
                   opacity: inviteLoading ? 0.7 : 1,
+                  transition: "all 0.2s ease",
                 }}>
                   {inviteLoading ? "Создаём..." : "Создать инвайт"}
                 </button>
@@ -550,7 +551,7 @@ function NoServerSelected() {
           <path d="M14 8L20 11V17L14 20L8 17V11L14 8Z" fill="rgba(255,255,255,0.2)"/>
           <defs>
             <linearGradient id="cl_lg" x1="2" y1="2" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#7c6af7"/><stop offset="1" stopColor="#a78bfa"/>
+              <stop stopColor="var(--primary)"/><stop offset="1" stopColor="var(--accent)"/>
             </linearGradient>
           </defs>
         </svg>

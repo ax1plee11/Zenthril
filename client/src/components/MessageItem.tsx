@@ -50,11 +50,11 @@ function formatText(text: string): React.ReactNode[] {
       parts.push(<code key={key++} style={{
         background: "rgba(255,255,255,0.06)", borderRadius: 4,
         padding: "1px 6px", fontFamily: "monospace", fontSize: 13,
-        color: "#a78bfa", border: "1px solid rgba(255,255,255,0.08)",
+        color: "#A8FFDA", border: "1px solid rgba(255,255,255,0.08)",
       }}>{seg.slice(1,-1)}</code>);
     else if (seg.startsWith("@"))
       parts.push(<span key={key++} style={{
-        background: "rgba(124,106,247,0.2)", color: "#a78bfa",
+        background: "rgba(139, 157, 255, 0.2)", color: "#A8FFDA",
         borderRadius: 4, padding: "0 4px", fontWeight: 600,
       }}>{seg}</span>);
     else
@@ -87,7 +87,7 @@ export function canGroup(a: MessageAPI, b: MessageAPI): boolean {
   return diff < 5 * 60 * 1000; // 5 минут
 }
 
-const AVATAR_COLORS = ["#7c6af7","#3ecf8e","#f5a623","#f04f5e","#06b6d4","#ec4899","#8b5cf6"];
+const AVATAR_COLORS = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF","#8b5cf6"];
 
 function MediaMessage({ url, isGif }: { url: string; isGif: boolean }) {
   const [status, setStatus] = useState<"loading" | "proxied" | "direct" | "error">("loading");

@@ -33,7 +33,7 @@ function loadUserProfile(userId: string, currentUserId: string): UserProfile {
         bio: p.bio ?? "",
         theme: {
           bannerPresetId: p.theme?.bannerPresetId ?? null,
-          bannerColor: p.theme?.bannerColor ?? "#7c6af7",
+          bannerColor: p.theme?.bannerColor ?? "#8B9DFF",
           bannerUrl: p.theme?.bannerUrl ?? null,
         },
       };
@@ -41,7 +41,7 @@ function loadUserProfile(userId: string, currentUserId: string): UserProfile {
   } catch { /* ignore */ }
   return {
     avatarBase64: null, status: "online", bio: "",
-    theme: { bannerPresetId: null, bannerColor: "#7c6af7", bannerUrl: null },
+    theme: { bannerPresetId: null, bannerColor: "#8B9DFF", bannerUrl: null },
   };
 }
 

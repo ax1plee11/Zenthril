@@ -10,7 +10,7 @@ interface Props {
 
 type Tab = "friends" | "search";
 
-const COLORS = ["#7c6af7","#3ecf8e","#f5a623","#f04f5e","#06b6d4","#ec4899"];
+const COLORS = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF"];
 const avatarColor = (name: string) => COLORS[name.charCodeAt(0) % COLORS.length];
 
 function Avatar({ username, size = 38 }: { username: string; size?: number }) {

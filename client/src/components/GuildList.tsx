@@ -13,7 +13,7 @@ interface GuildListProps {
   panelBg?: string;
 }
 
-const COLORS = ["#7c6af7","#3ecf8e","#f5a623","#f04f5e","#06b6d4","#ec4899"];
+const COLORS = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF"];
 const guildColor = (name: string) => COLORS[name.charCodeAt(0) % COLORS.length];
 
 // ── Guild icon in sidebar ─────────────────────────────────────────────────────
@@ -128,9 +128,9 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
               onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border)")}>
                 <div style={{
                   width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                  background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
+                  background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "0 4px 12px rgba(124,106,247,0.4)",
+                  boxShadow: "0 4px 12px rgba(139, 157, 255, 0.4)",
                 }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -188,7 +188,7 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
           <div>
             {/* Header with gradient */}
             <div style={{
-              height: 100, background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
+              height: 100, background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
               display: "flex", alignItems: "center", justifyContent: "center",
               position: "relative",
             }}>
@@ -233,7 +233,7 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
                 }}>Отмена</button>
                 <button type="submit" disabled={loading || !name.trim()} style={{
                   flex: 2, padding: "11px",
-                  background: name.trim() ? "linear-gradient(135deg, #7c6af7, #a78bfa)" : "var(--bg-elevated)",
+                  background: name.trim() ? "linear-gradient(135deg, #8B9DFF, #A8FFDA)" : "var(--bg-elevated)",
                   border: "none", borderRadius: 10, color: name.trim() ? "#fff" : "var(--text-muted)",
                   cursor: name.trim() ? "pointer" : "default",
                   fontSize: 13, fontWeight: 700,
@@ -341,9 +341,9 @@ export default function GuildList({ guilds, selectedGuildId, onSelect, onCreateG
         {/* Logo */}
         <div style={{
           width: 44, height: 44, borderRadius: 14,
-          background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
+          background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          marginBottom: 4, boxShadow: "0 4px 16px rgba(124,106,247,0.4)", flexShrink: 0,
+          marginBottom: 4, boxShadow: "0 4px 16px rgba(139, 157, 255, 0.4)", flexShrink: 0,
         }}>
           <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
             <path d="M14 2L26 8V20L14 26L2 20V8L14 2Z" fill="rgba(255,255,255,0.9)"/>

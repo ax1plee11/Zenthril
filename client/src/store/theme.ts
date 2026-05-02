@@ -61,7 +61,7 @@ const THEME_KEY = "vibrora_theme";
 
 export const DEFAULT_THEME: Theme = {
   scheme: "dark",
-  accentColor: "#7c6af7",
+  accentColor: "#8B9DFF",
   chatBackground: null,
   chatBgOpacity: 100,
   animatedPresetId: null,
@@ -71,22 +71,27 @@ export const DEFAULT_THEME: Theme = {
 };
 
 const DARK_VARS: Record<string, string> = {
-  "--accent":         "#7c6af7",
-  "--accent-hover":   "#9b8df9",
-  "--accent-dim":     "rgba(124,106,247,0.15)",
-  "--bg-base":        "#0d0e14",
-  "--bg-surface":     "#13141d",
-  "--bg-elevated":    "#1a1b27",
-  "--bg-input":       "#0f1018",
-  "--border":         "rgba(255,255,255,0.06)",
-  "--border-accent":  "rgba(124,106,247,0.4)",
-  "--text-primary":   "#e8e9f0",
-  "--text-secondary": "#9a9bb0",
-  "--text-muted":     "#5a5b70",
+  "--primary":        "#8B9DFF",
+  "--accent":         "#A8FFDA",
+  "--accent-hover":   "rgba(139, 157, 255, 0.9)",
+  "--accent-dim":     "rgba(139, 157, 255, 0.15)",
+  "--bg":             "#0E1116",
+  "--bg-base":        "#0E1116",
+  "--bg-surface":     "rgba(255, 255, 255, 0.05)",
+  "--bg-elevated":    "rgba(255, 255, 255, 0.08)",
+  "--bg-input":       "rgba(255, 255, 255, 0.05)",
+  "--border":         "rgba(255, 255, 255, 0.08)",
+  "--border-accent":  "rgba(139, 157, 255, 0.4)",
+  "--text-primary":   "#FFFFFF",
+  "--text-secondary": "#9AA4B2",
+  "--text-muted":     "#9AA4B2",
+  "--surface":        "rgba(255, 255, 255, 0.05)",
+  "--surface-strong": "rgba(255, 255, 255, 0.08)",
+  "--shadow":         "0 10px 30px rgba(0, 0, 0, 0.35)",
   // legacy compat
-  "--bg-primary":     "#1a1b27",
-  "--bg-secondary":   "#13141d",
-  "--bg-tertiary":    "#0d0e14",
+  "--bg-primary":     "rgba(255, 255, 255, 0.08)",
+  "--bg-secondary":   "#131720",
+  "--bg-tertiary":    "#0E1116",
 };
 
 const LIGHT_VARS: Record<string, string> = {

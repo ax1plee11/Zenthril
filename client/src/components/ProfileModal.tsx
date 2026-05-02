@@ -23,7 +23,7 @@ export interface UserProfile {
 
 const DEFAULT_PROFILE_THEME: ProfileTheme = {
   bannerPresetId: null,
-  bannerColor: "#7c6af7",
+  bannerColor: "#8B9DFF",
   bannerUrl: null,
 };
 
@@ -34,7 +34,7 @@ export const BANNER_PRESETS = [
   { id: "sunset", label: "Sunset", colors: ["#2d1b69","#fc5c7d","#ff9a44","#fc5c7d"] },
   { id: "ocean",  label: "Ocean",  colors: ["#0f2027","#203a43","#2c5364","#1a6b8a"] },
   { id: "fire",   label: "Fire",   colors: ["#1a0000","#7f0000","#cc2200","#ff6600"] },
-  { id: "neon",   label: "Neon",   colors: ["#0d0221","#7c6af7","#0d0221","#f72585"] },
+  { id: "neon",   label: "Neon",   colors: ["#0d0221","#8B9DFF","#0d0221","#A8FFDA"] },
 ];
 
 export function getBannerStyle(theme: ProfileTheme): React.CSSProperties {

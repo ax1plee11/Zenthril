@@ -240,10 +240,10 @@ function NotificationItem({ n, actionLoading, onRead, onAccept, onDecline, onJoi
     guild_join: "👥",
   };
   const colors: Record<Notification["type"], string> = {
-    friend_request: "#7c6af7",
-    friend_accepted: "#3ecf8e",
-    invite: "#f5a623",
-    guild_join: "#06b6d4",
+    friend_request: "#8B9DFF",
+    friend_accepted: "#A8FFDA",
+    invite: "#9AA4B2",
+    guild_join: "#131720",
   };
 
   function formatTime(ts: number): string {
@@ -321,7 +321,7 @@ function NotificationItem({ n, actionLoading, onRead, onAccept, onDecline, onJoi
               onClick={e => { e.stopPropagation(); onJoin(); }}
               style={{
                 padding: "5px 14px", borderRadius: 7, border: "none",
-                background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
+                background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
                 color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 700,
                 opacity: actionLoading ? 0.6 : 1,
               }}>Войти на сервер</button>
@@ -338,7 +338,7 @@ function NotificationItem({ n, actionLoading, onRead, onAccept, onDecline, onJoi
           {!n.read && (
             <div style={{
               position: "absolute" as const, right: 12, top: "50%", transform: "translateY(-50%)",
-              width: 7, height: 7, borderRadius: "50%", background: "#7c6af7",
+              width: 7, height: 7, borderRadius: "50%", background: "#8B9DFF",
             }} />
           )}
         </div>

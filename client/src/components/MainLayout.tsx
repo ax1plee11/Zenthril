@@ -113,9 +113,9 @@ export default function MainLayout() {
         {/* Logo */}
         <div style={{
           width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-          background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
+          background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 8px rgba(124,106,247,0.4)",
+          boxShadow: "0 2px 8px rgba(139, 157, 255, 0.4)",
           marginRight: 4,
         }}>
           <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
@@ -355,7 +355,7 @@ export default function MainLayout() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: friendToast.type === "request" ? 10 : 0 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-              background: friendToast.type === "request" ? "linear-gradient(135deg,#7c6af7,#a78bfa)" : "linear-gradient(135deg,#3ecf8e,#06b6d4)",
+              background: friendToast.type === "request" ? "linear-gradient(135deg,#8B9DFF,#A8FFDA)" : "linear-gradient(135deg,#A8FFDA,#131720)",
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
             }}>
               {friendToast.type === "request" ? "👋" : "🎉"}
@@ -375,7 +375,7 @@ export default function MainLayout() {
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={async () => { try { await api.friends.accept(friendToast.userId); } finally { setFriendToast(null); } }} style={{
                 flex: 1, padding: "7px", borderRadius: 8, border: "none",
-                background: "linear-gradient(135deg,#7c6af7,#a78bfa)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+                background: "linear-gradient(135deg,#8B9DFF,#A8FFDA)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
               }}>Принять</button>
               <button onClick={async () => { try { await api.friends.decline(friendToast.userId); } finally { setFriendToast(null); } }} style={{
                 flex: 1, padding: "7px", borderRadius: 8,

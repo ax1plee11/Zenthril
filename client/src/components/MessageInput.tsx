@@ -108,7 +108,7 @@ export default function MessageInput({ channelName, onSend, onTyping, disabled =
           disabled={!hasText || sending || disabled}
           style={{
             width: 34, height: 34, borderRadius: 9, border: "none",
-            background: hasText ? "linear-gradient(135deg, #7c6af7, #a78bfa)" : "var(--bg-input)",
+            background: hasText ? "linear-gradient(135deg, #8B9DFF, #A8FFDA)" : "var(--bg-input)",
             color: hasText ? "#fff" : "var(--text-muted)",
             cursor: hasText ? "pointer" : "default",
             display: "flex", alignItems: "center", justifyContent: "center",

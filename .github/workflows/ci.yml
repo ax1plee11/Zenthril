@@ -20,9 +20,9 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.6.0
+          version: latest
           working-directory: backend
       - name: Test (race)
         run: go test -race ./... -count=1
