@@ -45,10 +45,10 @@ func Load() (*Config, error) {
 	adminIDs := splitCommaList(getEnv("ADMIN_USER_IDS", ""))
 
 	cfg := &Config{
-		DBURL:              getEnv("DB_URL", ""),
+		DBURL:              getEnvWithFallback("DB_URL", "DATABASE_URL", ""),
 		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:          getEnv("JWT_SECRET", ""),
-		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
+		HTTPAddr:           getEnvWithFallback("HTTP_ADDR", "PORT", ":8080"),
 		TLSCertFile:        getEnv("TLS_CERT_FILE", ""),
 		TLSKeyFile:         getEnv("TLS_KEY_FILE", ""),
 		NodeDomain:         getEnv("NODE_DOMAIN", "localhost"),
@@ -59,7 +59,7 @@ func Load() (*Config, error) {
 	}
 
 	if cfg.DBURL == "" {
-		return nil, fmt.Errorf("DB_URL is required")
+		return nil, fmt.Errorf("DB_URL or DATABASE_URL is required")
 	}
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
@@ -71,6 +71,21 @@ func Load() (*Config, error) {
 // getEnv возвращает значение переменной окружения или defaultVal, если она не задана.
 func getEnv(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultVal
+}
+
+// getEnvWithFallback пытается получить значение из первой переменной, если не найдена - из второй
+func getEnvWithFallback(primary, fallback, defaultVal string) string {
+	if v := os.Getenv(primary); v != "" {
+		return v
+	}
+	if v := os.Getenv(fallback); v != "" {
+		// Railway использует PORT без двоеточия, добавляем его
+		if fallback == "PORT" {
+			return ":" + v
+		}
 		return v
 	}
 	return defaultVal

@@ -63,6 +63,88 @@ npm run dev
 
 ## 🚀 Вариант 4: Публичный сервер
 
+### Быстрый деплой на Railway (бесплатно, 500 часов/месяц)
+
+#### Шаг 1: Создай проект на Railway
+
+1. Открой https://railway.app/
+2. Войди через GitHub
+3. Нажми **"New Project"**
+4. Выбери **"Deploy from GitHub repo"**
+5. Выбери репозиторий **Zenthril**
+
+#### Шаг 2: Добавь базы данных
+
+**PostgreSQL:**
+1. Нажми **"+ New"** → **"Database"** → **"PostgreSQL"**
+2. Railway автоматически создаст переменную `DATABASE_URL`
+
+**Redis:**
+1. Нажми **"+ New"** → **"Database"** → **"Redis"**
+2. Railway автоматически создаст переменную `REDIS_URL`
+
+#### Шаг 3: Настрой переменные окружения
+
+В настройках backend-сервиса добавь:
+
+```env
+# JWT Secret (сгенерируй случайную строку)
+JWT_SECRET=your-super-secret-jwt-key-min-32-characters-long
+
+# CORS для GitHub Pages
+CORS_ALLOWED_ORIGINS=https://ax1plee11.github.io
+
+# WebSocket origins
+WS_ALLOWED_ORIGINS=https://ax1plee11.github.io
+```
+
+#### Шаг 4: Получи URL backend
+
+После деплоя Railway даст тебе URL типа:
+```
+https://zenthril-production.up.railway.app
+```
+
+#### Шаг 5: Обнови GitHub Pages
+
+Добавь переменную окружения в `.github/workflows/deploy-pages.yml`:
+
+```yaml
+- name: Build
+  working-directory: ./client
+  run: npm run build
+  env:
+    VITE_BASE: /Zenthril/
+    VITE_API_BASE: https://zenthril-production.up.railway.app
+```
+
+#### Шаг 6: Готово!
+
+Теперь твои друзья могут:
+```
+https://ax1plee11.github.io/Zenthril/
+```
+
+И всё будет работать! 🎉
+
+---
+
+### Альтернативы Railway:
+
+**Render.com** (бесплатно, но засыпает после 15 мин неактивности):
+- https://render.com/
+- Аналогично Railway, но медленнее
+
+**Fly.io** (бесплатно, 3 VM):
+- https://fly.io/
+- Быстрее, но сложнее настройка
+
+**DigitalOcean** ($5/месяц):
+- https://www.digitalocean.com/
+- Самый надёжный вариант
+
+---
+
 Если хочешь, чтобы друзья могли использовать твой сервер:
 
 ### 1. Разверни backend на хостинге
