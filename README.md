@@ -46,6 +46,8 @@ A decentralized messenger with federated architecture and end-to-end encryption.
 - [docs/PRIVACY.md](docs/PRIVACY.md) — Privacy policy draft for public services
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Public hosting: TLS, `VITE_API_BASE`, CORS/WS, backups
 - [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) — How to build desktop application (.exe)
+- [SHARE.md](SHARE.md) — **How to share Zenthril with friends** 🎉
+- [docs/GITHUB_PAGES.md](docs/GITHUB_PAGES.md) — Deploy web version to GitHub Pages
 
 ## Code Quality (Local)
 

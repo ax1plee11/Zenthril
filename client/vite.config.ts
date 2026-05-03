@@ -7,6 +7,9 @@ import path from "path";
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // Base path for GitHub Pages
+  base: process.env.VITE_BASE || '/',
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
