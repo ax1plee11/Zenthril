@@ -1,5 +1,42 @@
 # Инструкция по сборке Zenthril.exe
 
+## Вариант 1: Сборка через GitHub Actions (БЕЗ установки Build Tools)
+
+Самый простой способ - использовать GitHub Actions для автоматической сборки.
+
+### Шаги:
+
+1. **Открой свой репозиторий на GitHub:**
+   ```
+   https://github.com/ax1plee11/Zenthril
+   ```
+
+2. **Перейди во вкладку "Actions"**
+
+3. **Найди workflow "Build Desktop App"**
+
+4. **Нажми "Run workflow"** → **"Run workflow"**
+
+5. **Подожди 10-15 минут** пока GitHub соберёт приложение
+
+6. **Скачай готовые файлы:**
+   - Перейди в завершённый workflow
+   - В разделе "Artifacts" скачай:
+     - `zenthril-windows-installer` - установщик .exe
+     - `zenthril-windows-portable` - portable .exe (без установки)
+
+### Преимущества:
+- ✅ Не нужно устанавливать Build Tools (~6 ГБ)
+- ✅ Собирается на серверах GitHub (бесплатно)
+- ✅ Автоматически собирает для Windows, Linux, macOS
+- ✅ Можно скачать готовый .exe
+
+---
+
+## Вариант 2: Локальная сборка (требует Build Tools)
+
+Если хочешь собирать локально на своём компьютере.
+
 ## Требования
 
 ### 1. Visual Studio Build Tools
