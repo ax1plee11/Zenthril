@@ -1,33 +1,65 @@
 # Zenthril
 
-Децентрализованный мессенджер с федеративной архитектурой и сквозным шифрованием.
+**[English](README.md)** | **[Русский](README.ru.md)** | **[Українська](README.uk.md)**
 
-## Стек
+---
 
-- **Бэкенд**: Go + PostgreSQL + Redis
-- **Клиент**: Tauri + Vite + React/TypeScript
-- **Шифрование**: X25519 + AES-256-GCM (E2EE)
-- **Аутентификация**: JWT + Argon2id
+A decentralized messenger with federated architecture and end-to-end encryption.
 
-## Документы
+## Tech Stack
 
-- [SECURITY.md](SECURITY.md) — как сообщать об уязвимостях
-- [docs/PRIVACY.md](docs/PRIVACY.md) — черновик политики конфиденциальности для публичного сервиса
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — публичный хостинг: TLS, `VITE_API_BASE`, CORS/WS, бэкапы
+- **Backend**: Go + PostgreSQL + Redis
+- **Client**: Tauri + Vite + React/TypeScript
+- **Encryption**: X25519 + AES-256-GCM (E2EE)
+- **Authentication**: JWT + Argon2id
+- **UI**: Tailwind CSS + shadcn/ui + Glass Minimal Design
+- **i18n**: Multi-language support (EN, RU, UK)
 
-## Качество кода (локально)
+## Features
 
-**Бэкенд** (`backend/`):
+✨ **Modern Design**
+- Glass Minimal UI inspired by Apple/Notion
+- Dark theme with glassmorphism effects
+- Smooth animations and transitions
+- Responsive layout
+
+🌍 **Internationalization**
+- Automatic language detection
+- Support for English, Russian, Ukrainian
+- Easy to add new languages
+
+🔒 **Security & Privacy**
+- End-to-end encryption (E2EE)
+- Federated architecture
+- No tracking or data collection
+- Open source
+
+💬 **Communication**
+- Text channels and direct messages
+- Voice channels (WebRTC)
+- GIF support (Tenor/Giphy)
+- Real-time messaging (WebSocket)
+
+## Documentation
+
+- [SECURITY.md](SECURITY.md) — How to report security vulnerabilities
+- [docs/PRIVACY.md](docs/PRIVACY.md) — Privacy policy draft for public services
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Public hosting: TLS, `VITE_API_BASE`, CORS/WS, backups
+- [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) — How to build desktop application (.exe)
+
+## Code Quality (Local)
+
+**Backend** (`backend/`):
 
 ```bash
 go vet ./...
 go test ./... -count=1
-# go test -race ./...   # на Linux/macOS и Windows amd64; на win/386 недоступен
+# go test -race ./...   # on Linux/macOS and Windows amd64; not available on win/386
 ```
 
-Линтер: [golangci-lint](https://golangci-lint.run/) с конфигом `backend/.golangci.yml` (тот же запускается в CI).
+Linter: [golangci-lint](https://golangci-lint.run/) with config `backend/.golangci.yml` (same as in CI).
 
-**Клиент** (`client/`):
+**Client** (`client/`):
 
 ```bash
 npm run lint
@@ -36,57 +68,109 @@ npm run test:coverage
 npm run build
 ```
 
-## Структура
+## Project Structure
 
 ```
 zenthril/
-├── backend/          # Go-сервер (узел федеративной сети)
-│   ├── config/       # Конфигурация через env-переменные
-│   ├── migrations/   # SQL-миграции PostgreSQL
-│   └── main.go       # Точка входа HTTP-сервера
-├── client/           # Tauri + Vite + React/TypeScript десктоп-клиент
+├── backend/          # Go server (federated network node)
+│   ├── config/       # Configuration via environment variables
+│   ├── migrations/   # PostgreSQL SQL migrations
+│   └── main.go       # HTTP server entry point
+├── client/           # Tauri + Vite + React/TypeScript desktop client
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── i18n/        # Internationalization (EN, RU, UK)
+│   │   └── store/       # State management
+│   └── src-tauri/    # Tauri (Rust) desktop wrapper
+├── docs/             # Documentation
 ├── docker-compose.yml
 └── .env.example
 ```
 
-## Быстрый старт
+## Quick Start
 
 ```bash
+# 1. Copy environment variables
 cp .env.example .env
+
+# 2. Start backend services (PostgreSQL + Redis)
 docker compose up -d
+
+# 3. Install client dependencies
 cd client
-npm i
+npm install
+
+# 4. Copy client environment variables
 cp .env.example .env
+
+# 5. Start development server
 npm run dev -- --host 0.0.0.0 --port 1420
 ```
 
-Открой `http://localhost:1420/`. Бэкенд будет доступен на `http://localhost:8080/`.
+Open `http://localhost:1420/`. Backend will be available at `http://localhost:8080/`.
 
-## Переменные окружения
+## Environment Variables
 
-### Бэкенд (корень репозитория)
+### Backend (repository root)
 
-- `DB_URL` (обязательно)
-- `REDIS_URL` (по умолчанию `redis://localhost:6379`)
-- `JWT_SECRET` (обязательно)
-- `HTTP_ADDR` (по умолчанию `:8080`)
-- `CORS_ALLOWED_ORIGINS` (опционально)
-- `WS_ALLOWED_ORIGINS` (опционально)
-- `ADMIN_USER_IDS` (опционально, UUID через запятую) — доступ к `/api/v1/admin/*` (в т.ч. global ban)
+- `DB_URL` (required) — PostgreSQL connection string
+- `REDIS_URL` (default: `redis://localhost:6379`)
+- `JWT_SECRET` (required) — Secret key for JWT tokens
+- `HTTP_ADDR` (default: `:8080`)
+- `CORS_ALLOWED_ORIGINS` (optional) — CORS allowed origins
+- `WS_ALLOWED_ORIGINS` (optional) — WebSocket allowed origins
+- `ADMIN_USER_IDS` (optional, comma-separated UUIDs) — Access to `/api/v1/admin/*` (including global ban)
 
-### Клиент (папка `client/`)
+### Client (`client/` folder)
 
-Скопируй `client/.env.example` → `client/.env`.
+Copy `client/.env.example` → `client/.env`.
 
-- `VITE_API_BASE` (для прод-сборки) — origin бэкенда, например `https://api.example.com` (см. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
-- `VITE_TENOR_KEY` (опционально) — поиск/нормализация Tenor
-- `VITE_GIPHY_KEY` (опционально) — поиск/нормализация Giphy
+- `VITE_API_BASE` (for production build) — Backend origin, e.g., `https://api.example.com` (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
+- `VITE_TENOR_KEY` (optional) — Tenor API key for GIF search
+- `VITE_GIPHY_KEY` (optional) — Giphy API key for GIF search
 
-## Tauri (Windows)
+## Building Desktop Application (Windows)
 
-Для сборки десктоп-приложения на Windows нужны **Visual Studio Build Tools** (наличие `link.exe`), затем:
+To build the desktop application on Windows, you need **Visual Studio Build Tools** (with `link.exe`):
+
+1. Download [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+2. Select "Desktop development with C++"
+3. Install (~6 GB)
+4. Restart your terminal
+
+Then build:
 
 ```bash
-cd client/src-tauri
-cargo build --release
+cd client
+npm run tauri build
 ```
+
+The `.exe` file will be in `client/src-tauri/target/release/bundle/`.
+
+See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for detailed instructions.
+
+## Screenshots
+
+### Glass Minimal Design
+![Auth Screen](https://via.placeholder.com/800x500?text=Auth+Screen+with+Language+Switcher)
+
+### Multi-language Support
+- 🇬🇧 English
+- 🇷🇺 Русский
+- 🇺🇦 Українська
+
+Language is automatically detected from browser settings and can be changed manually.
+
+## Contributing
+
+Contributions are welcome! Please read [SECURITY.md](SECURITY.md) before reporting security issues.
+
+## License
+
+This project is open source. See LICENSE file for details.
+
+## Acknowledgments
+
+- Design inspired by Apple and Notion
+- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- Icons from [Lucide](https://lucide.dev/)

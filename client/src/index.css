@@ -1,6 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-:root {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
   /* ── Zenthril Glass Minimal Palette ────────────────────────────────── */
   /* Base */
   --bg:                #0E1116;
@@ -49,6 +54,16 @@
   --panel-bg:          rgba(255, 255, 255, 0.05);
   --panel-bg-elevated: rgba(255, 255, 255, 0.08);
   --panel-topbar:      #0E1116;
+}
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 *, *::before, *::after {

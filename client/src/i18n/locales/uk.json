@@ -1,0 +1,82 @@
+{
+  "auth": {
+    "login": "Вхід",
+    "register": "Реєстрація",
+    "username": "Ім'я користувача",
+    "password": "Пароль",
+    "confirmPassword": "Підтвердіть пароль",
+    "email": "Email",
+    "loginButton": "Увійти",
+    "registerButton": "Зареєструватися",
+    "alreadyHaveAccount": "Вже є акаунт?",
+    "dontHaveAccount": "Немає акаунту?",
+    "loginError": "Помилка входу",
+    "registerError": "Помилка реєстрації"
+  },
+  "chat": {
+    "typeMessage": "Введіть повідомлення...",
+    "send": "Надіслати",
+    "typing": "друкує...",
+    "online": "в мережі",
+    "offline": "не в мережі",
+    "members": "Учасники",
+    "channels": "Канали",
+    "directMessages": "Особисті повідомлення",
+    "addFriend": "Додати друга",
+    "searchUsers": "Пошук користувачів..."
+  },
+  "guild": {
+    "createGuild": "Створити сервер",
+    "guildName": "Назва сервера",
+    "guildDescription": "Опис сервера",
+    "createChannel": "Створити канал",
+    "channelName": "Назва каналу",
+    "textChannel": "Текстовий канал",
+    "voiceChannel": "Голосовий канал",
+    "settings": "Налаштування",
+    "inviteLink": "Посилання-запрошення",
+    "members": "Учасники"
+  },
+  "profile": {
+    "profile": "Профіль",
+    "editProfile": "Редагувати профіль",
+    "status": "Статус",
+    "mood": "Настрій",
+    "bio": "Про себе",
+    "settings": "Налаштування",
+    "logout": "Вийти",
+    "theme": "Тема",
+    "language": "Мова",
+    "notifications": "Сповіщення"
+  },
+  "common": {
+    "save": "Зберегти",
+    "cancel": "Скасувати",
+    "delete": "Видалити",
+    "edit": "Змінити",
+    "close": "Закрити",
+    "confirm": "Підтвердити",
+    "search": "Пошук",
+    "loading": "Завантаження...",
+    "error": "Помилка",
+    "success": "Успішно",
+    "warning": "Попередження",
+    "info": "Інформація"
+  },
+  "notifications": {
+    "newMessage": "Нове повідомлення від {{user}}",
+    "friendRequest": "Запит у друзі від {{user}}",
+    "guildInvite": "Запрошення на сервер {{guild}}",
+    "mention": "{{user}} згадав вас"
+  },
+  "voice": {
+    "joinVoice": "Увійти в голосовий",
+    "leaveVoice": "Вийти з голосового",
+    "mute": "Вимкнути мікрофон",
+    "unmute": "Увімкнути мікрофон",
+    "deafen": "Вимкнути звук",
+    "undeafen": "Увімкнути звук",
+    "shareScreen": "Поділитися екраном",
+    "stopSharing": "Зупинити показ"
+  }
+}

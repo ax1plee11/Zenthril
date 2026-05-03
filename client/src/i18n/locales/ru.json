@@ -1,0 +1,82 @@
+{
+  "auth": {
+    "login": "Вход",
+    "register": "Регистрация",
+    "username": "Имя пользователя",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "email": "Email",
+    "loginButton": "Войти",
+    "registerButton": "Зарегистрироваться",
+    "alreadyHaveAccount": "Уже есть аккаунт?",
+    "dontHaveAccount": "Нет аккаунта?",
+    "loginError": "Ошибка входа",
+    "registerError": "Ошибка регистрации"
+  },
+  "chat": {
+    "typeMessage": "Введите сообщение...",
+    "send": "Отправить",
+    "typing": "печатает...",
+    "online": "в сети",
+    "offline": "не в сети",
+    "members": "Участники",
+    "channels": "Каналы",
+    "directMessages": "Личные сообщения",
+    "addFriend": "Добавить друга",
+    "searchUsers": "Поиск пользователей..."
+  },
+  "guild": {
+    "createGuild": "Создать сервер",
+    "guildName": "Название сервера",
+    "guildDescription": "Описание сервера",
+    "createChannel": "Создать канал",
+    "channelName": "Название канала",
+    "textChannel": "Текстовый канал",
+    "voiceChannel": "Голосовой канал",
+    "settings": "Настройки",
+    "inviteLink": "Ссылка-приглашение",
+    "members": "Участники"
+  },
+  "profile": {
+    "profile": "Профиль",
+    "editProfile": "Редактировать профиль",
+    "status": "Статус",
+    "mood": "Настроение",
+    "bio": "О себе",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "theme": "Тема",
+    "language": "Язык",
+    "notifications": "Уведомления"
+  },
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Изменить",
+    "close": "Закрыть",
+    "confirm": "Подтвердить",
+    "search": "Поиск",
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "warning": "Предупреждение",
+    "info": "Информация"
+  },
+  "notifications": {
+    "newMessage": "Новое сообщение от {{user}}",
+    "friendRequest": "Запрос в друзья от {{user}}",
+    "guildInvite": "Приглашение на сервер {{guild}}",
+    "mention": "{{user}} упомянул вас"
+  },
+  "voice": {
+    "joinVoice": "Войти в голосовой",
+    "leaveVoice": "Выйти из голосового",
+    "mute": "Выключить микрофон",
+    "unmute": "Включить микрофон",
+    "deafen": "Выключить звук",
+    "undeafen": "Включить звук",
+    "shareScreen": "Поделиться экраном",
+    "stopSharing": "Остановить показ"
+  }
+}

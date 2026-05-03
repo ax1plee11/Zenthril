@@ -1,0 +1,82 @@
+{
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "username": "Username",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "email": "Email",
+    "loginButton": "Sign In",
+    "registerButton": "Sign Up",
+    "alreadyHaveAccount": "Already have an account?",
+    "dontHaveAccount": "Don't have an account?",
+    "loginError": "Login failed",
+    "registerError": "Registration failed"
+  },
+  "chat": {
+    "typeMessage": "Type a message...",
+    "send": "Send",
+    "typing": "typing...",
+    "online": "online",
+    "offline": "offline",
+    "members": "Members",
+    "channels": "Channels",
+    "directMessages": "Direct Messages",
+    "addFriend": "Add Friend",
+    "searchUsers": "Search users..."
+  },
+  "guild": {
+    "createGuild": "Create Server",
+    "guildName": "Server Name",
+    "guildDescription": "Server Description",
+    "createChannel": "Create Channel",
+    "channelName": "Channel Name",
+    "textChannel": "Text Channel",
+    "voiceChannel": "Voice Channel",
+    "settings": "Settings",
+    "inviteLink": "Invite Link",
+    "members": "Members"
+  },
+  "profile": {
+    "profile": "Profile",
+    "editProfile": "Edit Profile",
+    "status": "Status",
+    "mood": "Mood",
+    "bio": "Bio",
+    "settings": "Settings",
+    "logout": "Logout",
+    "theme": "Theme",
+    "language": "Language",
+    "notifications": "Notifications"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info"
+  },
+  "notifications": {
+    "newMessage": "New message from {{user}}",
+    "friendRequest": "Friend request from {{user}}",
+    "guildInvite": "Invited to {{guild}}",
+    "mention": "{{user}} mentioned you"
+  },
+  "voice": {
+    "joinVoice": "Join Voice",
+    "leaveVoice": "Leave Voice",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "deafen": "Deafen",
+    "undeafen": "Undeafen",
+    "shareScreen": "Share Screen",
+    "stopSharing": "Stop Sharing"
+  }
+}

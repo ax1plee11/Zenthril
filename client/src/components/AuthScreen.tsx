@@ -1,13 +1,16 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../api/index";
 import { saveAuth } from "../store/auth";
 import { generateKeyPair, exportPublicKey, storePrivateKey } from "../crypto/index";
 import { apiErrorFields } from "../util/errors";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 interface AuthScreenProps { onAuth: () => void; }
 type Tab = "login" | "register";
 
 export default function AuthScreen({ onAuth }: AuthScreenProps) {
+  const { t } = useTranslation();
   const [tab, setTab]           = useState<Tab>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -25,23 +28,23 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
     const trimPass = password.trim();
 
     if (trimUser.length < 2) {
-      setError("Имя пользователя должно быть не менее 2 символов");
+      setError(t('auth.loginError'));
       return;
     }
     if (trimUser.length > 32) {
-      setError("Имя пользователя не может быть длиннее 32 символов");
+      setError(t('auth.loginError'));
       return;
     }
     if (!/^[a-zA-Z0-9_.-]+$/.test(trimUser)) {
-      setError("Имя пользователя может содержать только буквы, цифры, _, . и -");
+      setError(t('auth.loginError'));
       return;
     }
     if (tab === "register" && usernameStatus === "taken") {
-      setError("Это имя уже занято — выберите другое");
+      setError(t('auth.registerError'));
       return;
     }
     if (tab === "register" && trimPass.length < 6) {
-      setError("Пароль должен быть не менее 6 символов");
+      setError(t('auth.registerError'));
       return;
     }
 
@@ -60,10 +63,10 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
       onAuth();
     } catch (err: unknown) {
       const { code, message } = apiErrorFields(err);
-      if (code === "username_taken") setError("Это имя уже занято");
-      else if (code === "invalid_credentials") setError("Неверное имя пользователя или пароль");
-      else if (code === "account_banned") setError("Аккаунт заблокирован");
-      else setError(message ?? "Что-то пошло не так. Попробуйте ещё раз.");
+      if (code === "username_taken") setError(t('auth.registerError'));
+      else if (code === "invalid_credentials") setError(t('auth.loginError'));
+      else if (code === "account_banned") setError(t('auth.loginError'));
+      else setError(message ?? t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -71,6 +74,11 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
 
   return (
     <div style={s.root}>
+      {/* Language Switcher */}
+      <div style={s.langSwitcher}>
+        <LanguageSwitcher />
+      </div>
+
       {/* Ambient blobs */}
       <div style={s.blob1} />
       <div style={s.blob2} />
@@ -96,9 +104,9 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
 
         {/* Tabs */}
         <div style={s.tabs}>
-          {(["login","register"] as Tab[]).map(t => (
-            <button key={t} style={s.tab(tab === t)} onClick={() => { setTab(t); setError(null); setUsernameStatus("idle"); }}>
-              {t === "login" ? "Sign In" : "Create Account"}
+          {(["login","register"] as Tab[]).map(tabType => (
+            <button key={tabType} style={s.tab(tab === tabType)} onClick={() => { setTab(tabType); setError(null); setUsernameStatus("idle"); }}>
+              {tabType === "login" ? t('auth.login') : t('auth.register')}
             </button>
           ))}
           <div style={s.tabIndicator()} />
@@ -106,7 +114,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
 
         <form onSubmit={handleSubmit} style={s.form}>
           <div style={s.field}>
-            <label style={s.label}>Username</label>
+            <label style={s.label}>{t('auth.username')}</label>
             <div style={s.inputWrap}>
               <span style={s.inputIcon}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -158,7 +166,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
           </div>
 
           <div style={s.field}>
-            <label style={s.label}>Password</label>
+            <label style={s.label}>{t('auth.password')}</label>
             <div style={s.inputWrap}>
               <span style={s.inputIcon}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -188,7 +196,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
 
           <button type="submit" style={s.btn(loading)} disabled={loading}>
             {loading ? <span style={s.spinner} /> : null}
-            {loading ? "Please wait..." : tab === "login" ? "Sign In" : "Create Account"}
+            {loading ? t('common.loading') : tab === "login" ? t('auth.loginButton') : t('auth.registerButton')}
           </button>
         </form>
 
@@ -204,6 +212,12 @@ const s = {
   root: {
     display: "flex", alignItems: "center", justifyContent: "center",
     minHeight: "100vh", background: "var(--bg-base)", position: "relative" as const, overflow: "hidden",
+  } as React.CSSProperties,
+  langSwitcher: {
+    position: "absolute" as const,
+    top: 20,
+    right: 20,
+    zIndex: 10,
   } as React.CSSProperties,
   blob1: {
     position: "absolute" as const, width: 500, height: 500, borderRadius: "50%",

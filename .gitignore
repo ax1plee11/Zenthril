@@ -46,6 +46,7 @@ Thumbs.db
 .vscode/
 *.swp
 .idea/
+.vs/
 
 # Certificates / keys
 *.pem
