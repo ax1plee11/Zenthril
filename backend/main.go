@@ -20,7 +20,6 @@ import (
 	"veltrix-backend/hub"
 	"veltrix-backend/message"
 	"veltrix-backend/metrics"
-	"veltrix-backend/moderation"
 	"veltrix-backend/security"
 	"veltrix-backend/spam"
 )
@@ -104,19 +103,11 @@ func main() {
 	friendsSvc := friends.NewService(database)
 	friendsHandler := friends.NewHandler(friendsSvc, wsHub)
 
-	connMonitor := moderation.NewConnectionMonitor(database)
-	stateManager := moderation.NewGuildStateManager(database, cfg.AdminUserIDs)
-	guildModerator := moderation.NewGuildModerator(database, connMonitor)
-	moderationHandler := moderation.NewHandler(guildModerator, connMonitor, stateManager)
-
-	guildSvc.SetStateChecker(stateManager)
-
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(metrics.HTTPMiddleware)
-	r.Use(connMonitor.ConnectionMiddleware)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -251,15 +242,6 @@ func main() {
 			r.Use(adminOnly(cfg))
 			r.Post("/users/{userId}/ban", authHandler.GlobalBan)
 			r.Delete("/users/{userId}/ban", authHandler.GlobalUnban)
-			r.Get("/users/{userId}/ips", moderationHandler.GetUserIPs)
-			r.Post("/guilds/{guildId}/process-ban", moderationHandler.ProcessGuildBan)
-			r.Post("/guilds/{guildId}/global-ban", moderationHandler.GlobalBanGuildAndMembers)
-			r.Get("/guilds/{guildId}/member-ips", moderationHandler.GetGuildMembersIPs)
-			r.Post("/guilds/{guildId}/lock", moderationHandler.LockGuild)
-			r.Post("/guilds/{guildId}/unlock", moderationHandler.UnlockGuild)
-			r.Get("/guilds/{guildId}/lock-status", moderationHandler.GetLockStatus)
-			r.Get("/locked-guilds", moderationHandler.GetAllLockedGuilds)
-			r.Get("/audit-log", authHandler.GetAuditLog)
 		})
 	})
 

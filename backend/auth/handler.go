@@ -124,21 +124,10 @@ func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	ipAddress := r.Header.Get("X-Forwarded-For")
-	if ipAddress == "" {
-		ipAddress = r.Header.Get("X-Real-IP")
-	}
-	if ipAddress == "" {
-		ipAddress = r.RemoteAddr
-	}
-
 	if err := h.svc.GlobalBan(r.Context(), targetUserID, requesterID, req.Reason); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to ban user")
 		return
 	}
-
-	details := "reason: " + req.Reason
-	_ = h.svc.LogAdminAction(r.Context(), requesterID, "GLOBAL_BAN", targetUserID, details, ipAddress)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -156,32 +145,12 @@ func (h *Handler) GlobalUnban(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := r.Header.Get("X-Forwarded-For")
-	if ipAddress == "" {
-		ipAddress = r.Header.Get("X-Real-IP")
-	}
-	if ipAddress == "" {
-		ipAddress = r.RemoteAddr
-	}
-
 	if err := h.svc.GlobalUnban(r.Context(), targetUserID); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to unban user")
 		return
 	}
 
-	_ = h.svc.LogAdminAction(r.Context(), requesterID, "GLOBAL_UNBAN", targetUserID, "", ipAddress)
-
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
-	logs, err := h.svc.GetAuditLog(r.Context(), 100)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to fetch audit log")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, logs)
 }
 
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
