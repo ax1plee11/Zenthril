@@ -141,7 +141,7 @@ Open `http://localhost:1420/`. Backend will be available at `http://localhost:80
 - `HTTP_ADDR` (default: `:8080`)
 - `CORS_ALLOWED_ORIGINS` (optional) — CORS allowed origins
 - `WS_ALLOWED_ORIGINS` (optional) — WebSocket allowed origins
-- `ADMIN_USER_IDS` (optional, comma-separated UUIDs) — System administrator access
+- `MODERATOR_IDS` (optional, comma-separated UUIDs) — Platform moderator accounts
 
 ### Client (`client/` folder)
 
