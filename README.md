@@ -165,7 +165,14 @@ Language is automatically detected from browser settings and can be changed manu
 
 ## Contributing
 
-Contributions are welcome! Please read [SECURITY.md](SECURITY.md) before reporting security issues.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
+- 🐛 How to report bugs
+- 💡 How to suggest features
+- 🔒 How to report security vulnerabilities
+- 🛠️ How to contribute code
+- 🌍 How to add translations
+
+**Contact:** ax1plee@gmail.com
 
 ## License
 
