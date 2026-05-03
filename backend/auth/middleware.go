@@ -9,8 +9,6 @@ type contextKey string
 
 const userIDKey contextKey = "userID"
 
-// Middleware возвращает HTTP middleware для проверки JWT-токена.
-// Добавляет userID в контекст запроса при успешной валидации.
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
@@ -25,7 +23,6 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Проверяем blacklist
 		blacklisted, err := s.IsTokenBlacklisted(r.Context(), token)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", "Token validation failed")
@@ -36,10 +33,13 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Проверяем глобальный бан
 		banned, err := s.IsGloballyBanned(r.Context(), userID)
 		if err == nil && banned {
-			writeError(w, http.StatusForbidden, "account_banned", "Your account has been banned")
+			reason, _ := s.GetGlobalBanReason(r.Context(), userID)
+			if reason == "" {
+				reason = "Your account has been permanently banned"
+			}
+			writeError(w, http.StatusForbidden, "account_banned", reason)
 			return
 		}
 
@@ -48,7 +48,6 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// UserIDFromContext извлекает userID из контекста запроса.
 func UserIDFromContext(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(userIDKey).(string)
 	return id, ok

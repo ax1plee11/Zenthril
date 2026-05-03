@@ -10,25 +10,20 @@ import (
 	"veltrix-backend/auth"
 )
 
-// GuildNotifier — интерфейс для WS-уведомлений (разрывает цикл guild↔hub).
 type GuildNotifier interface {
 	BroadcastToUser(userID string, msg []byte)
 	BroadcastToGuild(guildID string, msg []byte)
 }
 
-// Handler содержит HTTP-обработчики для управления серверами.
 type Handler struct {
 	svc      *Service
 	notifier GuildNotifier
 }
 
-// NewHandler создаёт новый Handler.
 func NewHandler(svc *Service, n GuildNotifier) *Handler {
 	return &Handler{svc: svc, notifier: n}
 }
 
-// GetGuildMembers обрабатывает GET /api/v1/guilds/:guildId/members
-// Response 200: []{ id, username }
 func (h *Handler) GetGuildMembers(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -51,8 +46,6 @@ func (h *Handler) GetGuildMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, members)
 }
 
-// CreateGuild обрабатывает POST /api/v1/guilds
-// Response 201: Guild
 func (h *Handler) CreateGuild(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -81,8 +74,6 @@ func (h *Handler) CreateGuild(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, guild)
 }
 
-// GetUserGuilds обрабатывает GET /api/v1/guilds
-// Response 200: []Guild
 func (h *Handler) GetUserGuilds(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -99,8 +90,6 @@ func (h *Handler) GetUserGuilds(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, guilds)
 }
 
-// CreateInvite обрабатывает POST /api/v1/guilds/:guildId/invites
-// Response 201: Invite
 func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -114,7 +103,6 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		ExpiresIn *int `json:"expires_in"`
 		MaxUses   *int `json:"max_uses"`
 	}
-	// Тело запроса опционально
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	invite, err := h.svc.CreateInvite(r.Context(), guildID, userID, req.ExpiresIn, req.MaxUses)
@@ -130,7 +118,6 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, invite)
 }
 
-// JoinByInvite обрабатывает POST /api/v1/invites/:code/join
 func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -150,7 +137,6 @@ func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Уведомляем всех участников сервера о новом участнике
 	if h.notifier != nil {
 		username, _ := h.svc.GetUsername(r.Context(), userID)
 		msg, _ := json.Marshal(map[string]string{
@@ -165,8 +151,6 @@ func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, guild)
 }
 
-// RemoveMember обрабатывает DELETE /api/v1/guilds/:guildId/members/:userId
-// Response 204 или 403
 func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -179,6 +163,10 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	err := h.svc.RemoveMember(r.Context(), guildID, requesterID, targetUserID)
 	if err != nil {
+		if errors.Is(err, ErrGuildLocked) {
+			writeError(w, http.StatusForbidden, "guild_locked", err.Error())
+			return
+		}
 		if errors.Is(err, ErrForbidden) {
 			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
 			return
@@ -194,8 +182,6 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// CreateChannel обрабатывает POST /api/v1/guilds/:guildId/channels
-// Response 201: Channel
 func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -234,8 +220,6 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, ch)
 }
 
-// GetGuildChannels обрабатывает GET /api/v1/guilds/:guildId/channels
-// Response 200: []Channel
 func (h *Handler) GetGuildChannels(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -258,8 +242,6 @@ func (h *Handler) GetGuildChannels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, channels)
 }
 
-// CreateRole обрабатывает POST /api/v1/guilds/:guildId/roles
-// Response 201: Role
 func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -295,8 +277,6 @@ func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, role)
 }
 
-// AssignRole обрабатывает PATCH /api/v1/guilds/:guildId/members/:userId/role
-// Response 200
 func (h *Handler) AssignRole(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -336,8 +316,6 @@ func (h *Handler) AssignRole(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// MuteMember обрабатывает POST /api/v1/guilds/:guildId/members/:userId/mute
-// Response 204
 func (h *Handler) MuteMember(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -356,7 +334,7 @@ func (h *Handler) MuteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.DurationSeconds <= 0 {
-		req.DurationSeconds = 300 // default 5 min
+		req.DurationSeconds = 300
 	}
 
 	err := h.svc.MuteMember(r.Context(), guildID, requesterID, targetUserID, req.DurationSeconds)
@@ -376,8 +354,6 @@ func (h *Handler) MuteMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// BanMember обрабатывает POST /api/v1/guilds/:guildId/members/:userId/ban
-// Response 204
 func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {

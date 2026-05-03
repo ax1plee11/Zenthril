@@ -11,17 +11,13 @@ import (
 	"github.com/gorilla/websocket"
 
 	"veltrix-backend/auth"
+	"veltrix-backend/metrics"
 )
 
-// ChannelAccessChecker — интерфейс для проверки доступа к каналу (разрывает цикл guild↔hub).
 type ChannelAccessChecker interface {
 	UserHasChannelAccess(ctx context.Context, userID, channelID string) (bool, error)
 }
 
-// NewUpgrader возвращает upgrader с проверкой Origin.
-// allowedOrigins: nil или пусто — разрешить любой origin (режим разработки).
-// Один элемент "*" — явное разрешение всех.
-// Иначе точное совпадение с заголовком Origin; пустой Origin разрешён (Tauri и др.).
 func NewUpgrader(allowedOrigins []string) websocket.Upgrader {
 	allow := allowedOrigins
 	return websocket.Upgrader{
@@ -48,7 +44,6 @@ func NewUpgrader(allowedOrigins []string) websocket.Upgrader {
 	}
 }
 
-// Client представляет подключённого WebSocket-клиента.
 type Client struct {
 	UserID   string
 	ConnID   string
@@ -58,7 +53,6 @@ type Client struct {
 	hub      *Hub
 }
 
-// Hub управляет подписками клиентов на каналы.
 type Hub struct {
 	channels      map[string]map[*Client]bool
 	users         map[string]map[*Client]bool
@@ -69,7 +63,6 @@ type Hub struct {
 	unregister    chan *Client
 }
 
-// NewHub создаёт новый Hub.
 func NewHub(g ChannelAccessChecker) *Hub {
 	return &Hub{
 		channels:      make(map[string]map[*Client]bool),
@@ -81,11 +74,11 @@ func NewHub(g ChannelAccessChecker) *Hub {
 	}
 }
 
-// Run запускает горутину обработки register/unregister.
 func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			metrics.Global().IncrementConnections()
 			h.mu.Lock()
 			if h.users[client.UserID] == nil {
 				h.users[client.UserID] = make(map[*Client]bool)
@@ -94,6 +87,7 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 		case client := <-h.unregister:
+			metrics.Global().DecrementConnections()
 			h.mu.Lock()
 			for channelID, clients := range h.channels {
 				if clients[client] {
@@ -145,7 +139,6 @@ func (h *Hub) userHasChannelAccess(userID, channelID string) bool {
 	return err == nil && ok
 }
 
-// Subscribe подписывает клиента на канал (только при членстве в гильдии).
 func (h *Hub) Subscribe(client *Client, channelID string) {
 	if !h.userHasChannelAccess(client.UserID, channelID) {
 		h.sendWSError(client, "forbidden", "no access to this channel")
@@ -159,7 +152,6 @@ func (h *Hub) Subscribe(client *Client, channelID string) {
 	h.channels[channelID][client] = true
 }
 
-// Unsubscribe отписывает клиента от канала.
 func (h *Hub) Unsubscribe(client *Client, channelID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -171,8 +163,8 @@ func (h *Hub) Unsubscribe(client *Client, channelID string) {
 	}
 }
 
-// Broadcast отправляет сообщение всем клиентам, подписанным на канал.
 func (h *Hub) Broadcast(channelID string, msg []byte) {
+	start := time.Now()
 	h.mu.RLock()
 	clients := h.channels[channelID]
 	targets := make([]*Client, 0, len(clients))
@@ -184,13 +176,15 @@ func (h *Hub) Broadcast(channelID string, msg []byte) {
 	for _, c := range targets {
 		select {
 		case c.Send <- msg:
+			metrics.Global().IncrementMessagesSent()
 		default:
 			h.unregister <- c
 		}
 	}
+
+	metrics.Global().RecordMessageLatency(time.Since(start))
 }
 
-// BroadcastToUser отправляет сообщение всем соединениям конкретного пользователя.
 func (h *Hub) BroadcastToUser(userID string, msg []byte) {
 	h.mu.RLock()
 	clients := h.users[userID]
@@ -209,7 +203,6 @@ func (h *Hub) BroadcastToUser(userID string, msg []byte) {
 	}
 }
 
-// BroadcastExcept отправляет сообщение всем в канале кроме указанного клиента.
 func (h *Hub) BroadcastExcept(channelID string, except *Client, msg []byte) {
 	h.mu.RLock()
 	clients := h.channels[channelID]
@@ -229,18 +222,15 @@ func (h *Hub) BroadcastExcept(channelID string, except *Client, msg []byte) {
 	}
 }
 
-// BroadcastToGuild отправляет сообщение всем подключённым участникам сервера.
 func (h *Hub) BroadcastToGuild(guildID string, msg []byte) {
 	h.mu.RLock()
-	// Собираем уникальных клиентов у которых есть подписка на любой канал этого сервера
+	_ = guildID
 	seen := make(map[*Client]bool)
-	for channelID, clients := range h.channels {
-		_ = channelID // используем все каналы — фильтрация по guildID на уровне БД не нужна
+	for _, clients := range h.channels {
 		for c := range clients {
 			seen[c] = true
 		}
 	}
-	// Также добавляем всех подключённых пользователей (они могут не быть подписаны на канал)
 	for _, clients := range h.users {
 		for c := range clients {
 			seen[c] = true
@@ -261,7 +251,6 @@ func (h *Hub) BroadcastToGuild(guildID string, msg []byte) {
 	}
 }
 
-// wsEvent — входящее событие от клиента.
 type wsEvent struct {
 	Type         string          `json:"type"`
 	ChannelID    string          `json:"channel_id,omitempty"`
@@ -271,7 +260,6 @@ type wsEvent struct {
 	Candidate    json.RawMessage `json:"candidate,omitempty"`
 }
 
-// writePump читает из канала Send и пишет в WebSocket.
 func (c *Client) writePump() {
 	defer c.conn.Close()
 	for msg := range c.Send {
@@ -281,7 +269,6 @@ func (c *Client) writePump() {
 	}
 }
 
-// readPump читает события от клиента и обрабатывает их.
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
@@ -317,9 +304,7 @@ func (c *Client) readPump() {
 			case c.Send <- pong:
 			default:
 			}
-
 		case "typing":
-			// Рассылаем typing event всем в канале кроме отправителя
 			if evt.ChannelID != "" && c.hub.userHasChannelAccess(c.UserID, evt.ChannelID) {
 				msg, _ := json.Marshal(map[string]string{
 					"type":       "typing",
@@ -328,9 +313,7 @@ func (c *Client) readPump() {
 				})
 				c.hub.BroadcastExcept(evt.ChannelID, c, msg)
 			}
-
 		case "invite.send":
-			// Отправить инвайт конкретному пользователю
 			if evt.TargetUserID != "" && evt.InviteCode != "" {
 				msg, _ := json.Marshal(map[string]interface{}{
 					"type":         "invite.received",
@@ -339,7 +322,6 @@ func (c *Client) readPump() {
 				})
 				c.hub.BroadcastToUser(evt.TargetUserID, msg)
 			}
-
 		case "voice.join":
 			if evt.ChannelID != "" {
 				c.hub.voiceJoin(c, evt.ChannelID)
@@ -356,7 +338,7 @@ func (c *Client) readPump() {
 				}
 				msg, _ := json.Marshal(map[string]interface{}{
 					"type":         "voice.signal",
-					"channel_id": evt.ChannelID,
+					"channel_id":   evt.ChannelID,
 					"from_user_id": c.UserID,
 					"sdp":          evt.SDP,
 				})
@@ -380,7 +362,6 @@ func (c *Client) readPump() {
 	}
 }
 
-// voiceJoin добавляет клиента в голосовой канал и рассылает voice.user_joined.
 func (h *Hub) voiceJoin(c *Client, channelID string) {
 	if !h.userHasChannelAccess(c.UserID, channelID) {
 		h.sendWSError(c, "forbidden", "no access to this voice channel")
@@ -401,7 +382,6 @@ func (h *Hub) voiceJoin(c *Client, channelID string) {
 	h.Broadcast(channelID, msg)
 }
 
-// voiceLeave убирает клиента из голосового канала и рассылает voice.user_left.
 func (h *Hub) voiceLeave(c *Client, channelID string) {
 	h.mu.Lock()
 	if users, ok := h.voiceChannels[channelID]; ok {
@@ -420,7 +400,6 @@ func (h *Hub) voiceLeave(c *Client, channelID string) {
 	h.Broadcast(channelID, msg)
 }
 
-// ServeWS выполняет WebSocket upgrade. Аутентификация: одноразовый ?ticket= (см. POST /api/v1/auth/ws-ticket).
 func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.ResponseWriter, r *http.Request) {
 	ticket := r.URL.Query().Get("ticket")
 	if ticket == "" {

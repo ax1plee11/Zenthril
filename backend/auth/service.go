@@ -110,14 +110,12 @@ func (s *Service) IsTokenBlacklisted(ctx context.Context, token string) (bool, e
 	return val > 0, nil
 }
 
-// ValidateTokenPublic проверяет JWT-токен и возвращает userID (публичный метод для использования вне пакета).
 func (s *Service) ValidateTokenPublic(token string) (string, error) {
 	return ValidateToken(token, s.jwtSecret)
 }
 
 const wsTicketTTL = 2 * time.Minute
 
-// IssueWSTicket выдаёт одноразовый билет для подключения WebSocket (не кладёт JWT в URL).
 func (s *Service) IssueWSTicket(ctx context.Context, userID string) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -131,7 +129,6 @@ func (s *Service) IssueWSTicket(ctx context.Context, userID string) (string, err
 	return ticket, nil
 }
 
-// IsGloballyBanned проверяет, забанен ли пользователь глобально (во всём приложении).
 func (s *Service) IsGloballyBanned(ctx context.Context, userID string) (bool, error) {
 	var exists bool
 	err := s.db.QueryRow(ctx,
@@ -148,7 +145,20 @@ func (s *Service) IsGloballyBanned(ctx context.Context, userID string) (bool, er
 	return exists, nil
 }
 
-// GlobalBan банит пользователя глобально. bannedBy — UUID администратора (может быть пустым).
+func (s *Service) GetGlobalBanReason(ctx context.Context, userID string) (string, error) {
+	var reason string
+	err := s.db.QueryRow(ctx,
+		`SELECT reason FROM global_bans
+		 WHERE user_id = $1
+		 AND (expires_at IS NULL OR expires_at > NOW())`,
+		userID,
+	).Scan(&reason)
+	if err != nil {
+		return "", err
+	}
+	return reason, nil
+}
+
 func (s *Service) GlobalBan(ctx context.Context, userID, bannedBy, reason string) error {
 	_, err := s.db.Exec(ctx,
 		`INSERT INTO global_bans (user_id, banned_by, reason)
@@ -162,7 +172,6 @@ func (s *Service) GlobalBan(ctx context.Context, userID, bannedBy, reason string
 	return nil
 }
 
-// GlobalUnban снимает глобальный бан.
 func (s *Service) GlobalUnban(ctx context.Context, userID string) error {
 	_, err := s.db.Exec(ctx, `DELETE FROM global_bans WHERE user_id = $1`, userID)
 	if err != nil {
@@ -171,7 +180,6 @@ func (s *Service) GlobalUnban(ctx context.Context, userID string) error {
 	return nil
 }
 
-// ConsumeWSTicket проверяет и удаляет билет, возвращает userID.
 func (s *Service) ConsumeWSTicket(ctx context.Context, ticket string) (string, error) {
 	if ticket == "" {
 		return "", errors.New("missing ticket")
@@ -185,4 +193,20 @@ func (s *Service) ConsumeWSTicket(ctx context.Context, ticket string) (string, e
 		return "", fmt.Errorf("consume ws ticket: %w", err)
 	}
 	return userID, nil
+}
+
+func (s *Service) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+	var user models.User
+	err := s.db.QueryRow(ctx,
+		`SELECT id, username, public_key, created_at
+		 FROM users WHERE id = $1`,
+		userID,
+	).Scan(&user.ID, &user.Username, &user.PublicKey, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("user not found")
+		}
+		return nil, fmt.Errorf("query user: %w", err)
+	}
+	return &user, nil
 }

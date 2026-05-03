@@ -6,14 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// EncryptedPayload содержит зашифрованное содержимое сообщения.
 type EncryptedPayload struct {
-	Ciphertext string `json:"ciphertext"` // base64
-	IV         string `json:"iv"`         // base64
+	Ciphertext string `json:"ciphertext"`
+	IV         string `json:"iv"`
 	KeyID      string `json:"key_id"`
 }
 
-// Message представляет сообщение в канале.
 type Message struct {
 	ID        uuid.UUID        `json:"id"`
 	ChannelID uuid.UUID        `json:"channel_id"`

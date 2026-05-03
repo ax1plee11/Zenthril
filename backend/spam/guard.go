@@ -17,44 +17,35 @@ var (
 	ErrBlockedLink     = errors.New("blocked_link")
 )
 
-// blocklist содержит запрещённые домены/подстроки ссылок.
 var blocklist = []string{
 	"spam-site.example",
 	"malware.example",
 	"phishing.example",
 }
 
-// mentionRegex ищет упоминания вида @word или <@uuid>.
 var mentionRegex = regexp.MustCompile(`@\w+|<@[^>]+>`)
 
-// Guard реализует антиспам-защиту через Redis.
 type Guard struct {
 	redis *redis.Client
 }
 
-// NewGuard создаёт новый Guard.
 func NewGuard(rdb *redis.Client) *Guard {
 	return &Guard{redis: rdb}
 }
 
-// CheckMessage проверяет лимит сообщений пользователя в канале через Token Bucket (Lua-скрипт).
-// Лимит: 5 сообщений / 5 сек → блокировка 30 сек.
-// Эскалация: 3 нарушения за 10 мин → блокировка 10 мин.
 func (g *Guard) CheckMessage(ctx context.Context, userID, channelID string) error {
 	bucketKey := "spam:bucket:" + userID + ":" + channelID
 	blockKey := "spam:block:" + userID + ":" + channelID
 	violationsKey := "spam:violations:" + userID
 
-	// Проверяем активную блокировку
 	blocked, err := g.redis.Exists(ctx, blockKey).Result()
 	if err != nil {
-		return nil // при ошибке Redis пропускаем
+		return nil
 	}
 	if blocked > 0 {
 		return ErrRateLimited
 	}
 
-	// Token Bucket через Lua: capacity=5, window=5s
 	luaScript := redis.NewScript(`
 local key = KEYS[1]
 local capacity = tonumber(ARGV[1])
@@ -65,7 +56,6 @@ local data = redis.call('HMGET', key, 'tokens', 'last_refill')
 local tokens = tonumber(data[1]) or capacity
 local last_refill = tonumber(data[2]) or now
 
--- пополняем токены пропорционально прошедшему времени
 local elapsed = now - last_refill
 local refill = math.floor(elapsed / window * capacity)
 tokens = math.min(capacity, tokens + refill)
@@ -86,18 +76,15 @@ end
 	nowMs := g.redis.Time(ctx).Val().UnixMilli()
 	result, err := luaScript.Run(ctx, g.redis, []string{bucketKey}, 5, 5000, nowMs).Int()
 	if err != nil {
-		return nil // при ошибке Redis пропускаем
+		return nil
 	}
 
 	if result == 0 {
-		// Превышен лимит — блокируем на 30 сек
 		g.redis.Set(ctx, blockKey, "1", 30*1000*1000*1000) //nolint:errcheck
 
-		// Увеличиваем счётчик нарушений
 		violations, _ := g.redis.Incr(ctx, violationsKey).Result()
 		g.redis.Expire(ctx, violationsKey, 10*60*1000*1000*1000) //nolint:errcheck
 
-		// Эскалация: 3 нарушения за 10 мин → блокировка 10 мин
 		if violations >= 3 {
 			g.redis.Set(ctx, blockKey, "1", 10*60*1000*1000*1000) //nolint:errcheck
 			g.redis.Del(ctx, violationsKey)                        //nolint:errcheck
@@ -109,7 +96,6 @@ end
 	return nil
 }
 
-// CheckContent проверяет содержимое сообщения на спам.
 func (g *Guard) CheckContent(content string) error {
 	if len([]rune(content)) > 4000 {
 		return ErrTooLong
@@ -130,7 +116,6 @@ func (g *Guard) CheckContent(content string) error {
 	return nil
 }
 
-// Middleware применяет антиспам-проверки к POST /messages.
 func (g *Guard) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)

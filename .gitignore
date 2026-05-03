@@ -13,12 +13,16 @@ client/coverage/
 backend/veltrix
 backend/veltrix.exe
 backend/vibrora-server.exe
+backend/test.exe
+backend/*.exe
 
-# Environment
+# Environment - NEVER commit these
 .env
 .env.local
+.env.production
 client/.env
 backend/.env
+*.env
 
 # Local snapshots / exports
 .snapshots/
@@ -55,3 +59,11 @@ Thumbs.db
 *.pfx
 *.crt
 *.cer
+
+# Private - never publish
+.admin_notes.txt
+MODERATION_GUIDE.md
+backend/moderation/
+backend/migrations/004_admin_audit_log.sql
+backend/migrations/005_ip_tracking_and_guild_bans.sql
+backend/auth/audit.go

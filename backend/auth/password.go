@@ -12,15 +12,13 @@ import (
 )
 
 const (
-	argon2Memory      = 64 * 1024 // 64 MB
+	argon2Memory      = 64 * 1024
 	argon2Iterations  = 3
 	argon2Parallelism = 4
 	argon2KeyLen      = 32
 	argon2SaltLen     = 16
 )
 
-// HashPassword хэширует пароль с помощью Argon2id.
-// Возвращает строку формата $argon2id$v=19$m=65536,t=3,p=4$<salt_b64>$<hash_b64>
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, argon2SaltLen)
 	if _, err := rand.Read(salt); err != nil {
@@ -41,10 +39,8 @@ func HashPassword(password string) (string, error) {
 	return encoded, nil
 }
 
-// VerifyPassword проверяет пароль против сохранённого хэша Argon2id.
 func VerifyPassword(password, encodedHash string) (bool, error) {
 	parts := strings.Split(encodedHash, "$")
-	// Ожидаем: ["", "argon2id", "v=19", "m=65536,t=3,p=4", "<salt>", "<hash>"]
 	if len(parts) != 6 {
 		return false, errors.New("invalid hash format")
 	}

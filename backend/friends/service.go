@@ -11,18 +11,17 @@ import (
 )
 
 var (
-	ErrAlreadyFriends  = errors.New("already_friends")
-	ErrRequestPending  = errors.New("request_pending")
-	ErrNotFound        = errors.New("not_found")
-	ErrForbidden       = errors.New("forbidden")
-	ErrCannotSelfAdd   = errors.New("cannot_add_self")
+	ErrAlreadyFriends = errors.New("already_friends")
+	ErrRequestPending = errors.New("request_pending")
+	ErrNotFound       = errors.New("not_found")
+	ErrForbidden      = errors.New("forbidden")
+	ErrCannotSelfAdd  = errors.New("cannot_add_self")
 )
 
 type FriendUser struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Status   string `json:"status"` // friendship status: pending/accepted
-	// Direction: "incoming" | "outgoing" (only for pending)
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Status    string `json:"status"`
 	Direction string `json:"direction,omitempty"`
 }
 
@@ -34,7 +33,6 @@ func NewService(db *pgxpool.Pool) *Service {
 	return &Service{db: db}
 }
 
-// GetUsername возвращает username пользователя по ID.
 func (s *Service) GetUsername(ctx context.Context, userID string) (string, error) {
 	uUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -45,7 +43,6 @@ func (s *Service) GetUsername(ctx context.Context, userID string) (string, error
 	return username, err
 }
 
-// SendRequest отправляет запрос в друзья.
 func (s *Service) SendRequest(ctx context.Context, requesterID, addresseeID string) error {
 	if requesterID == addresseeID {
 		return ErrCannotSelfAdd
@@ -59,7 +56,6 @@ func (s *Service) SendRequest(ctx context.Context, requesterID, addresseeID stri
 		return fmt.Errorf("invalid addressee id: %w", err)
 	}
 
-	// Проверяем существующую связь в обе стороны
 	var existingStatus string
 	err = s.db.QueryRow(ctx,
 		`SELECT status FROM friendships
@@ -91,7 +87,6 @@ func (s *Service) SendRequest(ctx context.Context, requesterID, addresseeID stri
 	return nil
 }
 
-// AcceptRequest принимает входящий запрос.
 func (s *Service) AcceptRequest(ctx context.Context, userID, requesterID string) error {
 	uUUID, _ := uuid.Parse(userID)
 	rUUID, _ := uuid.Parse(requesterID)
@@ -110,7 +105,6 @@ func (s *Service) AcceptRequest(ctx context.Context, userID, requesterID string)
 	return nil
 }
 
-// DeclineRequest отклоняет или удаляет запрос/дружбу.
 func (s *Service) DeclineRequest(ctx context.Context, userID, otherID string) error {
 	uUUID, _ := uuid.Parse(userID)
 	oUUID, _ := uuid.Parse(otherID)
@@ -124,7 +118,6 @@ func (s *Service) DeclineRequest(ctx context.Context, userID, otherID string) er
 	return err
 }
 
-// ListFriends возвращает принятых друзей + входящие/исходящие запросы.
 func (s *Service) ListFriends(ctx context.Context, userID string) ([]FriendUser, error) {
 	uUUID, err := uuid.Parse(userID)
 	if err != nil {

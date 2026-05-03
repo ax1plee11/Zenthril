@@ -74,7 +74,7 @@ Want to contribute code? Great!
 ### 📝 Code Style
 
 - **Go**: Follow standard Go conventions, use `gofmt`
-- **TypeScript/React**: Follow the existing code style
+- **TypeScript/React**: Follow the existing code style, use ESLint
 - **Commits**: Use [Conventional Commits](https://www.conventionalcommits.org/)
   - `feat:` - new feature
   - `fix:` - bug fix
@@ -82,7 +82,28 @@ Want to contribute code? Great!
   - `style:` - formatting
   - `refactor:` - code refactoring
   - `test:` - tests
+  - `perf:` - performance improvements
   - `chore:` - maintenance
+
+### 🧪 Testing
+
+Before submitting a PR, ensure all tests pass:
+
+```bash
+# Backend tests
+cd backend
+go test ./...
+go test -race ./...
+
+# Frontend tests
+cd client
+npm test
+npm run lint
+
+# Benchmarks (optional)
+cd backend
+go test -bench=. ./benchmarks/...
+```
 
 ### 🌍 Translations
 

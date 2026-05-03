@@ -6,39 +6,20 @@ import (
 	"strings"
 )
 
-// Config содержит конфигурацию приложения, загружаемую из env-переменных.
 type Config struct {
-	// База данных
-	DBURL string
-
-	// Redis
-	RedisURL string
-
-	// JWT
-	JWTSecret string
-
-	// HTTP-сервер
-	HTTPAddr string
-
-	// TLS (опционально)
-	TLSCertFile string
-	TLSKeyFile  string
-
-	// Федерация
-	NodeDomain     string
-	NodePrivateKey string
-
-	// CORS: пусто = разрешить любой origin (*). Иначе список через запятую (точное совпадение).
+	DBURL              string
+	RedisURL           string
+	JWTSecret          string
+	HTTPAddr           string
+	TLSCertFile        string
+	TLSKeyFile         string
+	NodeDomain         string
+	NodePrivateKey     string
 	CORSAllowedOrigins []string
-	// WebSocket Origin: пусто = как CORSAllowedOrigins; иначе свой список. Для десктопа с пустым Origin допускается подключение при не-* режиме (см. hub).
-	WSAllowedOrigins []string
-
-	// Администраторы: UUID пользователей, кому разрешены admin-эндпоинты.
-	AdminUserIDs []string
+	WSAllowedOrigins   []string
+	AdminUserIDs       []string
 }
 
-// Load загружает конфигурацию из переменных окружения.
-// Возвращает ошибку, если обязательные переменные не заданы.
 func Load() (*Config, error) {
 	corsOrigins := splitCommaList(getEnv("CORS_ALLOWED_ORIGINS", ""))
 	wsOrigins := splitCommaList(getEnv("WS_ALLOWED_ORIGINS", ""))
@@ -68,7 +49,6 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// getEnv возвращает значение переменной окружения или defaultVal, если она не задана.
 func getEnv(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -76,13 +56,11 @@ func getEnv(key, defaultVal string) string {
 	return defaultVal
 }
 
-// getEnvWithFallback пытается получить значение из первой переменной, если не найдена - из второй
 func getEnvWithFallback(primary, fallback, defaultVal string) string {
 	if v := os.Getenv(primary); v != "" {
 		return v
 	}
 	if v := os.Getenv(fallback); v != "" {
-		// Railway использует PORT без двоеточия, добавляем его
 		if fallback == "PORT" {
 			return ":" + v
 		}

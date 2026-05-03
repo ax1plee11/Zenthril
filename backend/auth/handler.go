@@ -7,18 +7,14 @@ import (
 	"strings"
 )
 
-// Handler содержит HTTP-обработчики для аутентификации.
 type Handler struct {
 	svc *Service
 }
 
-// NewHandler создаёт новый Handler.
 func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// Register обрабатывает POST /api/v1/auth/register
-// Response 201: { user_id, token } или 409: { error: "username_taken" }
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username  string `json:"username"`
@@ -51,8 +47,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Login обрабатывает POST /api/v1/auth/login
-// Response 200: { token, user } или 401: { error: "invalid_credentials" }
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
@@ -79,8 +73,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// WSTicket обрабатывает POST /api/v1/auth/ws-ticket (требует Bearer).
-// Response 200: { "ticket": "<one-time>" }
 func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok || userID == "" {
@@ -95,8 +87,6 @@ func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"ticket": ticket})
 }
 
-// Logout обрабатывает POST /api/v1/auth/logout
-// Response 204
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	token := extractBearerToken(r)
 	if token == "" {
@@ -112,8 +102,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GlobalBan обрабатывает POST /api/v1/admin/users/:userId/ban
-// Response 204
 func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := UserIDFromContext(r.Context())
 	if !ok {
@@ -121,7 +109,6 @@ func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Простая защита: нельзя забанить самого себя
 	targetUserID := r.PathValue("userId")
 	if targetUserID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "userId is required")
@@ -137,21 +124,44 @@ func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
+	ipAddress := r.Header.Get("X-Forwarded-For")
+	if ipAddress == "" {
+		ipAddress = r.Header.Get("X-Real-IP")
+	}
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr
+	}
+
 	if err := h.svc.GlobalBan(r.Context(), targetUserID, requesterID, req.Reason); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to ban user")
 		return
 	}
 
+	details := "reason: " + req.Reason
+	_ = h.svc.LogAdminAction(r.Context(), requesterID, "GLOBAL_BAN", targetUserID, details, ipAddress)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GlobalUnban обрабатывает DELETE /api/v1/admin/users/:userId/ban
-// Response 204
 func (h *Handler) GlobalUnban(w http.ResponseWriter, r *http.Request) {
+	requesterID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
 	targetUserID := r.PathValue("userId")
 	if targetUserID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "userId is required")
 		return
+	}
+
+	ipAddress := r.Header.Get("X-Forwarded-For")
+	if ipAddress == "" {
+		ipAddress = r.Header.Get("X-Real-IP")
+	}
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr
 	}
 
 	if err := h.svc.GlobalUnban(r.Context(), targetUserID); err != nil {
@@ -159,10 +169,40 @@ func (h *Handler) GlobalUnban(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = h.svc.LogAdminAction(r.Context(), requesterID, "GLOBAL_UNBAN", targetUserID, "", ipAddress)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// extractBearerToken извлекает токен из заголовка Authorization: Bearer <token>
+func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
+	logs, err := h.svc.GetAuditLog(r.Context(), 100)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to fetch audit log")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, logs)
+}
+
+func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	user, err := h.svc.GetUserByID(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to fetch user")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"user_id":  user.ID.String(),
+		"username": user.Username,
+	})
+}
+
 func extractBearerToken(r *http.Request) string {
 	header := r.Header.Get("Authorization")
 	if !strings.HasPrefix(header, "Bearer ") {

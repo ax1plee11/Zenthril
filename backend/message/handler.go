@@ -12,18 +12,14 @@ import (
 	"veltrix-backend/models"
 )
 
-// Handler содержит HTTP-обработчики для работы с сообщениями.
 type Handler struct {
 	svc *Service
 }
 
-// NewHandler создаёт новый Handler.
 func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// SendMessage обрабатывает POST /api/v1/channels/:channelId/messages
-// Response 201: Message или 429
 func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -56,8 +52,6 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, msg)
 }
 
-// GetHistory обрабатывает GET /api/v1/channels/:channelId/messages?before=<id>&limit=50
-// Response 200: []Message
 func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	_, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -93,8 +87,6 @@ func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, messages)
 }
 
-// EditMessage обрабатывает PATCH /api/v1/messages/:messageId
-// Response 200: Message
 func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -135,8 +127,6 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, msg)
 }
 
-// DeleteMessage обрабатывает DELETE /api/v1/messages/:messageId
-// Response 204
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {

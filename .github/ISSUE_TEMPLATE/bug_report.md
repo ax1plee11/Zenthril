@@ -1,50 +1,37 @@
 ---
-name: Bug Report / Сообщение об ошибке
-about: Report a bug to help us improve / Сообщите об ошибке, чтобы помочь нам улучшить проект
+name: Bug Report
+about: Create a report to help us improve
 title: '[BUG] '
 labels: bug
 assignees: ''
 ---
 
-## 🐛 Описание бага / Bug Description
+**Describe the bug**
+A clear and concise description of what the bug is.
 
-Чёткое описание проблемы / A clear description of what the bug is.
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
 
-## 📋 Шаги для воспроизведения / Steps to Reproduce
+**Expected behavior**
+A clear and concise description of what you expected to happen.
 
-1. Перейти в '...' / Go to '...'
-2. Нажать на '...' / Click on '...'
-3. Прокрутить до '...' / Scroll down to '...'
-4. Увидеть ошибку / See error
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
 
-## ✅ Ожидаемое поведение / Expected Behavior
+**Environment:**
+ - OS: [e.g. Windows 11, macOS 14, Ubuntu 22.04]
+ - Browser [e.g. chrome, firefox]
+ - Version [e.g. 0.1.0]
 
-Что должно было произойти / What you expected to happen.
+**Logs**
+If applicable, add relevant logs from:
+- Browser console (F12 → Console)
+- Backend logs
+- Desktop app logs
 
-## ❌ Фактическое поведение / Actual Behavior
-
-Что произошло на самом деле / What actually happened.
-
-## 📸 Скриншоты / Screenshots
-
-Если возможно, добавьте скриншоты / If applicable, add screenshots.
-
-## 💻 Окружение / Environment
-
-- **ОС / OS**: [например, Windows 11, macOS 14, Ubuntu 22.04]
-- **Браузер / Browser**: [например, Chrome 120, Firefox 121]
-- **Версия приложения / App Version**: [например, v0.1.0]
-- **Тип установки / Installation Type**: [Desktop .exe / Web / Local development]
-
-## 📝 Дополнительная информация / Additional Context
-
-Любая другая информация о проблеме / Any other context about the problem.
-
-## 🔍 Логи / Logs
-
-Если есть сообщения об ошибках в консоли (F12), вставьте их сюда:
-If there are error messages in the console (F12), paste them here:
-
-```
-Вставьте логи здесь / Paste logs here
-```
+**Additional context**
+Add any other context about the problem here.

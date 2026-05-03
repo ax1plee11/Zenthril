@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Guild представляет сервер (гильдию).
 type Guild struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
@@ -15,7 +14,6 @@ type Guild struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Channel представляет канал внутри сервера.
 type Channel struct {
 	ID        uuid.UUID `json:"id"`
 	GuildID   uuid.UUID `json:"guild_id"`
@@ -25,7 +23,6 @@ type Channel struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Role представляет роль участника сервера.
 type Role struct {
 	ID          uuid.UUID `json:"id"`
 	GuildID     uuid.UUID `json:"guild_id"`
@@ -34,7 +31,6 @@ type Role struct {
 	Permissions int64     `json:"permissions"`
 }
 
-// GuildMember представляет участника сервера.
 type GuildMember struct {
 	GuildID    uuid.UUID  `json:"guild_id"`
 	UserID     uuid.UUID  `json:"user_id"`
@@ -44,7 +40,6 @@ type GuildMember struct {
 	MutedUntil *time.Time `json:"muted_until,omitempty"`
 }
 
-// Invite представляет пригласительную ссылку.
 type Invite struct {
 	Code      string     `json:"code"`
 	GuildID   uuid.UUID  `json:"guild_id"`

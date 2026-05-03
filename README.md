@@ -1,5 +1,10 @@
 # Zenthril
 
+[![CI](https://github.com/ax1plee11/Zenthril/actions/workflows/ci.yml/badge.svg)](https://github.com/ax1plee11/Zenthril/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/go-1.22-blue.svg)](https://golang.org/)
+[![Node Version](https://img.shields.io/badge/node-20-green.svg)](https://nodejs.org/)
+
 **[English](README.md)** | **[Русский](README.ru.md)** | **[Українська](README.uk.md)**
 
 ---
@@ -40,6 +45,13 @@ A decentralized messenger with federated architecture and end-to-end encryption.
 - GIF support (Tenor/Giphy)
 - Real-time messaging (WebSocket)
 
+📊 **Performance & Research**
+- Built-in metrics and monitoring (`/metrics` endpoint)
+- Comprehensive benchmarking suite
+- Load testing tools (k6)
+- Performance analysis scripts
+- Suitable for academic research and thesis work
+
 ## Documentation
 
 - [SECURITY.md](SECURITY.md) — How to report security vulnerabilities
@@ -48,6 +60,7 @@ A decentralized messenger with federated architecture and end-to-end encryption.
 - [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) — How to build desktop application (.exe)
 - [SHARE.md](SHARE.md) — **How to share Zenthril with friends** 🎉
 - [docs/GITHUB_PAGES.md](docs/GITHUB_PAGES.md) — Deploy web version to GitHub Pages
+- [research/README.md](research/README.md) — Performance benchmarking and research tools
 
 ## Code Quality (Local)
 
@@ -75,8 +88,11 @@ npm run build
 ```
 zenthril/
 ├── backend/          # Go server (federated network node)
+│   ├── auth/         # Authentication & authorization
 │   ├── config/       # Configuration via environment variables
 │   ├── migrations/   # PostgreSQL SQL migrations
+│   ├── metrics/      # Performance monitoring
+│   ├── benchmarks/   # Performance benchmarks
 │   └── main.go       # HTTP server entry point
 ├── client/           # Tauri + Vite + React/TypeScript desktop client
 │   ├── src/
@@ -84,6 +100,10 @@ zenthril/
 │   │   ├── i18n/        # Internationalization (EN, RU, UK)
 │   │   └── store/       # State management
 │   └── src-tauri/    # Tauri (Rust) desktop wrapper
+├── research/         # Performance research & benchmarking tools
+│   ├── load_test/    # Load testing with k6
+│   ├── scripts/      # Analysis scripts
+│   └── README.md     # Research documentation
 ├── docs/             # Documentation
 ├── docker-compose.yml
 └── .env.example
@@ -121,7 +141,7 @@ Open `http://localhost:1420/`. Backend will be available at `http://localhost:80
 - `HTTP_ADDR` (default: `:8080`)
 - `CORS_ALLOWED_ORIGINS` (optional) — CORS allowed origins
 - `WS_ALLOWED_ORIGINS` (optional) — WebSocket allowed origins
-- `ADMIN_USER_IDS` (optional, comma-separated UUIDs) — Access to `/api/v1/admin/*` (including global ban)
+- `ADMIN_USER_IDS` (optional, comma-separated UUIDs) — System administrator access
 
 ### Client (`client/` folder)
 
@@ -183,3 +203,25 @@ This project is open source. See LICENSE file for details.
 - Design inspired by Apple and Notion
 - UI components from [shadcn/ui](https://ui.shadcn.com/)
 - Icons from [Lucide](https://lucide.dev/)
+
+## Research & Academic Use
+
+Zenthril includes comprehensive performance monitoring and benchmarking tools, making it suitable for:
+- Master's thesis and PhD research
+- Performance analysis of federated systems
+- E2EE encryption overhead studies
+- WebSocket scalability research
+- Comparative analysis with other messaging platforms
+
+See [research/README.md](research/README.md) for details on:
+- Running benchmarks
+- Load testing with k6
+- Collecting performance metrics
+- Analyzing results
+
+### Key Metrics Available:
+- WebSocket connection handling (P50, P95, P99 latency)
+- Encryption/decryption performance (AES-256-GCM)
+- Database query performance
+- HTTP request latency
+- Real-time monitoring via `/metrics` endpoint

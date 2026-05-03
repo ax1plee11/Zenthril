@@ -15,7 +15,6 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateToken создаёт JWT-токен для пользователя со сроком действия 24 часа.
 func GenerateToken(userID string, secret string) (string, error) {
 	now := time.Now()
 	c := claims{
@@ -34,7 +33,6 @@ func GenerateToken(userID string, secret string) (string, error) {
 	return signed, nil
 }
 
-// ValidateToken проверяет JWT-токен и возвращает userID.
 func ValidateToken(tokenStr, secret string) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

@@ -22,7 +22,6 @@ var (
 	ErrAlreadyMember = errors.New("already_member")
 )
 
-// RoleLevel определяет уровни ролей.
 const (
 	RoleLevelMember    = 0
 	RoleLevelModerator = 10
@@ -30,18 +29,16 @@ const (
 	RoleLevelOwner     = 100
 )
 
-// Service реализует бизнес-логику управления серверами.
 type Service struct {
-	db     *pgxpool.Pool
-	nodeID string
+	db           *pgxpool.Pool
+	nodeID       string
+	stateChecker GuildStateChecker
 }
 
-// NewService создаёт новый GuildService.
 func NewService(db *pgxpool.Pool, nodeID string) *Service {
 	return &Service{db: db, nodeID: nodeID}
 }
 
-// CreateGuild создаёт новый сервер и назначает создателя владельцем.
 func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*models.Guild, error) {
 	ownerUUID, err := uuid.Parse(ownerID)
 	if err != nil {
@@ -52,7 +49,7 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	defer tx.Rollback(ctx) 
 
 	var guild models.Guild
 	err = tx.QueryRow(ctx,
@@ -65,19 +62,17 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 		return nil, fmt.Errorf("insert guild: %w", err)
 	}
 
-	// Создаём роль владельца
 	var roleID uuid.UUID
 	err = tx.QueryRow(ctx,
 		`INSERT INTO roles (guild_id, name, level, permissions)
 		 VALUES ($1, 'Owner', $2, $3)
 		 RETURNING id`,
-		guild.ID, RoleLevelOwner, int64(^uint64(0)>>1), // все права
+		guild.ID, RoleLevelOwner, int64(^uint64(0)>>1),
 	).Scan(&roleID)
 	if err != nil {
 		return nil, fmt.Errorf("insert owner role: %w", err)
 	}
 
-	// Добавляем создателя как участника с ролью владельца
 	_, err = tx.Exec(ctx,
 		`INSERT INTO guild_members (guild_id, user_id, role_id)
 		 VALUES ($1, $2, $3)`,
@@ -94,7 +89,6 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 	return &guild, nil
 }
 
-// GetUserGuilds возвращает список серверов, в которых состоит пользователь.
 func (s *Service) GetUserGuilds(ctx context.Context, userID string) ([]models.Guild, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -132,7 +126,6 @@ func (s *Service) GetUserGuilds(ctx context.Context, userID string) ([]models.Gu
 	return guilds, nil
 }
 
-// CreateInvite создаёт пригласительную ссылку для сервера.
 func (s *Service) CreateInvite(ctx context.Context, guildID, createdBy string, expiresIn *int, maxUses *int) (*models.Invite, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -143,7 +136,6 @@ func (s *Service) CreateInvite(ctx context.Context, guildID, createdBy string, e
 		return nil, fmt.Errorf("invalid creator id: %w", err)
 	}
 
-	// Проверяем, что пользователь является участником сервера
 	if err := s.requireMember(ctx, guildUUID, creatorUUID); err != nil {
 		return nil, err
 	}
@@ -180,8 +172,6 @@ func (s *Service) CreateInvite(ctx context.Context, guildID, createdBy string, e
 	return invite, nil
 }
 
-// JoinByInvite добавляет пользователя на сервер по пригласительной ссылке.
-// Возвращает ErrInviteExpired если инвайт истёк или недействителен.
 func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*models.Guild, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -194,7 +184,6 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	// Получаем инвайт с блокировкой строки
 	var invite models.Invite
 	err = tx.QueryRow(ctx,
 		`SELECT code, guild_id, created_by, expires_at, max_uses, uses
@@ -208,17 +197,14 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 		return nil, fmt.Errorf("query invite: %w", err)
 	}
 
-	// Проверяем срок действия
 	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
 		return nil, ErrInviteExpired
 	}
 
-	// Проверяем лимит использований
 	if invite.MaxUses != nil && invite.Uses >= *invite.MaxUses {
 		return nil, ErrInviteExpired
 	}
 
-	// Получаем роль участника (level=0) для этого сервера
 	var memberRoleID *uuid.UUID
 	var roleID uuid.UUID
 	err = tx.QueryRow(ctx,
@@ -229,7 +215,6 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 		memberRoleID = &roleID
 	}
 
-	// Добавляем участника (или обновляем если уже был)
 	_, err = tx.Exec(ctx,
 		`INSERT INTO guild_members (guild_id, user_id, role_id)
 		 VALUES ($1, $2, $3)
@@ -240,7 +225,6 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 		return nil, fmt.Errorf("insert member: %w", err)
 	}
 
-	// Увеличиваем счётчик использований
 	_, err = tx.Exec(ctx,
 		`UPDATE invites SET uses = uses + 1 WHERE code = $1`,
 		code,
@@ -249,7 +233,6 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 		return nil, fmt.Errorf("update invite uses: %w", err)
 	}
 
-	// Получаем данные сервера
 	var guild models.Guild
 	err = tx.QueryRow(ctx,
 		`SELECT id, name, owner_id, node_id, created_at FROM guilds WHERE id = $1`,
@@ -266,7 +249,6 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 	return &guild, nil
 }
 
-// RemoveMember удаляет участника с сервера. Требует прав администратора.
 func (s *Service) RemoveMember(ctx context.Context, guildID, requesterID, targetUserID string) error {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -281,7 +263,13 @@ func (s *Service) RemoveMember(ctx context.Context, guildID, requesterID, target
 		return fmt.Errorf("invalid target user id: %w", err)
 	}
 
-	// Проверяем права запрашивающего (должен быть администратором или владельцем)
+	if s.stateChecker != nil {
+		canLeave, reason := s.stateChecker.CanUserLeaveGuild(guildID, targetUserID)
+		if !canLeave {
+			return fmt.Errorf("%w: %s", ErrGuildLocked, reason)
+		}
+	}
+
 	requesterLevel, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
 	if err != nil {
 		return ErrForbidden
@@ -290,7 +278,6 @@ func (s *Service) RemoveMember(ctx context.Context, guildID, requesterID, target
 		return ErrForbidden
 	}
 
-	// Нельзя удалить владельца
 	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
 	if err != nil {
 		return ErrNotFound
@@ -313,7 +300,6 @@ func (s *Service) RemoveMember(ctx context.Context, guildID, requesterID, target
 	return nil
 }
 
-// CreateChannel создаёт новый канал в сервере.
 func (s *Service) CreateChannel(ctx context.Context, guildID, requesterID, name, channelType string) (*models.Channel, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -324,7 +310,6 @@ func (s *Service) CreateChannel(ctx context.Context, guildID, requesterID, name,
 		return nil, fmt.Errorf("invalid requester id: %w", err)
 	}
 
-	// Проверяем права (должен быть администратором или владельцем)
 	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
 	if err != nil {
 		return nil, ErrForbidden
@@ -351,7 +336,6 @@ func (s *Service) CreateChannel(ctx context.Context, guildID, requesterID, name,
 	return &ch, nil
 }
 
-// GetGuildChannels возвращает список каналов сервера для участника.
 func (s *Service) GetGuildChannels(ctx context.Context, guildID, userID string) ([]models.Channel, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -362,7 +346,6 @@ func (s *Service) GetGuildChannels(ctx context.Context, guildID, userID string) 
 		return nil, fmt.Errorf("invalid user id: %w", err)
 	}
 
-	// Проверяем, что пользователь является участником сервера
 	if err := s.requireMember(ctx, guildUUID, userUUID); err != nil {
 		return nil, err
 	}
@@ -396,7 +379,6 @@ func (s *Service) GetGuildChannels(ctx context.Context, guildID, userID string) 
 	return channels, nil
 }
 
-// GetGuildMembers возвращает список участников сервера (id + username).
 func (s *Service) GetGuildMembers(ctx context.Context, guildID, requesterID string) ([]map[string]string, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -438,7 +420,6 @@ func (s *Service) GetGuildMembers(ctx context.Context, guildID, requesterID stri
 	return members, nil
 }
 
-// GetUsername возвращает username пользователя по ID.
 func (s *Service) GetUsername(ctx context.Context, userID string) (string, error) {
 	uUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -449,7 +430,6 @@ func (s *Service) GetUsername(ctx context.Context, userID string) (string, error
 	return username, err
 }
 
-// UserHasChannelAccess возвращает true, если пользователь — участник гильдии канала и не забанен.
 func (s *Service) UserHasChannelAccess(ctx context.Context, userID, channelID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -476,7 +456,6 @@ func (s *Service) UserHasChannelAccess(ctx context.Context, userID, channelID st
 	return ok, nil
 }
 
-// requireMember проверяет, что пользователь является активным участником сервера.
 func (s *Service) requireMember(ctx context.Context, guildID, userID uuid.UUID) error {
 	var exists bool
 	err := s.db.QueryRow(ctx,
@@ -495,7 +474,6 @@ func (s *Service) requireMember(ctx context.Context, guildID, userID uuid.UUID) 
 	return nil
 }
 
-// getMemberLevel возвращает уровень роли участника в сервере.
 func (s *Service) getMemberLevel(ctx context.Context, guildID, userID uuid.UUID) (int, error) {
 	var level int
 	err := s.db.QueryRow(ctx,
@@ -514,7 +492,6 @@ func (s *Service) getMemberLevel(ctx context.Context, guildID, userID uuid.UUID)
 	return level, nil
 }
 
-// CreateRole создаёт новую роль в сервере. Требует прав администратора (level>=50).
 func (s *Service) CreateRole(ctx context.Context, guildID, requesterID, name string, permissions int64) (*models.Role, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -547,7 +524,6 @@ func (s *Service) CreateRole(ctx context.Context, guildID, requesterID, name str
 	return &role, nil
 }
 
-// AssignRole назначает роль участнику сервера. Требует прав администратора (level>=50).
 func (s *Service) AssignRole(ctx context.Context, guildID, requesterID, targetUserID, roleID string) error {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -574,7 +550,6 @@ func (s *Service) AssignRole(ctx context.Context, guildID, requesterID, targetUs
 		return ErrForbidden
 	}
 
-	// Проверяем, что роль принадлежит этому серверу
 	var exists bool
 	err = s.db.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM roles WHERE id = $1 AND guild_id = $2)`,
@@ -599,7 +574,6 @@ func (s *Service) AssignRole(ctx context.Context, guildID, requesterID, targetUs
 	return nil
 }
 
-// MuteMember заглушает участника сервера на указанное количество секунд. Требует прав администратора (level>=50).
 func (s *Service) MuteMember(ctx context.Context, guildID, requesterID, targetUserID string, durationSeconds int) error {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -622,7 +596,6 @@ func (s *Service) MuteMember(ctx context.Context, guildID, requesterID, targetUs
 		return ErrForbidden
 	}
 
-	// Нельзя заглушить владельца
 	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
 	if err != nil {
 		return ErrNotFound
@@ -647,7 +620,6 @@ func (s *Service) MuteMember(ctx context.Context, guildID, requesterID, targetUs
 	return nil
 }
 
-// BanMember банит участника сервера. Требует прав администратора (level>=50).
 func (s *Service) BanMember(ctx context.Context, guildID, requesterID, targetUserID string) error {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
@@ -670,7 +642,6 @@ func (s *Service) BanMember(ctx context.Context, guildID, requesterID, targetUse
 		return ErrForbidden
 	}
 
-	// Нельзя забанить владельца
 	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
 	if err != nil {
 		return ErrNotFound
@@ -694,9 +665,8 @@ func (s *Service) BanMember(ctx context.Context, guildID, requesterID, targetUse
 	return nil
 }
 
-// generateInviteCode генерирует случайный код из 8 символов (base64url без padding).
 func generateInviteCode() (string, error) {
-	b := make([]byte, 6) // 6 байт → 8 символов base64
+	b := make([]byte, 6)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("rand read: %w", err)
 	}

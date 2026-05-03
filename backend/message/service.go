@@ -24,14 +24,12 @@ var (
 
 const maxLimit = 50
 
-// Service реализует бизнес-логику работы с сообщениями.
 type Service struct {
 	db    *pgxpool.Pool
 	hub   *hub.Hub
 	guild *guild.Service
 }
 
-// NewService создаёт новый MessageService.
 func NewService(db *pgxpool.Pool, h *hub.Hub, g *guild.Service) *Service {
 	return &Service{db: db, hub: h, guild: g}
 }
@@ -50,7 +48,6 @@ func (s *Service) requireChannelAccess(ctx context.Context, userID, channelID st
 	return nil
 }
 
-// SendMessage сохраняет сообщение в БД и рассылает событие через hub.
 func (s *Service) SendMessage(ctx context.Context, channelID, authorID string, payload models.EncryptedPayload) (*models.Message, error) {
 	channelUUID, err := uuid.Parse(channelID)
 	if err != nil {
@@ -84,7 +81,6 @@ func (s *Service) SendMessage(ctx context.Context, channelID, authorID string, p
 	return &msg, nil
 }
 
-// GetHistory возвращает историю сообщений канала с пагинацией по before (message ID).
 func (s *Service) GetHistory(ctx context.Context, channelID, userID string, before *string, limit int) ([]models.Message, error) {
 	channelUUID, err := uuid.Parse(channelID)
 	if err != nil {
@@ -153,7 +149,6 @@ func (s *Service) GetHistory(ctx context.Context, channelID, userID string, befo
 	return messages, nil
 }
 
-// EditMessage редактирует сообщение (только автор).
 func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, payload models.EncryptedPayload) (*models.Message, error) {
 	msgUUID, err := uuid.Parse(messageID)
 	if err != nil {
@@ -194,7 +189,6 @@ func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, p
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Проверяем: сообщение существует, но не принадлежит автору?
 			var exists bool
 			_ = s.db.QueryRow(ctx,
 				`SELECT EXISTS(SELECT 1 FROM messages WHERE id = $1 AND deleted = FALSE)`,
@@ -212,7 +206,6 @@ func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, p
 	return &msg, nil
 }
 
-// DeleteMessage помечает сообщение удалённым (только автор).
 func (s *Service) DeleteMessage(ctx context.Context, messageID, authorID string) error {
 	msgUUID, err := uuid.Parse(messageID)
 	if err != nil {
@@ -270,7 +263,6 @@ func (s *Service) DeleteMessage(ctx context.Context, messageID, authorID string)
 	return nil
 }
 
-// broadcastEvent сериализует событие и рассылает в канал.
 func (s *Service) broadcastEvent(channelID, eventType string, msg *models.Message) {
 	event, err := json.Marshal(map[string]interface{}{
 		"type":    eventType,

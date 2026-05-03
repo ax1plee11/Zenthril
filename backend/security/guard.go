@@ -13,32 +13,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Guard реализует защиту от DDoS и брутфорс-атак.
 type Guard struct {
 	redis *redis.Client
 	db    *sql.DB
 }
 
-// NewGuard создаёт новый Guard.
 func NewGuard(rdb *redis.Client, db *sql.DB) *Guard {
 	return &Guard{redis: rdb, db: db}
 }
 
-// IPRateLimit — DDoS защита: >1000 req/сек с одного IP → блокировка на 60 сек.
 func (g *Guard) IPRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := extractIP(r)
 		blockKey := "security:ip_block:" + ip
 		counterKey := "security:ip_rps:" + ip
 
-		// Проверяем активную блокировку
 		blocked, err := g.redis.Exists(r.Context(), blockKey).Result()
 		if err == nil && blocked > 0 {
 			http.Error(w, `{"error":"too_many_requests","message":"IP temporarily blocked"}`, http.StatusTooManyRequests)
 			return
 		}
 
-		// Инкрементируем счётчик запросов (окно 1 сек)
 		pipe := g.redis.Pipeline()
 		incrCmd := pipe.Incr(r.Context(), counterKey)
 		pipe.Expire(r.Context(), counterKey, time.Second)
@@ -46,7 +41,6 @@ func (g *Guard) IPRateLimit(next http.Handler) http.Handler {
 
 		count := incrCmd.Val()
 		if count > 1000 {
-			// Блокируем IP на 60 сек
 			g.redis.Set(r.Context(), blockKey, "1", 60*time.Second) //nolint:errcheck
 			_ = g.LogSecurityEvent(r.Context(), "ip_blocked", ip, "", map[string]interface{}{
 				"requests_per_second": count,
@@ -59,14 +53,11 @@ func (g *Guard) IPRateLimit(next http.Handler) http.Handler {
 	})
 }
 
-// BruteForceProtect — защита от брутфорса на POST /auth/login.
-// >10 неудачных попыток за 1 мин с одного IP → блокировка на 15 мин.
 func (g *Guard) BruteForceProtect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := extractIP(r)
 		blockKey := "security:bf_block:" + ip
 
-		// Проверяем активную блокировку
 		blocked, err := g.redis.Exists(r.Context(), blockKey).Result()
 		if err == nil && blocked > 0 {
 			_ = g.LogSecurityEvent(r.Context(), "brute_force_blocked", ip, "", map[string]interface{}{
@@ -76,11 +67,9 @@ func (g *Guard) BruteForceProtect(next http.Handler) http.Handler {
 			return
 		}
 
-		// Оборачиваем ResponseWriter для перехвата статуса ответа
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(rw, r)
 
-		// Если логин неудачный (401) — увеличиваем счётчик
 		if rw.statusCode == http.StatusUnauthorized {
 			failKey := "security:bf_fails:" + ip
 			count, _ := g.redis.Incr(r.Context(), failKey).Result()
@@ -101,7 +90,6 @@ func (g *Guard) BruteForceProtect(next http.Handler) http.Handler {
 	})
 }
 
-// LogSecurityEvent записывает событие безопасности в таблицу security_log.
 func (g *Guard) LogSecurityEvent(ctx context.Context, eventType, ip, userID string, details map[string]interface{}) error {
 	detailsJSON, err := json.Marshal(details)
 	if err != nil {
@@ -129,7 +117,6 @@ func (g *Guard) LogSecurityEvent(ctx context.Context, eventType, ip, userID stri
 	return nil
 }
 
-// extractIP извлекает IP-адрес из запроса (учитывает X-Forwarded-For).
 func extractIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
@@ -147,7 +134,6 @@ func extractIP(r *http.Request) string {
 	return host
 }
 
-// responseWriter оборачивает http.ResponseWriter для перехвата статус-кода.
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int

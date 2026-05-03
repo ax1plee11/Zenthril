@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"database/sql"
@@ -19,6 +19,8 @@ import (
 	"veltrix-backend/guild"
 	"veltrix-backend/hub"
 	"veltrix-backend/message"
+	"veltrix-backend/metrics"
+	"veltrix-backend/moderation"
 	"veltrix-backend/security"
 	"veltrix-backend/spam"
 )
@@ -58,7 +60,6 @@ func adminOnly(cfg *config.Config) func(http.Handler) http.Handler {
 }
 
 func main() {
-	// Загружаем .env если есть (игнорируем ошибку — в проде переменные задаются иначе)
 	_ = godotenv.Load()
 
 	cfg, err := config.Load()
@@ -66,58 +67,57 @@ func main() {
 		log.Fatalf("config error: %v", err)
 	}
 
-	// Инициализируем PostgreSQL (pgxpool для основных сервисов)
 	database, err := db.Open(cfg.DBURL)
 	if err != nil {
 		log.Fatalf("db error: %v", err)
 	}
 	defer database.Close()
 
-	// Инициализируем database/sql + lib/pq для SecurityGuard
 	sqlDB, err := sql.Open("postgres", cfg.DBURL)
 	if err != nil {
 		log.Fatalf("sql db error: %v", err)
 	}
 	defer sqlDB.Close()
 
-	// Инициализируем Redis
 	redisOpts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatalf("redis url error: %v", err)
 	}
 	rdb := redis.NewClient(redisOpts)
 
-	// Инициализируем AuthService и Handler
 	authSvc := auth.NewService(database, rdb, cfg.JWTSecret)
 	authHandler := auth.NewHandler(authSvc)
 
-	// Инициализируем GuildService и Handler
 	guildSvc := guild.NewService(database, cfg.HTTPAddr)
-	// hub инициализируется ниже, передаём после
 	wsHub := hub.NewHub(guildSvc)
 	go wsHub.Run()
 	guildHandler := guild.NewHandler(guildSvc, wsHub)
 
 	wsUpgrader := hub.NewUpgrader(wsAllowedOrigins(cfg))
 
-	// Инициализируем MessageService и Handler
 	messageSvc := message.NewService(database, wsHub, guildSvc)
 	messageHandler := message.NewHandler(messageSvc)
 
-	// Инициализируем SpamGuard и SecurityGuard
 	spamGuard := spam.NewGuard(rdb)
 	secGuard := security.NewGuard(rdb, sqlDB)
 
-	// Инициализируем Friends
 	friendsSvc := friends.NewService(database)
 	friendsHandler := friends.NewHandler(friendsSvc, wsHub)
+
+	connMonitor := moderation.NewConnectionMonitor(database)
+	stateManager := moderation.NewGuildStateManager(database, cfg.AdminUserIDs)
+	guildModerator := moderation.NewGuildModerator(database, connMonitor)
+	moderationHandler := moderation.NewHandler(guildModerator, connMonitor, stateManager)
+
+	guildSvc.SetStateChecker(stateManager)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(metrics.HTTPMiddleware)
+	r.Use(connMonitor.ConnectionMiddleware)
 
-	// CORS: без CORS_ALLOWED_ORIGINS — разрешены все (*). Иначе только перечисленные Origin.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			allowed := cfg.CORSAllowedOrigins
@@ -142,26 +142,26 @@ func main() {
 		})
 	})
 
-	// Глобальная DDoS-защита
 	r.Use(secGuard.IPRateLimit)
 
-	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok","app":"zenthril"}`))
 	})
 
-	// API v1
+	r.Get("/metrics", metrics.Handler())
+	r.Get("/metrics/prometheus", metrics.PrometheusHandler())
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
-			// BruteForceProtect применяется только к /auth/login
 			r.With(secGuard.BruteForceProtect).Post("/login", authHandler.Login)
 			r.Post("/logout", authHandler.Logout)
 			r.Group(func(r chi.Router) {
 				r.Use(authSvc.Middleware)
 				r.Post("/ws-ticket", authHandler.WSTicket)
+				r.Get("/me", authHandler.GetMe)
 			})
 		})
 		r.Route("/guilds", func(r chi.Router) {
@@ -189,7 +189,6 @@ func main() {
 		r.Route("/channels", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
 			r.Route("/{channelId}/messages", func(r chi.Router) {
-				// SpamGuard применяется только к POST (отправка сообщений)
 				r.With(spamGuard.Middleware).Post("/", messageHandler.SendMessage)
 				r.Get("/", messageHandler.GetHistory)
 			})
@@ -199,7 +198,6 @@ func main() {
 			r.Patch("/{messageId}", messageHandler.EditMessage)
 			r.Delete("/{messageId}", messageHandler.DeleteMessage)
 		})
-		// Поиск пользователей
 		r.Route("/users", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
 			r.Get("/search", func(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +239,6 @@ func main() {
 				_, _ = w.Write(out)
 			})
 		})
-		// Друзья
 		r.Route("/friends", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
 			r.Get("/", friendsHandler.List)
@@ -249,23 +246,27 @@ func main() {
 			r.Post("/{userId}/accept", friendsHandler.Accept)
 			r.Delete("/{userId}", friendsHandler.Decline)
 		})
-		// Глобальные баны (admin)
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
-			// Чтобы никого случайно не “вырубили” — admin только по whitelist из env.
-			// Если ADMIN_USER_IDS не задан — по умолчанию доступ запрещён всем.
 			r.Use(adminOnly(cfg))
 			r.Post("/users/{userId}/ban", authHandler.GlobalBan)
 			r.Delete("/users/{userId}/ban", authHandler.GlobalUnban)
+			r.Get("/users/{userId}/ips", moderationHandler.GetUserIPs)
+			r.Post("/guilds/{guildId}/process-ban", moderationHandler.ProcessGuildBan)
+			r.Post("/guilds/{guildId}/global-ban", moderationHandler.GlobalBanGuildAndMembers)
+			r.Get("/guilds/{guildId}/member-ips", moderationHandler.GetGuildMembersIPs)
+			r.Post("/guilds/{guildId}/lock", moderationHandler.LockGuild)
+			r.Post("/guilds/{guildId}/unlock", moderationHandler.UnlockGuild)
+			r.Get("/guilds/{guildId}/lock-status", moderationHandler.GetLockStatus)
+			r.Get("/locked-guilds", moderationHandler.GetAllLockedGuilds)
+			r.Get("/audit-log", authHandler.GetAuditLog)
 		})
 	})
 
-	// WebSocket endpoint (одноразовый ticket из POST /api/v1/auth/ws-ticket)
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
 		hub.ServeWS(wsHub, authSvc, wsUpgrader, w, r)
 	})
 
-	// Federation endpoints
 	r.Route("/federation/v1", func(r chi.Router) {
 		r.Post("/announce", notImplemented)
 		r.Get("/peers", notImplemented)

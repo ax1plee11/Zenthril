@@ -10,7 +10,6 @@ import (
 	"veltrix-backend/auth"
 )
 
-// FriendNotifier — интерфейс для WS-уведомлений.
 type FriendNotifier interface {
 	BroadcastToUser(userID string, msg []byte)
 }
@@ -24,7 +23,6 @@ func NewHandler(svc *Service, n FriendNotifier) *Handler {
 	return &Handler{svc: svc, notifier: n}
 }
 
-// GET /api/v1/friends — список друзей + запросы
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -39,7 +37,6 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-// POST /api/v1/friends/request — отправить запрос { user_id }
 func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -54,7 +51,6 @@ func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем username отправителя для уведомления
 	username, _ := h.svc.GetUsername(r.Context(), userID)
 
 	err := h.svc.SendRequest(r.Context(), userID, req.UserID)
@@ -72,7 +68,6 @@ func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// WS-уведомление адресату
 	if h.notifier != nil {
 		msg, _ := json.Marshal(map[string]string{
 			"type":          "friend.request",
@@ -85,7 +80,6 @@ func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /api/v1/friends/{userId}/accept — принять запрос
 func (h *Handler) Accept(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -102,7 +96,6 @@ func (h *Handler) Accept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// WS-уведомление тому кто отправил запрос — его приняли
 	if h.notifier != nil {
 		username, _ := h.svc.GetUsername(r.Context(), userID)
 		msg, _ := json.Marshal(map[string]string{
@@ -116,7 +109,6 @@ func (h *Handler) Accept(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/v1/friends/{userId} — удалить друга или отклонить запрос
 func (h *Handler) Decline(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
