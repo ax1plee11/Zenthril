@@ -1,16 +1,16 @@
 [package]
-name = "vibrora"
+name = "zenthril"
 version = "0.1.0"
-description = "Vibrora — децентрализованный мессенджер"
-authors = ["Vibrora Team"]
+description = "Zenthril — secure E2E encrypted messenger"
+authors = ["Zenthril Team"]
 edition = "2021"
 
 [lib]
-name = "vibrora_lib"
+name = "zenthril_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "vibrora"
+name = "zenthril"
 path = "src/main.rs"
 
 [build-dependencies]
