@@ -6,11 +6,15 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -24,7 +28,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+
       redis:
         image: redis:7
         options: >-
@@ -34,27 +38,27 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.22'
-    
+
     - name: Cache Go modules
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
-    
+
     - name: Install dependencies
       working-directory: ./backend
       run: go mod download
-    
+
     - name: Run tests
       working-directory: ./backend
       env:
@@ -64,13 +68,13 @@ jobs:
       run: |
         go test -v -race -coverprofile=coverage.out ./...
         go tool cover -func=coverage.out
-    
+
     - name: Run linter
       working-directory: ./backend
       run: |
         go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
         golangci-lint run
-    
+
     - name: Run benchmarks
       working-directory: ./backend
       env:
@@ -80,29 +84,27 @@ jobs:
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: client/package-lock.json
-    
+        node-version: '24'
+
     - name: Install dependencies
       working-directory: ./client
       run: npm install
-    
+
     - name: Run linter
       working-directory: ./client
       run: npm run lint
-    
+
     - name: Run tests
       working-directory: ./client
-      run: npm test -- --run
-    
+      run: npx vitest run
+
     - name: Build
       working-directory: ./client
       run: npm run build
@@ -110,10 +112,10 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
@@ -121,9 +123,9 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
-    
+
     - name: Upload Trivy results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
