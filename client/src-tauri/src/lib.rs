@@ -1,7 +1,7 @@
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
-const STORE_PATH: &str = "vibrora_secure.json";
+const STORE_PATH: &str = "zenthril_secure.json";
 const PRIVATE_KEY_KEY: &str = "private_key";
 
 /// Сохраняет приватный ключ в защищённое хранилище Tauri Store.

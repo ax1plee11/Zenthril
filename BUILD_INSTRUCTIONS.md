@@ -86,7 +86,7 @@ client/src-tauri/target/release/bundle/
 
 Также будет standalone .exe:
 ```
-client/src-tauri/target/release/vibrora.exe
+client/src-tauri/target/release/zenthril.exe
 ```
 
 ## Альтернатива: Dev-режим

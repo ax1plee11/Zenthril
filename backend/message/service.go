@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"veltrix-backend/guild"
-	"veltrix-backend/hub"
-	"veltrix-backend/models"
+	"zenthril-backend/guild"
+	"zenthril-backend/hub"
+	"zenthril-backend/models"
 )
 
 var (

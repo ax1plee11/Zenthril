@@ -4,7 +4,7 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "../store/auth";
 
-const PROFILE_KEY = "vibrora_profile";
+const PROFILE_KEY = "zenthril_profile";
 
 export type UserStatus = "online" | "dnd" | "offline";
 
@@ -61,7 +61,7 @@ export function loadProfile(): UserProfile {
 
 export function saveProfile(p: UserProfile, userId?: string): void {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-  if (userId) localStorage.setItem(`vibrora_profile_${userId}`, JSON.stringify(p));
+  if (userId) localStorage.setItem(`zenthril_profile_${userId}`, JSON.stringify(p));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

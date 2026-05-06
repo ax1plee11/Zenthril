@@ -1,4 +1,4 @@
-// Типы данных Veltrix (клиент)
+// Типы данных Zenthril (клиент)
 
 export interface EncryptedPayload {
   ciphertext: string; // base64

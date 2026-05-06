@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"veltrix-backend/auth"
+	"zenthril-backend/auth"
 )
 
 type GuildNotifier interface {

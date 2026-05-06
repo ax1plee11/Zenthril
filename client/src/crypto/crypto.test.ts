@@ -65,7 +65,7 @@ describe("encrypt / decrypt — round-trip", () => {
   });
 
   it("decrypt(encrypt(text)) === исходный текст", async () => {
-    const original = "Привет, Veltrix!";
+    const original = "Привет, Zenthril!";
     const payload = await encrypt(original, sharedKey);
     const result = await decrypt(payload, sharedKey);
     expect(result).toBe(original);
@@ -158,7 +158,7 @@ describe("rotateSessionKey", () => {
 
 describe("storePrivateKey / loadPrivateKey", () => {
   beforeEach(() => {
-    localStorage.removeItem("veltrix_private_key");
+    localStorage.removeItem("zenthril_private_key");
   });
 
   it("сохранённый ключ можно загрузить обратно", async () => {

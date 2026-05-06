@@ -16,13 +16,13 @@ interface Props {
 
 const STATUS_COLORS = { online: "#43b581", dnd: "#f04747", offline: "#747f8d" };
 const STATUS_LABELS = { online: "Онлайн", dnd: "Не беспокоить", offline: "Офлайн" };
-const PROFILE_KEY = "vibrora_profile";
+const PROFILE_KEY = "zenthril_profile";
 
 /** Загружает профиль пользователя по userId из localStorage.
  *  В реальном приложении здесь был бы API-запрос.
  *  Для своего профиля — берём напрямую, для чужих — ключ с userId. */
 function loadUserProfile(userId: string, currentUserId: string): UserProfile {
-  const key = userId === currentUserId ? PROFILE_KEY : `vibrora_profile_${userId}`;
+  const key = userId === currentUserId ? PROFILE_KEY : `zenthril_profile_${userId}`;
   try {
     const raw = localStorage.getItem(key);
     if (raw) {

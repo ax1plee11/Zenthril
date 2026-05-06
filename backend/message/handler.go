@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"veltrix-backend/auth"
-	"veltrix-backend/models"
+	"zenthril-backend/auth"
+	"zenthril-backend/models"
 )
 
 type Handler struct {

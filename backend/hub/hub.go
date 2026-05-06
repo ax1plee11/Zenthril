@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"veltrix-backend/auth"
-	"veltrix-backend/metrics"
+	"zenthril-backend/auth"
+	"zenthril-backend/metrics"
 )
 
 type ChannelAccessChecker interface {

@@ -1,4 +1,4 @@
-module veltrix-backend
+module zenthril-backend
 
 go 1.22
 

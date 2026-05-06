@@ -1,14 +1,14 @@
-name: veltrix
+name: zenthril
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: veltrix-postgres
+    container_name: zenthril-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: veltrix
-      POSTGRES_PASSWORD: veltrix
-      POSTGRES_DB: veltrix
+      POSTGRES_USER: zenthril
+      POSTGRES_PASSWORD: zenthril
+      POSTGRES_DB: zenthril
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
@@ -16,14 +16,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U veltrix"]
+      test: ["CMD-SHELL", "pg_isready -U zenthril"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: veltrix-redis
+    container_name: zenthril-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -37,12 +37,12 @@ services:
 
   backend:
     build: ./backend
-    container_name: veltrix-backend
+    container_name: zenthril-backend
     restart: unless-stopped
     environment:
-      DB_URL: postgres://veltrix@postgres:5432/veltrix?sslmode=disable
+      DB_URL: postgres://zenthril@postgres:5432/zenthril?sslmode=disable
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: veltrix-dev-secret-key
+      JWT_SECRET: zenthril-dev-secret-key
       HTTP_ADDR: ":8080"
     ports:
       - "8080:8080"

@@ -57,7 +57,7 @@ export interface Theme {
   overlayDarkness: number; // 0=прозрачный, 100=тёмный — применяется ко всем панелям
 }
 
-const THEME_KEY = "vibrora_theme";
+const THEME_KEY = "zenthril_theme";
 
 export const DEFAULT_THEME: Theme = {
   scheme: "dark",

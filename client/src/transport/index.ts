@@ -21,7 +21,7 @@ class P2PClient {
 
 // ─── Константы ────────────────────────────────────────────────────────────────
 
-const TOKEN_KEY = "veltrix_token";
+const TOKEN_KEY = "zenthril_token";
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const CONNECT_TIMEOUT_MS = 5_000;
 
@@ -217,7 +217,7 @@ export class TransportLayer {
 // ─── Singleton ────────────────────────────────────────────────────────────────
 
 export const transport = new TransportLayer([
-  "wss://node1.veltrix.app",
-  "wss://node2.veltrix.app",
-  "wss://node3.veltrix.app",
+  "wss://node1.zenthril.app",
+  "wss://node2.zenthril.app",
+  "wss://node3.zenthril.app",
 ]);

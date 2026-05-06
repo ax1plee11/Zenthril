@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"veltrix-backend/models"
+	"zenthril-backend/models"
 )
 
 var ErrUsernameTaken = errors.New("username_taken")

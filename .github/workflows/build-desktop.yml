@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zenthril-windows-portable
-          path: client/src-tauri/target/release/vibrora.exe
+          path: client/src-tauri/target/release/zenthril.exe
 
   build-linux:
     runs-on: ubuntu-latest

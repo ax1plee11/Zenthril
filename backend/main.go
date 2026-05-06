@@ -12,16 +12,16 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
-	"veltrix-backend/auth"
-	"veltrix-backend/config"
-	"veltrix-backend/db"
-	"veltrix-backend/friends"
-	"veltrix-backend/guild"
-	"veltrix-backend/hub"
-	"veltrix-backend/message"
-	"veltrix-backend/metrics"
-	"veltrix-backend/security"
-	"veltrix-backend/spam"
+	"zenthril-backend/auth"
+	"zenthril-backend/config"
+	"zenthril-backend/db"
+	"zenthril-backend/friends"
+	"zenthril-backend/guild"
+	"zenthril-backend/hub"
+	"zenthril-backend/message"
+	"zenthril-backend/metrics"
+	"zenthril-backend/security"
+	"zenthril-backend/spam"
 )
 
 func wsAllowedOrigins(cfg *config.Config) []string {

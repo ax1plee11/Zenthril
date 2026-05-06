@@ -1,5 +1,5 @@
 /**
- * CryptoModule — E2EE для Veltrix
+ * CryptoModule — E2EE для Zenthril
  *
  * X25519 ECDH: @noble/curves (работает в браузере, Tauri и Node.js)
  * AES-256-GCM:  WebCrypto API (window.crypto.subtle)
@@ -18,7 +18,7 @@ export interface X25519KeyPair {
 
 // ─── Константы ───────────────────────────────────────────────────────────────
 
-const PRIVATE_KEY_STORAGE_KEY = "veltrix_private_key";
+const PRIVATE_KEY_STORAGE_KEY = "zenthril_private_key";
 
 /** Сессионные ключи: channelId → CryptoKey (AES-256-GCM) */
 const sessionKeys = new Map<string, CryptoKey>();

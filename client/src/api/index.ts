@@ -39,7 +39,7 @@ export function getWebSocketUrl(path = "/ws"): string {
 }
 
 const BASE_URL = getBackendOrigin();
-const TOKEN_KEY = "veltrix_token";
+const TOKEN_KEY = "zenthril_token";
 
 function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);

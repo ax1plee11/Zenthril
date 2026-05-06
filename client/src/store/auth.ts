@@ -4,8 +4,8 @@
 
 import { createContext, useContext } from "react";
 
-const TOKEN_KEY = "veltrix_token";
-const USER_KEY = "veltrix_user";
+const TOKEN_KEY = "zenthril_token";
+const USER_KEY = "zenthril_user";
 
 export interface AuthUser {
   id: string;

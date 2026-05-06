@@ -11,7 +11,7 @@ export interface Notification {
   meta?: Record<string, string>;
 }
 
-const STORAGE_KEY = "vibrora_notifications";
+const STORAGE_KEY = "zenthril_notifications";
 
 function loadNotifications(): Notification[] {
   try {
