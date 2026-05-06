@@ -70,10 +70,10 @@ jobs:
         go tool cover -func=coverage.out
 
     - name: Run linter
-      working-directory: ./backend
-      run: |
-        go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.1.6
-        golangci-lint run
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v2.1.6
+        working-directory: ./backend
 
     - name: Run benchmarks
       working-directory: ./backend
