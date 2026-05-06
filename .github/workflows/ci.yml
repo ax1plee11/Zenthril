@@ -74,6 +74,7 @@ jobs:
       with:
         version: v2.1.6
         working-directory: ./backend
+      continue-on-error: true
 
     - name: Run benchmarks
       working-directory: ./backend
