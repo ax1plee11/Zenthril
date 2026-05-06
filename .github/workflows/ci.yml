@@ -93,7 +93,7 @@ jobs:
     
     - name: Install dependencies
       working-directory: ./client
-      run: npm ci
+      run: npm install
     
     - name: Run linter
       working-directory: ./client
@@ -101,7 +101,7 @@ jobs:
     
     - name: Run tests
       working-directory: ./client
-      run: npm test
+      run: npm test -- --run
     
     - name: Build
       working-directory: ./client
@@ -123,7 +123,7 @@ jobs:
         output: 'trivy-results.sarif'
     
     - name: Upload Trivy results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'

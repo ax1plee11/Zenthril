@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"fmt"
 	"testing"
 )
 
@@ -100,12 +101,10 @@ func BenchmarkKeyGeneration(b *testing.B) {
 
 func formatSize(size int) string {
 	if size < 1024 {
-		return string(append([]byte{}, []byte("bytes_")...))
+		return "bytes"
 	}
 	if size < 1024*1024 {
-		kb := size / 1024
-		return string(append([]byte{}, []byte("KB_")...))
+		return fmt.Sprintf("%dKB", size/1024)
 	}
-	mb := size / (1024 * 1024)
-	return string(append([]byte{}, []byte("MB_")...))
+	return fmt.Sprintf("%dMB", size/(1024*1024))
 }

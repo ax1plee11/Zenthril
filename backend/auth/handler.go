@@ -133,7 +133,7 @@ func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GlobalUnban(w http.ResponseWriter, r *http.Request) {
-	requesterID, ok := UserIDFromContext(r.Context())
+	_, ok := UserIDFromContext(r.Context())
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
 		return
