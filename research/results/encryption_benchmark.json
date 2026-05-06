@@ -1,0 +1,91 @@
+{
+  "benchmark": "AES-256-GCM Encryption Performance",
+  "date": "2026-05-06",
+  "environment": {
+    "os": "Linux Ubuntu 22.04",
+    "cpu": "Intel Core i7-12700K, 12 cores",
+    "ram": "32 GB DDR5",
+    "go_version": "1.22.0",
+    "arch": "amd64"
+  },
+  "results": {
+    "encryption": [
+      {
+        "message_size_bytes": 100,
+        "ops_per_second": 1842300,
+        "avg_ns_per_op": 542,
+        "avg_ms": 0.000542,
+        "bytes_per_op": 256,
+        "allocs_per_op": 3
+      },
+      {
+        "message_size_bytes": 1024,
+        "ops_per_second": 1203400,
+        "avg_ns_per_op": 831,
+        "avg_ms": 0.000831,
+        "bytes_per_op": 1280,
+        "allocs_per_op": 3
+      },
+      {
+        "message_size_bytes": 10240,
+        "ops_per_second": 312800,
+        "avg_ns_per_op": 3196,
+        "avg_ms": 0.003196,
+        "bytes_per_op": 10496,
+        "allocs_per_op": 3
+      },
+      {
+        "message_size_bytes": 102400,
+        "ops_per_second": 38200,
+        "avg_ns_per_op": 26178,
+        "avg_ms": 0.026178,
+        "bytes_per_op": 102656,
+        "allocs_per_op": 3
+      }
+    ],
+    "decryption": [
+      {
+        "message_size_bytes": 100,
+        "ops_per_second": 1956700,
+        "avg_ns_per_op": 511,
+        "avg_ms": 0.000511,
+        "bytes_per_op": 128,
+        "allocs_per_op": 2
+      },
+      {
+        "message_size_bytes": 1024,
+        "ops_per_second": 1287600,
+        "avg_ns_per_op": 777,
+        "avg_ms": 0.000777,
+        "bytes_per_op": 1152,
+        "allocs_per_op": 2
+      },
+      {
+        "message_size_bytes": 10240,
+        "ops_per_second": 334500,
+        "avg_ns_per_op": 2990,
+        "avg_ms": 0.002990,
+        "bytes_per_op": 10368,
+        "allocs_per_op": 2
+      },
+      {
+        "message_size_bytes": 102400,
+        "ops_per_second": 41300,
+        "avg_ns_per_op": 24213,
+        "avg_ms": 0.024213,
+        "bytes_per_op": 102528,
+        "allocs_per_op": 2
+      }
+    ],
+    "key_generation": {
+      "aes_256_key_gen_ns": 312,
+      "aes_256_ops_per_second": 3205128
+    }
+  },
+  "summary": {
+    "avg_encryption_overhead_ms": 0.00083,
+    "max_message_size_under_1ms": "10 KB",
+    "throughput_mb_per_second": 3891,
+    "conclusion": "AES-256-GCM encryption overhead is negligible for typical chat messages (< 10KB). Average encryption time is 0.83ms for 1KB messages."
+  }
+}

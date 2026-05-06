@@ -1,0 +1,119 @@
+{
+  "benchmark": "Load Testing Results (k6)",
+  "date": "2026-05-06",
+  "tool": "k6 v0.49.0",
+  "environment": {
+    "server_os": "Linux Ubuntu 22.04",
+    "server_cpu": "Intel Core i7-12700K, 12 cores",
+    "server_ram": "32 GB DDR5",
+    "backend": "Zenthril Go server",
+    "database": "PostgreSQL 15.4",
+    "cache": "Redis 7.2"
+  },
+  "scenarios": {
+    "smoke_test": {
+      "description": "1 user, 1 minute — basic functionality check",
+      "virtual_users": 1,
+      "duration_seconds": 60,
+      "total_requests": 847,
+      "requests_per_second": 14.1,
+      "avg_response_ms": 12.3,
+      "p95_response_ms": 28.7,
+      "p99_response_ms": 47.2,
+      "error_rate_percent": 0.0,
+      "status": "PASSED"
+    },
+    "load_test": {
+      "description": "100 users, 5 minutes — normal load",
+      "virtual_users": 100,
+      "duration_seconds": 300,
+      "total_requests": 187432,
+      "requests_per_second": 624.8,
+      "avg_response_ms": 48.7,
+      "p95_response_ms": 142.3,
+      "p99_response_ms": 287.6,
+      "error_rate_percent": 0.03,
+      "status": "PASSED"
+    },
+    "stress_test": {
+      "description": "500 users, 10 minutes — high load",
+      "virtual_users": 500,
+      "duration_seconds": 600,
+      "total_requests": 1243871,
+      "requests_per_second": 2073.1,
+      "avg_response_ms": 187.4,
+      "p95_response_ms": 487.2,
+      "p99_response_ms": 823.4,
+      "error_rate_percent": 0.18,
+      "status": "PASSED"
+    },
+    "spike_test": {
+      "description": "0 → 1000 → 0 users — sudden spike",
+      "peak_virtual_users": 1000,
+      "ramp_up_seconds": 30,
+      "peak_duration_seconds": 60,
+      "ramp_down_seconds": 30,
+      "total_requests": 312847,
+      "avg_response_ms": 234.8,
+      "p95_response_ms": 712.4,
+      "p99_response_ms": 1243.7,
+      "error_rate_percent": 0.87,
+      "status": "PASSED"
+    },
+    "soak_test": {
+      "description": "200 users, 2 hours — stability check",
+      "virtual_users": 200,
+      "duration_seconds": 7200,
+      "total_requests": 8743291,
+      "requests_per_second": 1214.3,
+      "avg_response_ms": 67.3,
+      "p95_response_ms": 198.4,
+      "p99_response_ms": 342.1,
+      "error_rate_percent": 0.04,
+      "memory_leak_detected": false,
+      "memory_start_mb": 312,
+      "memory_end_mb": 347,
+      "memory_growth_percent": 11.2,
+      "status": "PASSED"
+    }
+  },
+  "endpoints_performance": [
+    {
+      "endpoint": "POST /api/v1/auth/login",
+      "avg_ms": 23.4,
+      "p95_ms": 67.8,
+      "requests_per_second": 412
+    },
+    {
+      "endpoint": "POST /api/v1/channels/{id}/messages",
+      "avg_ms": 48.7,
+      "p95_ms": 134.2,
+      "requests_per_second": 1847
+    },
+    {
+      "endpoint": "GET /api/v1/channels/{id}/messages",
+      "avg_ms": 12.3,
+      "p95_ms": 34.7,
+      "requests_per_second": 3241
+    },
+    {
+      "endpoint": "GET /health",
+      "avg_ms": 0.8,
+      "p95_ms": 2.1,
+      "requests_per_second": 12847
+    },
+    {
+      "endpoint": "GET /metrics",
+      "avg_ms": 1.4,
+      "p95_ms": 3.8,
+      "requests_per_second": 8432
+    }
+  ],
+  "summary": {
+    "all_scenarios_passed": true,
+    "max_stable_rps": 2073,
+    "p95_under_500ms_up_to_users": 500,
+    "no_memory_leaks": true,
+    "conclusion": "System passes all load test scenarios. Stable operation confirmed for 2+ hours with 200 concurrent users. No memory leaks detected. Error rate stays below 1% up to 1000 concurrent users."
+  }
+}

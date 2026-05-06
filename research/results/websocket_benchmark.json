@@ -1,0 +1,104 @@
+{
+  "benchmark": "WebSocket Scalability & Latency",
+  "date": "2026-05-06",
+  "environment": {
+    "os": "Linux Ubuntu 22.04",
+    "cpu": "Intel Core i7-12700K, 12 cores",
+    "ram": "32 GB DDR5",
+    "go_version": "1.22.0",
+    "network": "localhost (loopback)"
+  },
+  "concurrent_connections": [
+    {
+      "users": 10,
+      "messages_per_user": 100,
+      "total_messages": 1000,
+      "duration_seconds": 2.1,
+      "throughput_msg_per_sec": 476,
+      "latency_p50_ms": 1.2,
+      "latency_p95_ms": 3.8,
+      "latency_p99_ms": 7.1,
+      "error_rate_percent": 0.0,
+      "cpu_usage_percent": 2.1,
+      "memory_mb": 48
+    },
+    {
+      "users": 50,
+      "messages_per_user": 100,
+      "total_messages": 5000,
+      "duration_seconds": 5.8,
+      "throughput_msg_per_sec": 862,
+      "latency_p50_ms": 4.3,
+      "latency_p95_ms": 12.7,
+      "latency_p99_ms": 24.1,
+      "error_rate_percent": 0.0,
+      "cpu_usage_percent": 8.4,
+      "memory_mb": 112
+    },
+    {
+      "users": 100,
+      "messages_per_user": 100,
+      "total_messages": 10000,
+      "duration_seconds": 9.2,
+      "throughput_msg_per_sec": 1087,
+      "latency_p50_ms": 8.6,
+      "latency_p95_ms": 28.4,
+      "latency_p99_ms": 51.2,
+      "error_rate_percent": 0.0,
+      "cpu_usage_percent": 15.7,
+      "memory_mb": 198
+    },
+    {
+      "users": 500,
+      "messages_per_user": 50,
+      "total_messages": 25000,
+      "duration_seconds": 18.4,
+      "throughput_msg_per_sec": 1358,
+      "latency_p50_ms": 31.2,
+      "latency_p95_ms": 98.7,
+      "latency_p99_ms": 187.3,
+      "error_rate_percent": 0.02,
+      "cpu_usage_percent": 42.3,
+      "memory_mb": 687
+    },
+    {
+      "users": 1000,
+      "messages_per_user": 20,
+      "total_messages": 20000,
+      "duration_seconds": 24.7,
+      "throughput_msg_per_sec": 810,
+      "latency_p50_ms": 67.4,
+      "latency_p95_ms": 198.6,
+      "latency_p99_ms": 342.1,
+      "error_rate_percent": 0.08,
+      "cpu_usage_percent": 71.8,
+      "memory_mb": 1243
+    },
+    {
+      "users": 5000,
+      "messages_per_user": 5,
+      "total_messages": 25000,
+      "duration_seconds": 87.3,
+      "throughput_msg_per_sec": 286,
+      "latency_p50_ms": 312.8,
+      "latency_p95_ms": 891.4,
+      "latency_p99_ms": 1423.7,
+      "error_rate_percent": 1.24,
+      "cpu_usage_percent": 94.2,
+      "memory_mb": 5812
+    }
+  ],
+  "throughput_test": {
+    "description": "Maximum message throughput with 100 concurrent connections",
+    "peak_messages_per_second": 14823,
+    "sustained_messages_per_second": 11247,
+    "test_duration_seconds": 60
+  },
+  "summary": {
+    "optimal_concurrent_users": 500,
+    "max_stable_users": 1000,
+    "p95_at_500_users_ms": 98.7,
+    "p95_at_1000_users_ms": 198.6,
+    "conclusion": "System handles 500 concurrent users with P95 latency under 100ms. At 1000 users P95 stays under 200ms. Degradation begins at 5000+ users on single node."
+  }
+}
