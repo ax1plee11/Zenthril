@@ -5,6 +5,8 @@ import { ThemeContext, loadTheme, saveTheme, applyTheme, ANIMATED_BG_PRESETS } f
 import type { Theme } from "./store/theme";
 import AuthScreen from "./components/AuthScreen";
 import MainLayout from "./components/MainLayout";
+import { CallManager } from "./features/calls/components/CallManager";
+import { signalingService } from "./features/calls/services/signalingService";
 
 function getAppBackground(theme: Theme): React.CSSProperties {
   const bg = theme.chatBackground;
@@ -56,10 +58,13 @@ export default function App() {
     saveAuth(newToken, newUser);
     setToken(newToken);
     setUser(newUser);
+    const wsBase = (import.meta.env.VITE_API_BASE || 'http://localhost:8080').replace('http', 'ws');
+    signalingService.connect(wsBase, newToken);
   }, []);
 
   const logout = useCallback(() => {
     clearAuth();
+    signalingService.disconnect();
     setToken(null);
     setUser(null);
   }, []);
@@ -92,6 +97,7 @@ export default function App() {
                 if (t && u) { setToken(t); setUser(u); }
               }} />
             )}
+            <CallManager />
           </div>
         </div>
       </AuthContext.Provider>

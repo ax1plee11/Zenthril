@@ -44,6 +44,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: zenthril-dev-secret-key
       HTTP_ADDR: ":8080"
+      ADMIN_USER_IDS: "1dde727d-fc45-4a70-82e4-37a5016ecb21"
     ports:
       - "8080:8080"
     depends_on:

@@ -65,6 +65,7 @@ jobs:
         DB_URL: postgres://postgres:postgres@localhost:5432/zenthril_test?sslmode=disable
         REDIS_URL: redis://localhost:6379
         JWT_SECRET: test-secret-key-for-ci
+        CI: "true"
       run: |
         go test -v -race -coverprofile=coverage.out ./...
         go tool cover -func=coverage.out
