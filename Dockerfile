@@ -10,8 +10,10 @@ RUN go mod download
 # Copy source code
 COPY backend/ ./
 
+ARG TARGET=./cmd/api
+
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ${TARGET}
 
 # Runtime stage
 FROM alpine:latest

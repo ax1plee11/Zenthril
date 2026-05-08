@@ -1,0 +1,30 @@
+http:
+  routers:
+    zenthril-api:
+      rule: "Host(`${PUBLIC_DOMAIN}`)"
+      entryPoints:
+        - websecure
+      service: zenthril-api
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - secure-headers
+
+  services:
+    zenthril-api:
+      loadBalancer:
+        healthCheck:
+          path: /healthz
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: "http://api:8080"
+
+  middlewares:
+    secure-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"
