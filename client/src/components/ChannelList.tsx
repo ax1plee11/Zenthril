@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { GuildAPI, ChannelAPI } from "../api/index";
 import { api } from "../api/index";
 import { onWSEvent } from "../store/wsGlobal";
+import { apiErrorFields } from "../util/errors";
 
 interface ChannelListProps {
   guild: GuildAPI | null;
@@ -9,6 +10,7 @@ interface ChannelListProps {
   selectedChannelId: string | null;
   onSelect: (id: string) => void;
   currentUserId: string;
+  onCreateChannel?: (name: string, type: "text" | "voice") => Promise<void>;
 }
 
 function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; selected: boolean; onClick: () => void; unread?: number }) {
@@ -62,10 +64,11 @@ function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; se
   );
 }
 
-export default function ChannelList({ guild, channels, selectedChannelId, onSelect, currentUserId }: ChannelListProps) {
+export default function ChannelList({ guild, channels, selectedChannelId, onSelect, currentUserId, onCreateChannel }: ChannelListProps) {
   const textChannels  = channels.filter(c => c.type === "text");
   const voiceChannels = channels.filter(c => c.type === "voice");
   const [showManage, setShowManage] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
   const isOwner = guild?.owner_id === currentUserId;
   // Счётчики непрочитанных: channelId → count
   const [unread, setUnread] = useState<Record<string, number>>({});
@@ -116,6 +119,20 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
                 {guild.name}
               </span>
             </div>
+            {isOwner && onCreateChannel && (
+              <button onClick={() => setShowCreateChannel(true)} title="Create channel" style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "var(--text-muted)", padding: 4, borderRadius: 6, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            )}
             {/* Settings button — visible to owner */}
             {isOwner && (
               <button onClick={() => setShowManage(true)} title="Управление сервером" style={{
@@ -179,7 +196,7 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
           </>
         )}
 
-        {guild && channels.length === 0 && <NoChannelsYet />}
+        {guild && channels.length === 0 && <NoChannelsYet canCreate={isOwner && !!onCreateChannel} onCreate={() => setShowCreateChannel(true)} />}
       </div>
 
       {/* Member management modal */}
@@ -190,11 +207,118 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
           onClose={() => setShowManage(false)}
         />
       )}
+
+      {showCreateChannel && guild && onCreateChannel && (
+        <CreateChannelModal
+          onClose={() => setShowCreateChannel(false)}
+          onCreate={onCreateChannel}
+        />
+      )}
     </div>
   );
 }
 
 // ── Member management modal ───────────────────────────────────────────────────
+
+function CreateChannelModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (name: string, type: "text" | "voice") => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"text" | "voice">("text");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const cleanName = name.trim().replace(/^#+/, "");
+    if (!cleanName) return;
+    setLoading(true);
+    setError("");
+    try {
+      await onCreate(cleanName, type);
+      onClose();
+    } catch (err: unknown) {
+      setError(apiErrorFields(err).message ?? "Failed to create channel");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 620, backdropFilter: "blur(6px)",
+    }} onClick={onClose}>
+      <form onSubmit={handleSubmit} style={{
+        width: 380, background: "var(--bg-surface)", border: "1px solid var(--border)",
+        borderRadius: 16, boxShadow: "var(--shadow-lg)", padding: 22,
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>Create channel</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>Add a text or voice space.</div>
+          </div>
+          <button type="button" onClick={onClose} style={{
+            background: "none", border: "none", color: "var(--text-muted)",
+            cursor: "pointer", fontSize: 18,
+          }}>x</button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+          {(["text", "voice"] as const).map(nextType => (
+            <button key={nextType} type="button" onClick={() => setType(nextType)} style={{
+              padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+              border: `1px solid ${type === nextType ? "var(--accent)" : "var(--border)"}`,
+              background: type === nextType ? "var(--accent-dim)" : "var(--bg-elevated)",
+              color: type === nextType ? "var(--accent)" : "var(--text-secondary)",
+              fontSize: 13, fontWeight: 700,
+            }}>
+              {nextType === "text" ? "Text" : "Voice"}
+            </button>
+          ))}
+        </div>
+
+        <label style={{
+          display: "block", fontSize: 11, fontWeight: 700,
+          color: "var(--text-muted)", letterSpacing: 0.8,
+          textTransform: "uppercase", marginBottom: 8,
+        }}>Channel name</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder={type === "text" ? "general" : "voice"}
+          maxLength={100}
+          required
+          style={{
+            width: "100%", boxSizing: "border-box", padding: "11px 12px",
+            background: "var(--bg-input)", border: "1px solid var(--border)",
+            borderRadius: 10, color: "var(--text-primary)", outline: "none",
+            fontSize: 14, fontFamily: "inherit",
+          }}
+        />
+
+        {error && <div style={{ marginTop: 10, color: "#f04f5e", fontSize: 12 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+          <button type="button" onClick={onClose} style={{
+            flex: 1, padding: "10px", borderRadius: 10,
+            background: "var(--bg-elevated)", border: "1px solid var(--border)",
+            color: "var(--text-secondary)", cursor: "pointer", fontWeight: 700,
+          }}>Cancel</button>
+          <button type="submit" disabled={loading || !name.trim()} style={{
+            flex: 1.6, padding: "10px", borderRadius: 10, border: "none",
+            background: name.trim() ? "linear-gradient(135deg, var(--primary), var(--accent))" : "var(--bg-elevated)",
+            color: name.trim() ? "#fff" : "var(--text-muted)",
+            cursor: name.trim() ? "pointer" : "default", fontWeight: 800,
+          }}>{loading ? "Creating..." : "Create"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 interface Member { id: string; username: string; }
 
@@ -568,7 +692,7 @@ function NoServerSelected() {
   );
 }
 
-function NoChannelsYet() {
+function NoChannelsYet({ canCreate, onCreate }: { canCreate?: boolean; onCreate?: () => void }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column" as const,
@@ -590,8 +714,15 @@ function NoChannelsYet() {
           No channels yet
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
-          Ask an admin to create<br/>the first channel
+          {canCreate ? "Create a channel to start" : "Ask an admin to create"}<br/>{canCreate ? "your community space" : "the first channel"}
         </div>
+        {canCreate && (
+          <button onClick={onCreate} style={{
+            marginTop: 10, padding: "8px 12px", borderRadius: 10, border: "none",
+            background: "linear-gradient(135deg, var(--primary), var(--accent))",
+            color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 800,
+          }}>Create channel</button>
+        )}
       </div>
     </div>
   );

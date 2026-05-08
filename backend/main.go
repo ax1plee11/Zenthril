@@ -15,6 +15,7 @@ import (
 	"zenthril-backend/auth"
 	"zenthril-backend/config"
 	"zenthril-backend/db"
+	"zenthril-backend/federation"
 	"zenthril-backend/friends"
 	"zenthril-backend/guild"
 	"zenthril-backend/hub"
@@ -102,6 +103,9 @@ func main() {
 
 	friendsSvc := friends.NewService(database)
 	friendsHandler := friends.NewHandler(friendsSvc, wsHub)
+
+	federationSvc := federation.NewService(database)
+	federationHandler := federation.NewHandler(federationSvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -250,8 +254,8 @@ func main() {
 	})
 
 	r.Route("/federation/v1", func(r chi.Router) {
-		r.Post("/announce", notImplemented)
-		r.Get("/peers", notImplemented)
+		r.Post("/announce", federationHandler.Announce)
+		r.Get("/peers", federationHandler.Peers)
 	})
 
 	log.Printf("Zenthril node starting on %s", cfg.HTTPAddr)
@@ -261,10 +265,4 @@ func main() {
 	} else {
 		log.Fatal(http.ListenAndServe(cfg.HTTPAddr, r))
 	}
-}
-
-func notImplemented(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	_, _ = w.Write([]byte(`{"error":"not_implemented"}`))
 }

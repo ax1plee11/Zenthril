@@ -43,7 +43,9 @@ class WebRTCService {
     if (!this.pc) return;
     try {
       await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch {}
+    } catch {
+      // Ignore late ICE candidates after the peer connection has moved on.
+    }
   }
 
   private async initLocalStream(): Promise<void> {
@@ -56,7 +58,7 @@ class WebRTCService {
         },
         video: false,
       });
-    } catch (err) {
+    } catch {
       useCallStore.getState().updateCallState('failed');
       throw new Error('Microphone access denied');
     }

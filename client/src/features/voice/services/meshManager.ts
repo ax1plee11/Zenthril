@@ -1,6 +1,5 @@
 import { mediaService } from './mediaService';
 import { useVoiceStore } from '../store/voiceStore';
-import type { ConnectionQuality } from '../types';
 
 const MAX_MESH_PEERS = 6;
 
@@ -58,7 +57,9 @@ class MeshManager {
     const entry = this.peers.get(remoteUserId);
     try {
       await entry?.pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch {}
+    } catch {
+      // Ignore late ICE candidates after this peer has disconnected.
+    }
   }
 
   removePeer(userId: string): void {

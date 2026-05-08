@@ -1,4 +1,4 @@
-import { Mic, MicOff, PhoneOff, Volume2 } from 'lucide-react';
+import { Mic, MicOff, PhoneOff } from 'lucide-react';
 import type { VoiceMode } from '../types';
 
 interface Props {

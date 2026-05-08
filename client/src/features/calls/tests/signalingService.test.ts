@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { signalingService } from '../services/signalingService';
 
+type SignalingServiceWithEmit = typeof signalingService & {
+  emit: (event: string, payload: unknown) => void;
+};
+
 describe('signalingService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -9,7 +13,7 @@ describe('signalingService', () => {
   it('registers and fires event handlers', () => {
     const handler = vi.fn();
     signalingService.on('test:event', handler);
-    (signalingService as any).emit('test:event', { data: 1 });
+    (signalingService as SignalingServiceWithEmit).emit('test:event', { data: 1 });
     expect(handler).toHaveBeenCalledWith({ data: 1 });
     signalingService.off('test:event', handler);
   });
@@ -18,7 +22,7 @@ describe('signalingService', () => {
     const handler = vi.fn();
     signalingService.on('test:event2', handler);
     signalingService.off('test:event2', handler);
-    (signalingService as any).emit('test:event2', {});
+    (signalingService as SignalingServiceWithEmit).emit('test:event2', {});
     expect(handler).not.toHaveBeenCalled();
   });
 

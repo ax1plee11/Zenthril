@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { VoiceMode, VoiceRoom, VoiceParticipant, ConnectionQuality } from '../types';
+import type { VoiceMode, VoiceRoom, VoiceParticipant } from '../types';
 
 interface VoiceStore {
   room: VoiceRoom | null;

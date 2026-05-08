@@ -49,7 +49,7 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) 
+	defer tx.Rollback(ctx)
 
 	var guild models.Guild
 	err = tx.QueryRow(ctx,
@@ -74,12 +74,32 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 	}
 
 	_, err = tx.Exec(ctx,
+		`INSERT INTO roles (guild_id, name, level, permissions)
+		 VALUES ($1, 'Member', $2, 0)`,
+		guild.ID, RoleLevelMember,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert member role: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
 		`INSERT INTO guild_members (guild_id, user_id, role_id)
 		 VALUES ($1, $2, $3)`,
 		guild.ID, ownerUUID, roleID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert guild member: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO channels (guild_id, name, type, position)
+		 VALUES
+			($1, 'general', 'text', 0),
+			($1, 'voice', 'voice', 1)`,
+		guild.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert default channels: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

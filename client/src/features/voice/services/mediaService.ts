@@ -18,7 +18,6 @@ class MediaService {
   private localStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
-  private speakingCallback: ((speaking: boolean, level: number) => void) | null = null;
   private animFrame = 0;
 
   async getLocalStream(): Promise<MediaStream> {
@@ -43,7 +42,6 @@ class MediaService {
 
   startVoiceActivity(callback: (speaking: boolean, level: number) => void): void {
     if (!this.localStream) return;
-    this.speakingCallback = callback;
 
     this.audioContext = new AudioContext();
     const source = this.audioContext.createMediaStreamSource(this.localStream);
@@ -70,7 +68,6 @@ class MediaService {
     this.analyser = null;
     this.audioContext?.close();
     this.audioContext = null;
-    this.speakingCallback = null;
   }
 
   measureConnectionQuality(pc: RTCPeerConnection): Promise<'excellent' | 'good' | 'poor' | 'disconnected'> {

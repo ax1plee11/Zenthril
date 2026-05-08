@@ -58,7 +58,12 @@ export default function MainLayout() {
     return () => document.removeEventListener("mousedown", h);
   }, [showProfileMenu]);
 
-  useEffect(() => { api.guilds.list().then(setGuilds).catch(console.error); }, []);
+  useEffect(() => {
+    api.guilds.list().then(gs => {
+      setGuilds(gs);
+      if (gs.length > 0) setSelectedGuildId(gs[0].id);
+    }).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (!selectedGuildId) { setChannels([]); setSelectedChannelId(null); return; }
@@ -76,6 +81,12 @@ export default function MainLayout() {
     setGuilds(prev => [...prev, g]);
     setSelectedGuildId(g.id);
   }, []);
+  const handleCreateChannel = useCallback(async (name: string, type: "text" | "voice") => {
+    if (!selectedGuildId) return;
+    const ch = await api.guilds.createChannel(selectedGuildId, name, type);
+    setChannels(prev => [...prev, ch].sort((a, b) => a.position - b.position));
+    if (type === "text") setSelectedChannelId(ch.id);
+  }, [selectedGuildId]);
   const handleJoinGuild = useCallback((g: GuildAPI) => {
     setGuilds(prev => prev.find(x => x.id === g.id) ? prev : [...prev, g]);
     setSelectedGuildId(g.id);
@@ -311,6 +322,7 @@ export default function MainLayout() {
             guild={selectedGuild} channels={channels}
             selectedChannelId={selectedChannelId}
             onSelect={handleSelectChannel} currentUserId={user?.id ?? ""}
+            onCreateChannel={handleCreateChannel}
           />
         </div>
 

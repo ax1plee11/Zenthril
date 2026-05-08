@@ -9,18 +9,19 @@ type EventHandler = (data: unknown) => void;
 class VoiceSignalingService {
   private ws: WebSocket | null = null;
   private handlers = new Map<string, EventHandler[]>();
-  private currentUserId = '';
   private currentRoomId = '';
 
-  connect(wsUrl: string, token: string, userId: string): void {
-    this.currentUserId = userId;
+  connect(wsUrl: string, token: string, _userId: string): void {
+    void _userId;
     this.ws = new WebSocket(`${wsUrl}/ws?ticket=${token}`);
 
     this.ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         this.handleMessage(msg);
-      } catch {}
+      } catch {
+        // Ignore malformed voice signaling messages.
+      }
     };
   }
 

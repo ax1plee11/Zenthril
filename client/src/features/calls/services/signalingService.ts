@@ -41,7 +41,9 @@ class SignalingService {
       try {
         const msg = JSON.parse(event.data);
         this.handleMessage(msg);
-      } catch {}
+      } catch {
+        // Ignore malformed signaling messages.
+      }
     };
 
     this.ws.onclose = () => {

@@ -53,7 +53,9 @@ class P2PManager {
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
     try {
       await this.pc?.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch {}
+    } catch {
+      // Ignore late ICE candidates after this call has disconnected.
+    }
   }
 
   private setupPC(): void {

@@ -6,17 +6,16 @@ services:
     container_name: zenthril-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: zenthril
-      POSTGRES_PASSWORD: zenthril
-      POSTGRES_DB: zenthril
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: ${POSTGRES_USER:-zenthril}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-zenthril}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zenthril"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\""]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,11 +39,11 @@ services:
     container_name: zenthril-backend
     restart: unless-stopped
     environment:
-      DB_URL: postgres://zenthril@postgres:5432/zenthril?sslmode=disable
+      DB_URL: postgres://${POSTGRES_USER:-zenthril}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-zenthril}?sslmode=disable
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: zenthril-dev-secret-key
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       HTTP_ADDR: ":8080"
-      ADMIN_USER_IDS: "1dde727d-fc45-4a70-82e4-37a5016ecb21"
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
     ports:
       - "8080:8080"
     depends_on:
