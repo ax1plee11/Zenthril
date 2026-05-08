@@ -335,7 +335,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ## License
 
-MIT © [Zenthril Contributors](https://github.com/ax1plee11/Zenthril/graphs/contributors)
+**MIT with Commons Clause** © 2026 [ax1plee11](https://github.com/ax1plee11) — Zenthril Project
+
+You are free to use, modify, and distribute this software **with attribution**.  
+Forks and derivatives must clearly state they are based on [Zenthril](https://github.com/ax1plee11/Zenthril).  
+Commercial use without attribution or misrepresentation of authorship is prohibited.
+
+See [LICENSE](LICENSE) for full terms. For commercial licensing: ax1plee@gmail.com
 
 ---
 
