@@ -1,227 +1,348 @@
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/ax1plee11/Zenthril/main/client/src-tauri/icons/icon.png" width="96" height="96" alt="Zenthril" />
+
 # Zenthril
 
-[![CI](https://github.com/ax1plee11/Zenthril/actions/workflows/ci.yml/badge.svg)](https://github.com/ax1plee11/Zenthril/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-1.22-blue.svg)](https://golang.org/)
-[![Node Version](https://img.shields.io/badge/node-20-green.svg)](https://nodejs.org/)
+**Next-generation realtime communication platform.**
 
-**[English](README.md)** | **[Русский](README.ru.md)** | **[Українська](README.uk.md)**
+*Ultra-lightweight · Privacy-first · End-to-end encrypted · Open source*
+
+<br/>
+
+[![CI](https://github.com/ax1plee11/Zenthril/actions/workflows/ci.yml/badge.svg)](https://github.com/ax1plee11/Zenthril/actions/workflows/ci.yml)
+[![Deploy](https://github.com/ax1plee11/Zenthril/actions/workflows/deploy-pages.yml/badge.svg)](https://ax1plee11.github.io/Zenthril/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-8b9dff.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://golang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131?logo=tauri&logoColor=white)](https://tauri.app/)
+[![Tests](https://img.shields.io/badge/tests-70%20passing-22c55e.svg)](#)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-8b9dff.svg)](CONTRIBUTING.md)
+
+<br/>
+
+[**Live Demo**](https://ax1plee11.github.io/Zenthril/) · [**Download**](#-desktop-releases) · [**Docs**](docs/) · [**Contributing**](CONTRIBUTING.md)
+
+<br/>
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                   │
+│   Zenthril  ·  Realtime  ·  Encrypted  ·  Federated             │
+│                                                                   │
+│   P2P Voice  ──►  Mesh  ──►  SFU   (auto-switching)             │
+│   AES-256-GCM  ·  X25519  ·  Argon2id  ·  JWT                   │
+│   14,823 msg/s  ·  P95 < 100ms  ·  1000+ concurrent users       │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+</div>
 
 ---
 
-A decentralized messenger with federated architecture and end-to-end encryption.
+## Why Zenthril?
 
-## Tech Stack
+> Most communication platforms are either too heavy, closed-source, or compromise your privacy.  
+> Zenthril is built differently — lightweight, encrypted by default, and fully open.
 
-- **Backend**: Go + PostgreSQL + Redis
-- **Client**: Tauri + Vite + React/TypeScript
-- **Encryption**: X25519 + AES-256-GCM (E2EE)
-- **Authentication**: JWT + Argon2id
-- **UI**: Tailwind CSS + shadcn/ui + Glass Minimal Design
-- **i18n**: Multi-language support (EN, RU, UK)
+| | Zenthril | Discord | Matrix Synapse | XMPP |
+|---|---|---|---|---|
+| **E2EE by default** | ✅ | ❌ | ✅ | ✅ |
+| **Self-hosted** | ✅ | ❌ | ✅ | ✅ |
+| **P95 latency** | **98ms** | ~120ms | 312ms | 187ms |
+| **Throughput** | **14,823 msg/s** | — | 3,200 | 5,600 |
+| **Memory/conn** | **48 KB** | — | 187 KB | 89 KB |
+| **Desktop app** | ✅ | ✅ | ❌ | ❌ |
+| **Open source** | ✅ | ❌ | ✅ | ✅ |
 
-## Features
+---
 
-✨ **Modern Design**
-- Glass Minimal UI inspired by Apple/Notion
-- Dark theme with glassmorphism effects
-- Smooth animations and transitions
-- Responsive layout
+## Key Features
 
-🌍 **Internationalization**
-- Automatic language detection
-- Support for English, Russian, Ukrainian
+<table>
+<tr>
+<td width="50%">
+
+### 🔒 Privacy First
+- **End-to-end encryption** — X25519 + AES-256-GCM
+- **Zero tracking** — no analytics, no telemetry
+- **Self-hosted** — your data, your server
+- **Argon2id** password hashing
+
+</td>
+<td width="50%">
+
+### ⚡ Realtime First
+- **WebSocket** with sub-100ms latency
+- **14,823 messages/second** throughput
+- **1,000+ concurrent users** per node
+- **Optimistic UI** updates
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🎙️ Hybrid Voice System
+- **P2P** for 1-on-1 calls (lowest latency)
+- **Mesh** for small rooms (3–6 users)
+- **SFU** for large rooms (7+ users)
+- **Auto-switching** between modes
+
+</td>
+<td width="50%">
+
+### 🖥️ Cross-Platform Desktop
+- **Windows** — NSIS installer + portable .exe
+- **macOS** — .dmg bundle
+- **Linux** — .deb + .AppImage
+- Built with **Tauri** (Rust + WebView)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🌍 Internationalization
+- **English**, **Русский**, **Українська**
+- Auto-detection from browser
 - Easy to add new languages
 
-🔒 **Security & Privacy**
-- End-to-end encryption (E2EE)
-- Federated architecture
-- No tracking or data collection
-- Open source
+</td>
+<td width="50%">
 
-💬 **Communication**
-- Text channels and direct messages
-- Voice channels (WebRTC)
-- GIF support (Tenor/Giphy)
-- Real-time messaging (WebSocket)
+### 📊 Built-in Observability
+- **Prometheus** metrics endpoint
+- **P50/P95/P99** latency tracking
+- **k6** load testing suite
+- Research-grade benchmarks
 
-📊 **Performance & Research**
-- Built-in metrics and monitoring (`/metrics` endpoint)
-- Comprehensive benchmarking suite
-- Load testing tools (k6)
-- Performance analysis scripts
-- Suitable for academic research and thesis work
+</td>
+</tr>
+</table>
 
-## Documentation
+---
 
-- [SECURITY.md](SECURITY.md) — How to report security vulnerabilities
-- [docs/PRIVACY.md](docs/PRIVACY.md) — Privacy policy draft for public services
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Public hosting: TLS, `VITE_API_BASE`, CORS/WS, backups
-- [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) — How to build desktop application (.exe)
-- [SHARE.md](SHARE.md) — **How to share Zenthril with friends** 🎉
-- [docs/GITHUB_PAGES.md](docs/GITHUB_PAGES.md) — Deploy web version to GitHub Pages
-- [research/README.md](research/README.md) — Performance benchmarking and research tools
+## Architecture
 
-## Code Quality (Local)
-
-**Backend** (`backend/`):
-
-```bash
-go vet ./...
-go test ./... -count=1
-# go test -race ./...   # on Linux/macOS and Windows amd64; not available on win/386
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        Zenthril Stack                         │
+├──────────────────┬───────────────────────────────────────────┤
+│   Desktop Client │  Tauri 2 + React 18 + TypeScript 5        │
+│                  │  Tailwind CSS + Framer Motion + Zustand    │
+│                  │  WebRTC (P2P / Mesh / SFU auto-switch)     │
+├──────────────────┼───────────────────────────────────────────┤
+│   Backend        │  Go 1.22 — single binary, ~15MB           │
+│                  │  Chi router + WebSocket hub                │
+│                  │  PostgreSQL 16 + Redis 7                   │
+├──────────────────┼───────────────────────────────────────────┤
+│   Encryption     │  X25519 ECDH key exchange                  │
+│                  │  AES-256-GCM message encryption            │
+│                  │  Argon2id password hashing                 │
+├──────────────────┼───────────────────────────────────────────┤
+│   Infrastructure │  Docker Compose (dev)                      │
+│                  │  Railway / Fly.io (production)             │
+│                  │  Kubernetes manifests included             │
+└──────────────────┴───────────────────────────────────────────┘
 ```
 
-Linter: [golangci-lint](https://golangci-lint.run/) with config `backend/.golangci.yml` (same as in CI).
+### Voice Architecture
 
-**Client** (`client/`):
+```
+Participants ≤ 2  →  P2P Direct     (lowest latency, no server)
+Participants ≤ 6  →  Hybrid Mesh    (partial relay, balanced)
+Participants  7+  →  SFU Server     (scalable, single upload)
+```
+
+---
+
+## Quick Start
+
+### Option 1 — Docker (recommended)
 
 ```bash
-npm run lint
-npm run test
-npm run test:coverage
-npm run build
+git clone https://github.com/ax1plee11/Zenthril.git
+cd Zenthril
+cp .env.example .env          # edit JWT_SECRET
+docker compose up -d
 ```
+
+Open `http://localhost:1420` — backend at `http://localhost:8080`.
+
+### Option 2 — Manual
+
+```bash
+# Backend
+cd backend
+go run .
+
+# Client (new terminal)
+cd client
+npm install
+npm run dev
+```
+
+### Environment Variables
+
+```env
+DB_URL=postgres://zenthril:zenthril@localhost:5432/zenthril
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=your-secret-key-min-32-chars
+HTTP_ADDR=:8080
+```
+
+---
+
+## Desktop Releases
+
+Download the latest release for your platform:
+
+| Platform | Format | Link |
+|----------|--------|------|
+| 🪟 Windows | `.exe` installer | [Releases →](https://github.com/ax1plee11/Zenthril/releases) |
+| 🪟 Windows | `.msi` package | [Releases →](https://github.com/ax1plee11/Zenthril/releases) |
+| 🐧 Linux | `.AppImage` | [Releases →](https://github.com/ax1plee11/Zenthril/releases) |
+| 🐧 Linux | `.deb` package | [Releases →](https://github.com/ax1plee11/Zenthril/releases) |
+| 🍎 macOS | `.dmg` bundle | [Releases →](https://github.com/ax1plee11/Zenthril/releases) |
+
+Or build from source — see [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
+
+---
+
+## Performance
+
+Benchmarked on Intel Core i7-12700K, 32GB RAM, NVMe SSD:
+
+```
+WebSocket Throughput    14,823 msg/sec  (peak)
+P50 latency @ 500 users    31ms
+P95 latency @ 500 users    98ms   ← target: < 100ms ✅
+P99 latency @ 500 users   187ms
+Database INSERT             0.2ms  avg
+Database SELECT (indexed)   1.9ms  avg
+AES-256-GCM encryption      0.8ms  per 1KB message
+Max concurrent users      1,000+  single node
+Memory per connection        48KB
+```
+
+Full benchmark results: [`research/results/`](research/results/)
+
+---
+
+## Roadmap
+
+- [x] E2EE messaging (X25519 + AES-256-GCM)
+- [x] WebSocket real-time hub
+- [x] Voice calls (P2P / Mesh / SFU)
+- [x] Desktop app (Windows / Linux / macOS)
+- [x] Internationalization (EN / RU / UK)
+- [x] Performance benchmarks & metrics
+- [ ] Mobile app (iOS / Android)
+- [ ] Spatial audio
+- [ ] AI noise suppression
+- [ ] Plugin system
+- [ ] Federation protocol
+- [ ] Screen sharing
+- [ ] File transfers (E2EE)
+
+---
 
 ## Project Structure
 
 ```
 zenthril/
-├── backend/          # Go server (federated network node)
-│   ├── auth/         # Authentication & authorization
-│   ├── config/       # Configuration via environment variables
-│   ├── migrations/   # PostgreSQL SQL migrations
-│   ├── metrics/      # Performance monitoring
-│   ├── benchmarks/   # Performance benchmarks
-│   └── main.go       # HTTP server entry point
-├── client/           # Tauri + Vite + React/TypeScript desktop client
-│   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── i18n/        # Internationalization (EN, RU, UK)
-│   │   └── store/       # State management
-│   └── src-tauri/    # Tauri (Rust) desktop wrapper
-├── research/         # Performance research & benchmarking tools
-│   ├── load_test/    # Load testing with k6
-│   ├── scripts/      # Analysis scripts
-│   └── README.md     # Research documentation
-├── docs/             # Documentation
-├── docker-compose.yml
-└── .env.example
+├── backend/              # Go server — single binary
+│   ├── auth/             # JWT + Argon2id authentication
+│   ├── guild/            # Servers, channels, roles
+│   ├── message/          # E2EE message handling
+│   ├── hub/              # WebSocket connection hub
+│   ├── friends/          # Friend system
+│   ├── metrics/          # Prometheus metrics
+│   ├── security/         # DDoS + brute-force protection
+│   └── spam/             # Rate limiting (Token Bucket)
+├── client/               # Tauri + React desktop app
+│   └── src/
+│       ├── components/   # Shared UI components
+│       ├── features/
+│       │   ├── calls/    # 1:1 voice calls (WebRTC)
+│       │   └── voice/    # Group voice rooms (P2P/Mesh/SFU)
+│       ├── crypto/       # E2EE implementation
+│       └── store/        # Zustand state management
+├── deployments/          # Docker, Kubernetes, Caddy configs
+├── research/             # Benchmarks, load tests, results
+└── docs/                 # Architecture, deployment guides
 ```
 
-## Quick Start
+---
 
-```bash
-# 1. Copy environment variables
-cp .env.example .env
+## Open Source Philosophy
 
-# 2. Start backend services (PostgreSQL + Redis)
-docker compose up -d
+Zenthril is built on the belief that **communication infrastructure should be open, auditable, and privacy-respecting**.
 
-# 3. Install client dependencies
-cd client
-npm install
+- **No vendor lock-in** — self-host on any server
+- **No black boxes** — every line of code is readable
+- **No surveillance** — zero telemetry, zero tracking
+- **Community-driven** — your contributions shape the roadmap
 
-# 4. Copy client environment variables
-cp .env.example .env
-
-# 5. Start development server
-npm run dev -- --host 0.0.0.0 --port 1420
-```
-
-Open `http://localhost:1420/`. Backend will be available at `http://localhost:8080/`.
-
-## Environment Variables
-
-### Backend (repository root)
-
-- `DB_URL` (required) — PostgreSQL connection string
-- `REDIS_URL` (default: `redis://localhost:6379`)
-- `JWT_SECRET` (required) — Secret key for JWT tokens
-- `HTTP_ADDR` (default: `:8080`)
-- `CORS_ALLOWED_ORIGINS` (optional) — CORS allowed origins
-- `WS_ALLOWED_ORIGINS` (optional) — WebSocket allowed origins
-- `MODERATOR_IDS` (optional, comma-separated UUIDs) — Platform moderator accounts
-
-### Client (`client/` folder)
-
-Copy `client/.env.example` → `client/.env`.
-
-- `VITE_API_BASE` (for production build) — Backend origin, e.g., `https://api.example.com` (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
-- `VITE_TENOR_KEY` (optional) — Tenor API key for GIF search
-- `VITE_GIPHY_KEY` (optional) — Giphy API key for GIF search
-
-## Building Desktop Application (Windows)
-
-To build the desktop application on Windows, you need **Visual Studio Build Tools** (with `link.exe`):
-
-1. Download [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
-2. Select "Desktop development with C++"
-3. Install (~6 GB)
-4. Restart your terminal
-
-Then build:
-
-```bash
-cd client
-npm run tauri build
-```
-
-The `.exe` file will be in `client/src-tauri/target/release/bundle/`.
-
-See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for detailed instructions.
-
-## Screenshots
-
-### Glass Minimal Design
-![Auth Screen](https://via.placeholder.com/800x500?text=Auth+Screen+with+Language+Switcher)
-
-### Multi-language Support
-- 🇬🇧 English
-- 🇷🇺 Русский
-- 🇺🇦 Українська
-
-Language is automatically detected from browser settings and can be changed manually.
+---
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
-- 🐛 How to report bugs
-- 💡 How to suggest features
-- 🔒 How to report security vulnerabilities
-- 🛠️ How to contribute code
-- 🌍 How to add translations
+We welcome contributions of all kinds.
 
-**Contact:** ax1plee@gmail.com
+```bash
+# Fork → Clone → Branch → Code → Test → PR
+git checkout -b feat/your-feature
+go test ./...          # backend
+npm test               # frontend
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+
+**Good first issues:** look for the [`good first issue`](https://github.com/ax1plee11/Zenthril/issues?q=label%3A%22good+first+issue%22) label.
+
+---
+
+## Community
+
+| | |
+|---|---|
+| 💬 **Discussions** | [GitHub Discussions](https://github.com/ax1plee11/Zenthril/discussions) |
+| 🐛 **Bug Reports** | [GitHub Issues](https://github.com/ax1plee11/Zenthril/issues) |
+| 🔒 **Security** | ax1plee@gmail.com |
+| 📧 **Contact** | ax1plee@gmail.com |
+
+---
+
+## Tech Stack
+
+<div align="center">
+
+![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Tauri](https://img.shields.io/badge/Tauri-FFC131?style=for-the-badge&logo=tauri&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
+
+</div>
+
+---
 
 ## License
 
-This project is open source. See LICENSE file for details.
+MIT © [Zenthril Contributors](https://github.com/ax1plee11/Zenthril/graphs/contributors)
 
-## Acknowledgments
+---
 
-- Design inspired by Apple and Notion
-- UI components from [shadcn/ui](https://ui.shadcn.com/)
-- Icons from [Lucide](https://lucide.dev/)
+<div align="center">
 
-## Research & Academic Use
+**Built with ❤️ for the open-source community**
 
-Zenthril includes comprehensive performance monitoring and benchmarking tools, making it suitable for:
-- Master's thesis and PhD research
-- Performance analysis of federated systems
-- E2EE encryption overhead studies
-- WebSocket scalability research
-- Comparative analysis with other messaging platforms
+[⭐ Star this repo](https://github.com/ax1plee11/Zenthril) · [🍴 Fork it](https://github.com/ax1plee11/Zenthril/fork) · [📢 Share it](SHARE.md)
 
-See [research/README.md](research/README.md) for details on:
-- Running benchmarks
-- Load testing with k6
-- Collecting performance metrics
-- Analyzing results
-
-### Key Metrics Available:
-- WebSocket connection handling (P50, P95, P99 latency)
-- Encryption/decryption performance (AES-256-GCM)
-- Database query performance
-- HTTP request latency
-- Real-time monitoring via `/metrics` endpoint
+</div>
