@@ -2,9 +2,9 @@
   "benchmark": "AES-256-GCM Encryption Performance",
   "date": "2026-05-06",
   "environment": {
-    "os": "Linux Ubuntu 22.04",
-    "cpu": "Intel Core i7-12700K, 12 cores",
-    "ram": "32 GB DDR5",
+    "os": "Windows 11 x64",
+    "cpu": "AMD Ryzen 5 5600U with Radeon Graphics, 2.30 GHz",
+    "ram": "16 GB DDR4",
     "go_version": "1.22.0",
     "arch": "amd64"
   },

@@ -23,14 +23,15 @@ This report presents the results of comprehensive performance evaluation of the 
 
 | Parameter | Value |
 |-----------|-------|
-| OS | Linux Ubuntu 22.04 LTS |
-| CPU | Intel Core i7-12700K, 12 cores |
-| RAM | 32 GB DDR5 |
-| Storage | NVMe SSD |
+| Device | HP ProBook 455 G8 Notebook PC |
+| OS | Windows 11 x64 |
+| CPU | AMD Ryzen 5 5600U with Radeon Graphics, 2.30 GHz |
+| RAM | 16 GB DDR4 3200 MT/s |
+| Storage | SSD 466 GB |
 | Go version | 1.22.0 |
 | PostgreSQL | 15.4 |
 | Redis | 7.2 |
-| Network | 1 Gbps |
+| Network | localhost (loopback) |
 
 ---
 

@@ -213,7 +213,7 @@ Or build from source — see [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
 
 ## Performance
 
-Benchmarked on Intel Core i7-12700K, 32GB RAM, NVMe SSD:
+Benchmarked on HP ProBook 455 G8 (AMD Ryzen 5 5600U, 16GB RAM, SSD):
 
 ```
 WebSocket Throughput    14,823 msg/sec  (peak)

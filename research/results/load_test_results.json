@@ -3,9 +3,9 @@
   "date": "2026-05-06",
   "tool": "k6 v0.49.0",
   "environment": {
-    "server_os": "Linux Ubuntu 22.04",
-    "server_cpu": "Intel Core i7-12700K, 12 cores",
-    "server_ram": "32 GB DDR5",
+    "server_os": "Windows 11 x64",
+    "server_cpu": "AMD Ryzen 5 5600U with Radeon Graphics, 2.30 GHz",
+    "server_ram": "16 GB DDR4",
     "backend": "Zenthril Go server",
     "database": "PostgreSQL 15.4",
     "cache": "Redis 7.2"

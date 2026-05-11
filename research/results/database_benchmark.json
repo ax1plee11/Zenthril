@@ -2,11 +2,11 @@
   "benchmark": "PostgreSQL Database Performance",
   "date": "2026-05-06",
   "environment": {
-    "os": "Linux Ubuntu 22.04",
+    "os": "Windows 11 x64",
     "postgresql_version": "15.4",
-    "cpu": "Intel Core i7-12700K, 12 cores",
-    "ram": "32 GB DDR5",
-    "storage": "NVMe SSD",
+    "cpu": "AMD Ryzen 5 5600U with Radeon Graphics, 2.30 GHz",
+    "ram": "16 GB DDR4",
+    "storage": "SSD 466 GB",
     "connection_pool_size": 20
   },
   "insert_performance": [
