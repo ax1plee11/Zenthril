@@ -115,20 +115,43 @@ func main() {
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
 			allowed := cfg.CORSAllowedOrigins
+
+			w.Header().Set("Vary", "Origin")
+
 			if len(allowed) == 0 {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
+				// Dev mode: allow all
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+				}
 			} else {
-				origin := r.Header.Get("Origin")
+				// Production: strict origin check
+				originAllowed := false
 				for _, o := range allowed {
 					if o == origin {
-						w.Header().Set("Access-Control-Allow-Origin", origin)
+						originAllowed = true
 						break
 					}
 				}
+				if originAllowed {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				} else if origin != "" {
+					// Origin not allowed — reject preflight, continue for non-CORS
+					if r.Method == http.MethodOptions {
+						w.WriteHeader(http.StatusForbidden)
+						return
+					}
+				}
 			}
+
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -145,14 +168,15 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ok","app":"zenthril"}`))
 	})
 
-	r.Get("/metrics", metrics.Handler())
-	r.Get("/metrics/prometheus", metrics.PrometheusHandler())
+	r.Get("/metrics", metricsAuth(cfg, metrics.Handler()))
+	r.Get("/metrics/prometheus", metricsAuth(cfg, metrics.PrometheusHandler()))
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
 			r.With(secGuard.BruteForceProtect).Post("/login", authHandler.Login)
 			r.Post("/logout", authHandler.Logout)
+			r.Post("/refresh", authHandler.Refresh)
 			r.Group(func(r chi.Router) {
 				r.Use(authSvc.Middleware)
 				r.Post("/ws-ticket", authHandler.WSTicket)
@@ -264,5 +288,28 @@ func main() {
 		log.Fatal(http.ListenAndServeTLS(cfg.HTTPAddr, cfg.TLSCertFile, cfg.TLSKeyFile, r))
 	} else {
 		log.Fatal(http.ListenAndServe(cfg.HTTPAddr, r))
+	}
+}
+
+func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if cfg.MetricsToken == "" && cfg.Environment == "development" {
+			next(w, r)
+			return
+		}
+		token := ""
+		if a := r.Header.Get("Authorization"); len(a) > 7 && a[:7] == "Bearer " {
+			token = a[7:]
+		}
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+		if token == "" || token != cfg.MetricsToken {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid metrics token required"}`))
+			return
+		}
+		next(w, r)
 	}
 }

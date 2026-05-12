@@ -18,6 +18,8 @@ type Config struct {
 	CORSAllowedOrigins []string
 	WSAllowedOrigins   []string
 	AdminUserIDs       []string
+	MetricsToken       string
+	Environment        string
 }
 
 func Load() (*Config, error) {
@@ -37,6 +39,8 @@ func Load() (*Config, error) {
 		CORSAllowedOrigins: corsOrigins,
 		WSAllowedOrigins:   wsOrigins,
 		AdminUserIDs:       adminIDs,
+		MetricsToken:       getEnv("METRICS_TOKEN", ""),
+		Environment:        getEnv("ENVIRONMENT", "development"),
 	}
 
 	if cfg.DBURL == "" {
@@ -44,6 +48,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+	if len(cfg.JWTSecret) < 32 {
+		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
 	}
 
 	return cfg, nil

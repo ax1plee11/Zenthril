@@ -18,6 +18,13 @@ import (
 
 var ErrUsernameTaken = errors.New("username_taken")
 var ErrInvalidCredentials = errors.New("invalid_credentials")
+var ErrInvalidRefreshToken = errors.New("invalid_refresh_token")
+
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+}
 
 type Service struct {
 	db        *pgxpool.Pool
@@ -29,10 +36,10 @@ func NewService(db *pgxpool.Pool, rdb *redis.Client, jwtSecret string) *Service 
 	return &Service{db: db, redis: rdb, jwtSecret: jwtSecret}
 }
 
-func (s *Service) Register(ctx context.Context, username, password, publicKey string) (*models.User, string, error) {
+func (s *Service) Register(ctx context.Context, username, password, publicKey string) (*models.User, *TokenPair, error) {
 	hash, err := HashPassword(password)
 	if err != nil {
-		return nil, "", fmt.Errorf("hash password: %w", err)
+		return nil, nil, fmt.Errorf("hash password: %w", err)
 	}
 
 	var user models.User
@@ -44,20 +51,20 @@ func (s *Service) Register(ctx context.Context, username, password, publicKey st
 	).Scan(&user.ID, &user.Username, &user.PublicKey, &user.CreatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "unique") {
-			return nil, "", ErrUsernameTaken
+			return nil, nil, ErrUsernameTaken
 		}
-		return nil, "", fmt.Errorf("insert user: %w", err)
+		return nil, nil, fmt.Errorf("insert user: %w", err)
 	}
 
-	token, err := GenerateToken(user.ID.String(), s.jwtSecret)
+	pair, err := s.issueTokenPair(ctx, user.ID.String())
 	if err != nil {
-		return nil, "", fmt.Errorf("generate token: %w", err)
+		return nil, nil, err
 	}
 
-	return &user, token, nil
+	return &user, pair, nil
 }
 
-func (s *Service) Login(ctx context.Context, username, password string) (*models.User, string, error) {
+func (s *Service) Login(ctx context.Context, username, password string) (*models.User, *TokenPair, error) {
 	var user models.User
 	var passwordHash string
 
@@ -68,35 +75,90 @@ func (s *Service) Login(ctx context.Context, username, password string) (*models
 	).Scan(&user.ID, &user.Username, &passwordHash, &user.PublicKey, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, "", ErrInvalidCredentials
+			return nil, nil, ErrInvalidCredentials
 		}
-		return nil, "", fmt.Errorf("query user: %w", err)
+		return nil, nil, fmt.Errorf("query user: %w", err)
 	}
 
 	ok, err := VerifyPassword(password, passwordHash)
 	if err != nil {
-		return nil, "", fmt.Errorf("verify password: %w", err)
+		return nil, nil, fmt.Errorf("verify password: %w", err)
 	}
 	if !ok {
-		return nil, "", ErrInvalidCredentials
+		return nil, nil, ErrInvalidCredentials
 	}
 
-	token, err := GenerateToken(user.ID.String(), s.jwtSecret)
+	pair, err := s.issueTokenPair(ctx, user.ID.String())
 	if err != nil {
-		return nil, "", fmt.Errorf("generate token: %w", err)
+		return nil, nil, err
 	}
 
-	return &user, token, nil
+	return &user, pair, nil
 }
 
-func (s *Service) Logout(ctx context.Context, token string) error {
-	_, err := ValidateToken(token, s.jwtSecret)
+func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair, error) {
+	accessToken, err := GenerateToken(userID, s.jwtSecret)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("generate access token: %w", err)
 	}
-	key := "token:blacklist:" + token
-	if err := s.redis.Set(ctx, key, "1", tokenTTL).Err(); err != nil {
-		return fmt.Errorf("blacklist token: %w", err)
+
+	refreshToken, err := generateTypedToken(userID, "refresh", refreshTokenTTL, s.jwtSecret)
+	if err != nil {
+		return nil, fmt.Errorf("generate refresh token: %w", err)
+	}
+
+	key := "refresh:" + refreshToken
+	if err := s.redis.Set(ctx, key, userID, refreshTokenTTL).Err(); err != nil {
+		return nil, fmt.Errorf("store refresh token: %w", err)
+	}
+
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int(accessTokenTTL.Seconds()),
+	}, nil
+}
+
+func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*TokenPair, error) {
+	userID, err := ValidateRefreshToken(refreshToken, s.jwtSecret)
+	if err != nil {
+		return nil, ErrInvalidRefreshToken
+	}
+
+	key := "refresh:" + refreshToken
+	storedUserID, err := s.redis.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return nil, ErrInvalidRefreshToken
+	}
+	if err != nil {
+		return nil, fmt.Errorf("check refresh token: %w", err)
+	}
+	if storedUserID != userID {
+		return nil, ErrInvalidRefreshToken
+	}
+
+	if err := s.redis.Del(ctx, key).Err(); err != nil {
+		return nil, fmt.Errorf("revoke old refresh token: %w", err)
+	}
+
+	return s.issueTokenPair(ctx, userID)
+}
+
+func (s *Service) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	key := "refresh:" + refreshToken
+	s.redis.Del(ctx, key)
+	return nil
+}
+
+func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) error {
+	if accessToken != "" {
+		if _, err := ValidateToken(accessToken, s.jwtSecret); err == nil {
+			key := "token:blacklist:" + accessToken
+			_ = s.redis.Set(ctx, key, "1", accessTokenTTL)
+		}
+	}
+	if refreshToken != "" {
+		_ = s.RevokeRefreshToken(ctx, refreshToken)
 	}
 	return nil
 }

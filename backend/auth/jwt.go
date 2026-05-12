@@ -8,20 +8,29 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const tokenTTL = 24 * time.Hour
+const (
+	accessTokenTTL  = 15 * time.Minute
+	refreshTokenTTL = 30 * 24 * time.Hour
+)
 
 type claims struct {
-	UserID string `json:"user_id"`
+	UserID    string `json:"user_id"`
+	TokenType string `json:"token_type"`
 	jwt.RegisteredClaims
 }
 
 func GenerateToken(userID string, secret string) (string, error) {
+	return generateTypedToken(userID, "access", accessTokenTTL, secret)
+}
+
+func generateTypedToken(userID, tokenType string, ttl time.Duration, secret string) (string, error) {
 	now := time.Now()
 	c := claims{
-		UserID: userID,
+		UserID:    userID,
+		TokenType: tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
 	}
 
@@ -34,6 +43,14 @@ func GenerateToken(userID string, secret string) (string, error) {
 }
 
 func ValidateToken(tokenStr, secret string) (string, error) {
+	return validateTypedToken(tokenStr, secret, "access")
+}
+
+func ValidateRefreshToken(tokenStr, secret string) (string, error) {
+	return validateTypedToken(tokenStr, secret, "refresh")
+}
+
+func validateTypedToken(tokenStr, secret, expectedType string) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -47,6 +64,10 @@ func ValidateToken(tokenStr, secret string) (string, error) {
 	c, ok := token.Claims.(*claims)
 	if !ok || !token.Valid {
 		return "", errors.New("invalid token")
+	}
+
+	if c.TokenType != expectedType {
+		return "", fmt.Errorf("wrong token type: expected %s, got %s", expectedType, c.TokenType)
 	}
 
 	return c.UserID, nil

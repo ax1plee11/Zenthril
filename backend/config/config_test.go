@@ -41,7 +41,7 @@ func TestLoad_RequiresDBAndJWT(t *testing.T) {
 
 func TestLoad_OK(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
-	t.Setenv("JWT_SECRET", "x")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://a.com, https://b.com")
 	t.Setenv("ADMIN_USER_IDS", " id-1 , id-2 ")
 	cfg, err := Load()

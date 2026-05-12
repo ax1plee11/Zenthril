@@ -31,7 +31,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, token, err := h.svc.Register(r.Context(), req.Username, req.Password, req.PublicKey)
+	user, pair, err := h.svc.Register(r.Context(), req.Username, req.Password, req.PublicKey)
 	if err != nil {
 		if errors.Is(err, ErrUsernameTaken) {
 			writeError(w, http.StatusConflict, "username_taken", "Username is already taken")
@@ -41,9 +41,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{
-		"user_id": user.ID.String(),
-		"token":   token,
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"user_id":       user.ID.String(),
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_in":    pair.ExpiresIn,
+		"token":         pair.AccessToken,
 	})
 }
 
@@ -57,7 +60,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, token, err := h.svc.Login(r.Context(), req.Username, req.Password)
+	user, pair, err := h.svc.Login(r.Context(), req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			writeError(w, http.StatusUnauthorized, "invalid_credentials", "Invalid username or password")
@@ -68,8 +71,38 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"token": token,
-		"user":  user,
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_in":    pair.ExpiresIn,
+		"token":         pair.AccessToken,
+		"user":          user,
+	})
+}
+
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "refresh_token is required")
+		return
+	}
+
+	pair, err := h.svc.RefreshTokens(r.Context(), req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, ErrInvalidRefreshToken) {
+			writeError(w, http.StatusUnauthorized, "invalid_refresh_token", "Refresh token is invalid or expired")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to refresh tokens")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_in":    pair.ExpiresIn,
+		"token":         pair.AccessToken,
 	})
 }
 
@@ -88,13 +121,14 @@ func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	token := extractBearerToken(r)
-	if token == "" {
-		writeError(w, http.StatusBadRequest, "missing_token", "Authorization header required")
-		return
-	}
+	accessToken := extractBearerToken(r)
 
-	if err := h.svc.Logout(r.Context(), token); err != nil {
+	var body struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	if err := h.svc.Logout(r.Context(), accessToken, body.RefreshToken); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Logout failed")
 		return
 	}
