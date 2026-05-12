@@ -13,6 +13,7 @@ import ProfileModal from "./ProfileModal";
 import UserSearch from "./UserSearch";
 import NotificationsPanel, { useUnreadCount } from "./NotificationsPanel";
 import { loadProfile } from "./ProfileModal";
+import { GroupVoiceRoom } from "../features/voice/components/GroupVoiceRoom";
 
 export default function MainLayout() {
   const { user, logout } = useAuth();
@@ -322,6 +323,7 @@ export default function MainLayout() {
             guild={selectedGuild} channels={channels}
             selectedChannelId={selectedChannelId}
             onSelect={handleSelectChannel} currentUserId={user?.id ?? ""}
+            currentUsername={user?.username ?? "User"}
             onCreateChannel={handleCreateChannel}
           />
         </div>
@@ -423,6 +425,9 @@ export default function MainLayout() {
           </div>
         </div>
       )}
+
+      {/* ── VOICE ROOM OVERLAY ── */}
+      {user && <GroupVoiceRoom localUserId={user.id} localUsername={user.username} />}
     </div>
   );
 }

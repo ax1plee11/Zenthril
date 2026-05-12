@@ -3,6 +3,8 @@ import type { GuildAPI, ChannelAPI } from "../api/index";
 import { api } from "../api/index";
 import { onWSEvent } from "../store/wsGlobal";
 import { apiErrorFields } from "../util/errors";
+import { useVoiceStore } from "../features/voice/store/voiceStore";
+import { voiceSignaling } from "../features/voice/services/voiceSignaling";
 
 interface ChannelListProps {
   guild: GuildAPI | null;
@@ -10,6 +12,7 @@ interface ChannelListProps {
   selectedChannelId: string | null;
   onSelect: (id: string) => void;
   currentUserId: string;
+  currentUsername?: string;
   onCreateChannel?: (name: string, type: "text" | "voice") => Promise<void>;
 }
 
@@ -64,7 +67,71 @@ function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; se
   );
 }
 
-export default function ChannelList({ guild, channels, selectedChannelId, onSelect, currentUserId, onCreateChannel }: ChannelListProps) {
+function VoiceChannelItem({ ch, selected, onClick, currentUserId, currentUsername, guildId }: {
+  ch: ChannelAPI; selected: boolean; onClick: () => void;
+  currentUserId: string; currentUsername: string; guildId: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const room = useVoiceStore(s => s.room);
+  const isInThisChannel = room?.channelId === ch.id;
+
+  const handleJoin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isInThisChannel) {
+      voiceSignaling.leaveRoom();
+    } else {
+      voiceSignaling.joinRoom(ch.id, guildId, currentUserId, currentUsername);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "7px 10px", margin: "1px 6px", borderRadius: "var(--radius-sm)",
+        cursor: "pointer",
+        background: isInThisChannel
+          ? "rgba(62,207,142,0.12)"
+          : selected ? "rgba(139, 157, 255, 0.15)" : hovered ? "rgba(255,255,255,0.04)" : "transparent",
+        color: isInThisChannel ? "#3ecf8e" : selected ? "var(--text-primary)" : hovered ? "var(--text-secondary)" : "var(--text-muted)",
+        fontSize: 14, fontWeight: isInThisChannel || selected ? 600 : 400,
+        transition: "all 0.15s", userSelect: "none" as const,
+        borderLeft: isInThisChannel ? "2px solid #3ecf8e" : selected ? "2px solid var(--primary)" : "2px solid transparent",
+      }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span style={{ fontSize: 13, opacity: 0.8, flexShrink: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, flex: 1 }}>
+        {ch.name}
+      </span>
+      {(hovered || isInThisChannel) && (
+        <button
+          onClick={handleJoin}
+          title={isInThisChannel ? "Leave voice" : "Join voice"}
+          style={{
+            padding: "3px 8px", borderRadius: 6, border: "none", cursor: "pointer",
+            background: isInThisChannel ? "rgba(240,79,94,0.2)" : "rgba(62,207,142,0.2)",
+            color: isInThisChannel ? "#f04f5e" : "#3ecf8e",
+            fontSize: 10, fontWeight: 700, flexShrink: 0,
+            transition: "all 0.15s",
+          }}
+        >
+          {isInThisChannel ? "Leave" : "Join"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function ChannelList({ guild, channels, selectedChannelId, onSelect, currentUserId, currentUsername = 'User', onCreateChannel }: ChannelListProps) {
   const textChannels  = channels.filter(c => c.type === "text");
   const voiceChannels = channels.filter(c => c.type === "voice");
   const [showManage, setShowManage] = useState(false);
@@ -191,7 +258,15 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
               Voice Channels
             </div>
             {voiceChannels.map(ch => (
-              <ChannelItem key={ch.id} ch={ch} selected={ch.id === selectedChannelId} onClick={() => handleSelect(ch.id)} unread={0} />
+              <VoiceChannelItem
+                key={ch.id}
+                ch={ch}
+                selected={ch.id === selectedChannelId}
+                onClick={() => handleSelect(ch.id)}
+                currentUserId={currentUserId}
+                currentUsername={currentUsername}
+                guildId={guild?.id ?? ""}
+              />
             ))}
           </>
         )}
