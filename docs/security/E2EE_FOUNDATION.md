@@ -21,6 +21,7 @@ Implemented client primitives:
 - Ed25519 identity signing key for signed prekey verification;
 - X25519 signed prekey and one-time prekeys;
 - best-effort device registration after login/register;
+- deterministic safety number generation for pairwise device verification;
 - private device material stays client-side and is not included in backend
   registration requests.
 
@@ -57,5 +58,7 @@ because claiming a bundle mutates server state.
 - The current Tauri storage adapter uses the Tauri store plugin as a local
   persistence layer. Replace it with OS keychain/Stronghold before claiming
   production-grade private key storage.
+- Safety numbers are local verification UX primitives. They do not replace
+  signature verification, trust decisions, or future per-user trust records.
 - The protocol must remain marked experimental until reviewed and tested with
   reproducible vectors.
