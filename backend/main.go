@@ -17,6 +17,7 @@ import (
 	"zenthril-backend/auth"
 	"zenthril-backend/config"
 	"zenthril-backend/db"
+	"zenthril-backend/device"
 	"zenthril-backend/federation"
 	"zenthril-backend/friends"
 	"zenthril-backend/guild"
@@ -90,6 +91,8 @@ func main() {
 
 	authSvc := auth.NewService(database, rdb, cfg.JWTSecret)
 	authHandler := auth.NewHandler(authSvc)
+	deviceSvc := device.NewService(database)
+	deviceHandler := device.NewHandler(deviceSvc)
 
 	guildSvc := guild.NewService(database, cfg.HTTPAddr)
 	wsHub := hub.NewHub(guildSvc)
@@ -193,6 +196,15 @@ func main() {
 				r.Get("/me", authHandler.GetMe)
 			})
 		})
+		r.Route("/devices", func(r chi.Router) {
+			r.Use(authSvc.Middleware)
+			r.Get("/", deviceHandler.ListOwn)
+			r.Post("/register", deviceHandler.Register)
+		})
+		r.Route("/key-bundles", func(r chi.Router) {
+			r.Use(authSvc.Middleware)
+			r.Post("/claim", deviceHandler.ClaimKeyBundle)
+		})
 		r.Route("/guilds", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
 			r.Get("/", guildHandler.GetUserGuilds)
@@ -229,6 +241,7 @@ func main() {
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
+			r.Get("/{userId}/devices", deviceHandler.ListUser)
 			r.Get("/search", func(w http.ResponseWriter, r *http.Request) {
 				q := r.URL.Query().Get("q")
 				if len(q) < 2 {
