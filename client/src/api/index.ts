@@ -169,6 +169,8 @@ export const api = {
     listOwn: () => request<{ devices: DeviceAPI[] }>("GET", "/api/v1/devices/"),
     register: (body: RegisterDeviceRequest) =>
       request<DeviceAPI>("POST", "/api/v1/devices/register", body),
+    revoke: (deviceId: string) =>
+      request<void>("DELETE", `/api/v1/devices/${encodeURIComponent(deviceId)}`),
   },
 
   keyBundles: {

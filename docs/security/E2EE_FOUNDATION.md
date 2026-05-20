@@ -21,6 +21,7 @@ Implemented client primitives:
 - Ed25519 identity signing key for signed prekey verification;
 - X25519 signed prekey and one-time prekeys;
 - best-effort device registration after login/register;
+- device management UI for active devices and remote device revocation;
 - deterministic safety number generation for pairwise device verification;
 - private device material stays client-side and is not included in backend
   registration requests.
@@ -32,6 +33,7 @@ Authenticated routes:
 - `POST /api/v1/devices/register`
 - `GET /api/v1/devices/`
 - `GET /api/v1/users/{userId}/devices`
+- `DELETE /api/v1/devices/{deviceId}`
 - `POST /api/v1/key-bundles/claim`
 
 `POST /api/v1/devices/register` stores or rotates a device key bundle for the
@@ -41,6 +43,9 @@ material.
 `POST /api/v1/key-bundles/claim` returns a target device bundle and atomically
 consumes at most one one-time prekey. This endpoint is intentionally `POST`
 because claiming a bundle mutates server state.
+
+`DELETE /api/v1/devices/{deviceId}` revokes one of the current user's devices
+and removes its one-time prekeys so new sessions cannot be established with it.
 
 ## Next Steps
 

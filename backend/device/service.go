@@ -108,6 +108,8 @@ func (s *Service) RegisterDevice(ctx context.Context, userID string, req Registe
 			signed_pre_key = EXCLUDED.signed_pre_key,
 			signed_pre_key_signature = EXCLUDED.signed_pre_key_signature,
 			fingerprint = EXCLUDED.fingerprint,
+			trust_state = 'unverified',
+			revoked_at = NULL,
 			updated_at = NOW(),
 			last_seen_at = NOW()
 		WHERE devices.user_id = EXCLUDED.user_id
@@ -262,6 +264,50 @@ func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, devic
 		return nil, fmt.Errorf("commit claim key bundle: %w", err)
 	}
 	return &bundle, nil
+}
+
+func (s *Service) RevokeDevice(ctx context.Context, userID, deviceID string) error {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid user_id", ErrInvalidDeviceKey)
+	}
+	deviceUUID, err := uuid.Parse(deviceID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid device_id", ErrInvalidDeviceKey)
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin revoke device: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	result, err := tx.Exec(ctx,
+		`UPDATE devices
+		 SET trust_state = 'revoked',
+			revoked_at = NOW(),
+			updated_at = NOW()
+		 WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+		deviceUUID, userUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("revoke device: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrDeviceNotFound
+	}
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM device_one_time_prekeys WHERE device_id = $1`,
+		deviceUUID,
+	); err != nil {
+		return fmt.Errorf("delete revoked device prekeys: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit revoke device: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) CountAvailablePreKeys(ctx context.Context, deviceID string) (int, error) {

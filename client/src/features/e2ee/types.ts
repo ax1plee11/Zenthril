@@ -51,6 +51,7 @@ export interface DeviceAPI {
   created_at: string;
   updated_at: string;
   last_seen_at: string;
+  revoked_at?: string | null;
 }
 
 export interface KeyBundleAPI {

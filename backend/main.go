@@ -200,6 +200,7 @@ func main() {
 			r.Use(authSvc.Middleware)
 			r.Get("/", deviceHandler.ListOwn)
 			r.Post("/register", deviceHandler.Register)
+			r.Delete("/{deviceId}", deviceHandler.RevokeOwn)
 		})
 		r.Route("/key-bundles", func(r chi.Router) {
 			r.Use(authSvc.Middleware)

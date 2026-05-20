@@ -66,6 +66,35 @@ func (h *Handler) ListUser(w http.ResponseWriter, r *http.Request) {
 	h.listUserDevices(w, r, userID)
 }
 
+func (h *Handler) RevokeOwn(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	deviceID := chi.URLParam(r, "deviceId")
+	if deviceID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "deviceId is required")
+		return
+	}
+
+	if err := h.svc.RevokeDevice(r.Context(), userID, deviceID); err != nil {
+		if errors.Is(err, ErrInvalidDeviceKey) {
+			writeError(w, http.StatusBadRequest, "invalid_device_key", err.Error())
+			return
+		}
+		if errors.Is(err, ErrDeviceNotFound) {
+			writeError(w, http.StatusNotFound, "device_not_found", "Device not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to revoke device")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) ClaimKeyBundle(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := auth.UserIDFromContext(r.Context())
 	if !ok || requesterID == "" {

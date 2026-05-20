@@ -6,6 +6,7 @@ import type { StoredDeviceKeyBundle } from "./types";
 export async function ensureLocalDeviceRegistered(
   userId: string,
   deviceName?: string,
+  options?: { force?: boolean },
 ): Promise<StoredDeviceKeyBundle> {
   const existing = await loadDeviceKeyBundle(userId);
   const bundle = existing ?? createDeviceKeyBundle(userId, deviceName);
@@ -14,7 +15,7 @@ export async function ensureLocalDeviceRegistered(
     await storeDeviceKeyBundle(bundle);
   }
 
-  if (bundle.registeredAt && bundle.backendFingerprint) {
+  if (!options?.force && bundle.registeredAt && bundle.backendFingerprint) {
     return bundle;
   }
 

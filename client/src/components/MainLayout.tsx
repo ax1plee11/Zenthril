@@ -11,9 +11,11 @@ import ChatView from "./ChatView";
 import ThemeSettings from "./ThemeSettings";
 import ProfileModal from "./ProfileModal";
 import UserSearch from "./UserSearch";
+import DeviceManagement from "./DeviceManagement";
 import NotificationsPanel, { useUnreadCount } from "./NotificationsPanel";
 import { loadProfile } from "./ProfileModal";
 import { GroupVoiceRoom } from "../features/voice/components/GroupVoiceRoom";
+import { Smartphone } from "lucide-react";
 
 export default function MainLayout() {
   const { user, logout } = useAuth();
@@ -24,6 +26,7 @@ export default function MainLayout() {
   const [showTheme, setShowTheme]         = useState(false);
   const [showProfile, setShowProfile]     = useState(false);
   const [showSearch, setShowSearch]       = useState(false);
+  const [showDevices, setShowDevices]     = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu]     = useState(false);
   const [wsOnline, setWsOnline] = useState(true);
@@ -208,6 +211,10 @@ export default function MainLayout() {
           return null;
         })}
 
+        <TopBtn title="Устройства и ключи" onClick={() => setShowDevices(true)}>
+          <Smartphone size={15} />
+        </TopBtn>
+
         {/* Always-visible profile button */}
         <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
         <button
@@ -340,6 +347,7 @@ export default function MainLayout() {
       {/* ── MODALS ── */}
       {showTheme   && <ThemeSettings onClose={() => setShowTheme(false)} />}
       {showProfile && <ProfileModal  onClose={() => setShowProfile(false)} />}
+      {showDevices && <DeviceManagement onClose={() => setShowDevices(false)} />}
       {showSearch  && <UserSearch    onClose={() => setShowSearch(false)} onSendInvite={sendWSEvent} />}
 
       {showNotifications && (
