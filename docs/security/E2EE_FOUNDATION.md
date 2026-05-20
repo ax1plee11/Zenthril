@@ -15,6 +15,15 @@ Implemented backend primitives:
 - device fingerprint for safety verification UX;
 - authenticated endpoint to claim an X3DH-style key bundle.
 
+Implemented client primitives:
+
+- local device key bundle generation;
+- Ed25519 identity signing key for signed prekey verification;
+- X25519 signed prekey and one-time prekeys;
+- best-effort device registration after login/register;
+- private device material stays client-side and is not included in backend
+  registration requests.
+
 ## API Surface
 
 Authenticated routes:
@@ -45,5 +54,8 @@ because claiming a bundle mutates server state.
 - The server must never receive private keys.
 - One-time prekeys are consumed with row-level locking to avoid double issue.
 - Device fingerprints are verification aids, not authentication by themselves.
+- The current Tauri storage adapter uses the Tauri store plugin as a local
+  persistence layer. Replace it with OS keychain/Stronghold before claiming
+  production-grade private key storage.
 - The protocol must remain marked experimental until reviewed and tested with
   reproducible vectors.

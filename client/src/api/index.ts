@@ -1,3 +1,9 @@
+import type {
+  DeviceAPI,
+  KeyBundleAPI,
+  RegisterDeviceRequest,
+} from "../features/e2ee/types";
+
 /**
  * API клиент — fetch к бэкенду.
  * Локально: тот же хост, порт 8080. Продакшен: задайте `VITE_API_BASE` при сборке (см. docs/DEPLOYMENT.md).
@@ -152,6 +158,25 @@ export const api = {
   users: {
     search: (q: string) =>
       request<UserSearchResult[]>("GET", `/api/v1/users/search?q=${encodeURIComponent(q)}`),
+    devices: (userId: string) =>
+      request<{ devices: DeviceAPI[] }>(
+        "GET",
+        `/api/v1/users/${encodeURIComponent(userId)}/devices`,
+      ),
+  },
+
+  devices: {
+    listOwn: () => request<{ devices: DeviceAPI[] }>("GET", "/api/v1/devices/"),
+    register: (body: RegisterDeviceRequest) =>
+      request<DeviceAPI>("POST", "/api/v1/devices/register", body),
+  },
+
+  keyBundles: {
+    claim: (userId: string, deviceId: string) =>
+      request<KeyBundleAPI>("POST", "/api/v1/key-bundles/claim", {
+        user_id: userId,
+        device_id: deviceId,
+      }),
   },
 
   friends: {

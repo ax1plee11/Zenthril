@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../api/index";
 import { saveAuth } from "../store/auth";
 import { generateKeyPair, exportPublicKey, storePrivateKey } from "../crypto/index";
+import { ensureLocalDeviceRegistered } from "../features/e2ee";
 import { apiErrorFields } from "../util/errors";
 import LanguageSwitcher from "./LanguageSwitcher";
 
@@ -54,11 +55,13 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
         const keyPair    = generateKeyPair();
         const pubKeyB64  = exportPublicKey(keyPair.publicKey);
         const res        = await api.auth.register(trimUser, password, pubKeyB64);
-        storePrivateKey(keyPair.secretKey);
+        await storePrivateKey(keyPair.secretKey);
         saveAuth(res.token, { id: res.user_id, username: trimUser, public_key: pubKeyB64 });
+        await registerE2EEDeviceBestEffort(res.user_id);
       } else {
         const res = await api.auth.login(trimUser, password);
         saveAuth(res.token, { id: res.user.id, username: res.user.username, public_key: res.user.public_key });
+        await registerE2EEDeviceBestEffort(res.user.id);
       }
       onAuth();
     } catch (err: unknown) {
@@ -70,7 +73,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
     } finally {
       setLoading(false);
     }
-  }, [tab, username, password, usernameStatus, onAuth]);
+  }, [tab, username, password, usernameStatus, onAuth, t]);
 
   return (
     <div style={s.root}>
@@ -206,6 +209,14 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
       </div>
     </div>
   );
+}
+
+async function registerE2EEDeviceBestEffort(userId: string): Promise<void> {
+  try {
+    await ensureLocalDeviceRegistered(userId);
+  } catch (err) {
+    console.warn("[E2EE] Device key registration postponed", err);
+  }
 }
 
 const s = {

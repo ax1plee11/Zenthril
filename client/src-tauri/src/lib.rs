@@ -3,6 +3,7 @@ use tauri_plugin_store::StoreExt;
 
 const STORE_PATH: &str = "zenthril_secure.json";
 const PRIVATE_KEY_KEY: &str = "private_key";
+const DEVICE_KEY_PREFIX: &str = "device_key_bundle:";
 
 /// Сохраняет приватный ключ в защищённое хранилище Tauri Store.
 #[tauri::command]
@@ -27,6 +28,47 @@ fn load_private_key(app: tauri::AppHandle) -> Result<Option<String>, String> {
         Some(_) => Ok(None),
         None => Ok(None),
     }
+}
+
+#[tauri::command]
+fn store_device_key_bundle(
+    app: tauri::AppHandle,
+    user_id: String,
+    bundle_json: String,
+) -> Result<(), String> {
+    let store = app
+        .store(STORE_PATH)
+        .map_err(|e| format!("Failed to open store: {e}"))?;
+    store.set(
+        format!("{DEVICE_KEY_PREFIX}{user_id}"),
+        serde_json::Value::String(bundle_json),
+    );
+    store.save().map_err(|e| format!("Failed to save store: {e}"))
+}
+
+#[tauri::command]
+fn load_device_key_bundle(
+    app: tauri::AppHandle,
+    user_id: String,
+) -> Result<Option<String>, String> {
+    let store = app
+        .store(STORE_PATH)
+        .map_err(|e| format!("Failed to open store: {e}"))?;
+    let value = store.get(format!("{DEVICE_KEY_PREFIX}{user_id}"));
+    match value {
+        Some(serde_json::Value::String(s)) => Ok(Some(s)),
+        Some(_) => Ok(None),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+fn delete_device_key_bundle(app: tauri::AppHandle, user_id: String) -> Result<(), String> {
+    let store = app
+        .store(STORE_PATH)
+        .map_err(|e| format!("Failed to open store: {e}"))?;
+    store.delete(format!("{DEVICE_KEY_PREFIX}{user_id}"));
+    store.save().map_err(|e| format!("Failed to save store: {e}"))
 }
 
 /// Показывает системное уведомление через tauri-plugin-notification.
@@ -62,6 +104,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             store_private_key,
             load_private_key,
+            store_device_key_bundle,
+            load_device_key_bundle,
+            delete_device_key_bundle,
             show_notification,
         ])
         .run(tauri::generate_context!())
