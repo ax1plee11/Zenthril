@@ -36,8 +36,11 @@ export class TransportLayer {
   private heartbeatTimer: ReturnType<typeof setInterval> | null;
 
   constructor(nodes: string[] = []) {
-    if (nodes.length < 3) {
-      throw new Error("TransportLayer requires at least 3 nodes");
+    if (nodes.length < 1) {
+      throw new Error("TransportLayer requires at least 1 node");
+    }
+    if (nodes.length > 1 && nodes.length < 3) {
+      throw new Error("TransportLayer requires at least 3 nodes for fallback mode");
     }
     this.nodes = nodes;
     this.currentNodeIndex = 0;
@@ -216,8 +219,22 @@ export class TransportLayer {
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
 
-export const transport = new TransportLayer([
-  "wss://node1.zenthril.app",
-  "wss://node2.zenthril.app",
-  "wss://node3.zenthril.app",
-]);
+function getNodes(): string[] {
+  const raw = import.meta.env.VITE_WS_NODES?.trim();
+  if (!raw) {
+    // Dev mode fallback
+    return ["ws://localhost:8080/ws"];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && (parsed.length === 1 || parsed.length >= 3)) {
+      return parsed;
+    }
+    throw new Error("Invalid nodes format");
+  } catch {
+    console.error("[TransportLayer] Invalid VITE_WS_NODES format, using fallback");
+    return ["ws://localhost:8080/ws"];
+  }
+}
+
+export const transport = new TransportLayer(getNodes());

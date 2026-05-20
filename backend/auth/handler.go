@@ -31,6 +31,27 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Security: Validate password complexity
+	if err := ValidatePasswordComplexity(req.Password); err != nil {
+		var message string
+		switch {
+		case errors.Is(err, ErrPasswordTooShort):
+			message = "Password must be at least 8 characters"
+		case errors.Is(err, ErrPasswordNoUppercase):
+			message = "Password must contain at least one uppercase letter"
+		case errors.Is(err, ErrPasswordNoLowercase):
+			message = "Password must contain at least one lowercase letter"
+		case errors.Is(err, ErrPasswordNoNumber):
+			message = "Password must contain at least one number"
+		case errors.Is(err, ErrPasswordNoSpecialChar):
+			message = "Password must contain at least one special character"
+		default:
+			message = "Password does not meet complexity requirements"
+		}
+		writeError(w, http.StatusBadRequest, "weak_password", message)
+		return
+	}
+
 	user, pair, err := h.svc.Register(r.Context(), req.Username, req.Password, req.PublicKey)
 	if err != nil {
 		if errors.Is(err, ErrUsernameTaken) {

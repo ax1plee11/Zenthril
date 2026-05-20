@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -18,6 +19,51 @@ const (
 	argon2KeyLen      = 32
 	argon2SaltLen     = 16
 )
+
+var (
+	ErrPasswordTooShort      = errors.New("password_too_short")
+	ErrPasswordNoNumber      = errors.New("password_no_number")
+	ErrPasswordNoUppercase   = errors.New("password_no_uppercase")
+	ErrPasswordNoLowercase   = errors.New("password_no_lowercase")
+	ErrPasswordNoSpecialChar = errors.New("password_no_special_char")
+)
+
+// ValidatePasswordComplexity checks if password meets security requirements
+// Minimum 8 characters, at least one uppercase, one lowercase, one number, one special character
+func ValidatePasswordComplexity(password string) error {
+	if len(password) < 8 {
+		return ErrPasswordTooShort
+	}
+
+	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsNumber(char):
+			hasNumber = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper {
+		return ErrPasswordNoUppercase
+	}
+	if !hasLower {
+		return ErrPasswordNoLowercase
+	}
+	if !hasNumber {
+		return ErrPasswordNoNumber
+	}
+	if !hasSpecial {
+		return ErrPasswordNoSpecialChar
+	}
+
+	return nil
+}
 
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, argon2SaltLen)

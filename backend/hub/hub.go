@@ -18,22 +18,36 @@ type ChannelAccessChecker interface {
 	UserHasChannelAccess(ctx context.Context, userID, channelID string) (bool, error)
 }
 
-func NewUpgrader(allowedOrigins []string) websocket.Upgrader {
+func NewUpgrader(allowedOrigins []string, environment string) websocket.Upgrader {
 	allow := allowedOrigins
 	return websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			if len(allow) == 0 {
-				return true
-			}
-			if len(allow) == 1 && allow[0] == "*" {
-				return true
-			}
 			origin := r.Header.Get("Origin")
+
+			// Security: Block empty origins in production
+			if len(allow) == 0 {
+				if environment == "production" {
+					// Production: reject all origins if not explicitly configured
+					return false
+				}
+				// Dev mode: allow all
+				return true
+			}
+
+			if len(allow) == 1 && allow[0] == "*" {
+				if environment == "production" {
+					// Security: Wildcard not allowed in production
+					return false
+				}
+				return true
+			}
+
 			if origin == "" {
 				return true
 			}
+
 			for _, o := range allow {
 				if o == origin {
 					return true

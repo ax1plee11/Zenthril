@@ -21,6 +21,7 @@ import (
 	"zenthril-backend/hub"
 	"zenthril-backend/message"
 	"zenthril-backend/metrics"
+	securityheaders "zenthril-backend/middleware"
 	"zenthril-backend/security"
 	"zenthril-backend/spam"
 )
@@ -93,7 +94,7 @@ func main() {
 	go wsHub.Run()
 	guildHandler := guild.NewHandler(guildSvc, wsHub)
 
-	wsUpgrader := hub.NewUpgrader(wsAllowedOrigins(cfg))
+	wsUpgrader := hub.NewUpgrader(wsAllowedOrigins(cfg), cfg.Environment)
 
 	messageSvc := message.NewService(database, wsHub, guildSvc)
 	messageHandler := message.NewHandler(messageSvc)
@@ -111,6 +112,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(securityheaders.SecurityHeaders)
 	r.Use(metrics.HTTPMiddleware)
 
 	r.Use(func(next http.Handler) http.Handler {
@@ -120,12 +122,21 @@ func main() {
 
 			w.Header().Set("Vary", "Origin")
 
+			// Security: Block empty origins in production
 			if len(allowed) == 0 {
-				// Dev mode: allow all
-				if origin != "" {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
+				if cfg.Environment == "production" {
+					// Production: reject all origins if not explicitly configured
+					if origin != "" {
+						w.WriteHeader(http.StatusForbidden)
+						return
+					}
 				} else {
-					w.Header().Set("Access-Control-Allow-Origin", "*")
+					// Dev mode: allow all
+					if origin != "" {
+						w.Header().Set("Access-Control-Allow-Origin", origin)
+					} else {
+						w.Header().Set("Access-Control-Allow-Origin", "*")
+					}
 				}
 			} else {
 				// Production: strict origin check
@@ -225,6 +236,15 @@ func main() {
 					w.Header().Set("Content-Type", "application/json")
 					w.Write([]byte("[]"))
 					return
+				}
+				// Security: Validate query parameter to prevent SQL injection
+				// Only allow alphanumeric, underscore, and hyphen
+				for _, r := range q {
+					if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+						w.Header().Set("Content-Type", "application/json")
+						w.Write([]byte("[]"))
+						return
+					}
 				}
 				rows, err := database.Query(r.Context(),
 					`SELECT id, username FROM users WHERE username ILIKE $1 LIMIT 20`,
