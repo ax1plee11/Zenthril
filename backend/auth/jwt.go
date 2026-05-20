@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 const (
@@ -31,6 +32,7 @@ func generateTypedToken(userID, tokenType string, ttl time.Duration, secret stri
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+			ID:        uuid.NewString(),
 		},
 	}
 
@@ -50,7 +52,26 @@ func ValidateRefreshToken(tokenStr, secret string) (string, error) {
 	return validateTypedToken(tokenStr, secret, "refresh")
 }
 
+func ValidateRefreshTokenWithID(tokenStr, secret string) (userID, tokenID string, err error) {
+	claims, err := parseTypedToken(tokenStr, secret, "refresh")
+	if err != nil {
+		return "", "", err
+	}
+	if claims.ID == "" {
+		return "", "", errors.New("missing token id")
+	}
+	return claims.UserID, claims.ID, nil
+}
+
 func validateTypedToken(tokenStr, secret, expectedType string) (string, error) {
+	claims, err := parseTypedToken(tokenStr, secret, expectedType)
+	if err != nil {
+		return "", err
+	}
+	return claims.UserID, nil
+}
+
+func parseTypedToken(tokenStr, secret, expectedType string) (*claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -58,17 +79,17 @@ func validateTypedToken(tokenStr, secret, expectedType string) (string, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("parse token: %w", err)
+		return nil, fmt.Errorf("parse token: %w", err)
 	}
 
 	c, ok := token.Claims.(*claims)
 	if !ok || !token.Valid {
-		return "", errors.New("invalid token")
+		return nil, errors.New("invalid token")
 	}
 
 	if c.TokenType != expectedType {
-		return "", fmt.Errorf("wrong token type: expected %s, got %s", expectedType, c.TokenType)
+		return nil, fmt.Errorf("wrong token type: expected %s, got %s", expectedType, c.TokenType)
 	}
 
-	return c.UserID, nil
+	return c, nil
 }

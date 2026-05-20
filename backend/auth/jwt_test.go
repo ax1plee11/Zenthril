@@ -44,6 +44,25 @@ func TestValidateToken_Garbage(t *testing.T) {
 	}
 }
 
+func TestValidateRefreshTokenWithID(t *testing.T) {
+	t.Parallel()
+	const secret = "test-secret-at-least-32-bytes-long!!"
+	token, err := generateTypedToken("user-uuid-123", "refresh", refreshTokenTTL, secret)
+	if err != nil {
+		t.Fatalf("generate refresh token: %v", err)
+	}
+	userID, tokenID, err := ValidateRefreshTokenWithID(token, secret)
+	if err != nil {
+		t.Fatalf("ValidateRefreshTokenWithID: %v", err)
+	}
+	if userID != "user-uuid-123" {
+		t.Fatalf("user id: got %q want %q", userID, "user-uuid-123")
+	}
+	if tokenID == "" {
+		t.Fatal("expected token id")
+	}
+}
+
 func TestValidateToken_Tampered(t *testing.T) {
 	t.Parallel()
 	token, err := GenerateToken("u1", "somesecretsomesecretsomesecret")

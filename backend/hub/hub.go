@@ -45,7 +45,7 @@ func NewUpgrader(allowedOrigins []string, environment string) websocket.Upgrader
 			}
 
 			if origin == "" {
-				return true
+				return environment != "production"
 			}
 
 			for _, o := range allow {

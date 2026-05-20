@@ -40,7 +40,7 @@ func Load() (*Config, error) {
 		WSAllowedOrigins:   wsOrigins,
 		AdminUserIDs:       adminIDs,
 		MetricsToken:       getEnv("METRICS_TOKEN", ""),
-		Environment:        getEnv("ENVIRONMENT", "development"),
+		Environment:        getEnvWithFallback("ENVIRONMENT", "APP_ENV", "development"),
 	}
 
 	if cfg.DBURL == "" {
@@ -51,6 +51,35 @@ func Load() (*Config, error) {
 	}
 	if len(cfg.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	if cfg.Environment == "production" {
+		if isPlaceholderSecret(cfg.JWTSecret) {
+			return nil, fmt.Errorf("JWT_SECRET must be replaced in production")
+		}
+		if isPlaceholderSecret(cfg.DBURL) {
+			return nil, fmt.Errorf("DB_URL must not contain placeholder secrets in production")
+		}
+		if cfg.MetricsToken == "" {
+			return nil, fmt.Errorf("METRICS_TOKEN is required in production")
+		}
+		if len(cfg.MetricsToken) < 32 {
+			return nil, fmt.Errorf("METRICS_TOKEN must be at least 32 characters in production")
+		}
+		if isPlaceholderSecret(cfg.MetricsToken) {
+			return nil, fmt.Errorf("METRICS_TOKEN must be replaced in production")
+		}
+		if len(cfg.CORSAllowedOrigins) == 0 {
+			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS is required in production")
+		}
+		if hasWildcard(cfg.CORSAllowedOrigins) {
+			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS cannot contain wildcard in production")
+		}
+		if len(cfg.WSAllowedOrigins) == 0 {
+			return nil, fmt.Errorf("WS_ALLOWED_ORIGINS is required in production")
+		}
+		if hasWildcard(cfg.WSAllowedOrigins) {
+			return nil, fmt.Errorf("WS_ALLOWED_ORIGINS cannot contain wildcard in production")
+		}
 	}
 
 	return cfg, nil
@@ -92,4 +121,29 @@ func splitCommaList(s string) []string {
 		return nil
 	}
 	return out
+}
+
+func hasWildcard(values []string) bool {
+	for _, value := range values {
+		if value == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+func isPlaceholderSecret(value string) bool {
+	normalized := strings.ToLower(value)
+	placeholders := []string{
+		"change-me",
+		"changeme",
+		"replace-me",
+		"example-password",
+	}
+	for _, placeholder := range placeholders {
+		if strings.Contains(normalized, placeholder) {
+			return true
+		}
+	}
+	return false
 }

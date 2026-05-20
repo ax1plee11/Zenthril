@@ -55,3 +55,54 @@ func TestLoad_OK(t *testing.T) {
 		t.Fatalf("AdminUserIDs: %#v", cfg.AdminUserIDs)
 	}
 }
+
+func TestLoad_ProductionRequiresExplicitSecurityConfig(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected production security validation error")
+	}
+}
+
+func TestLoad_ProductionRejectsWildcardOrigins(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "*")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected wildcard CORS validation error")
+	}
+}
+
+func TestLoad_ProductionOK(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+}
+
+func TestLoad_ProductionRejectsPlaceholderSecrets(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "change-me-use-openssl-rand-hex-64")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected placeholder JWT validation error")
+	}
+}

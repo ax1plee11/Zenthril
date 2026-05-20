@@ -3,7 +3,11 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -24,6 +28,13 @@ type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int    `json:"expires_in"`
+}
+
+type refreshTokenRecord struct {
+	UserID    string    `json:"user_id"`
+	TokenID   string    `json:"token_id"`
+	TokenHash string    `json:"token_hash"`
+	IssuedAt  time.Time `json:"issued_at"`
 }
 
 type Service struct {
@@ -107,10 +118,30 @@ func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 
-	key := "refresh:" + refreshToken
-	if err := s.redis.Set(ctx, key, userID, refreshTokenTTL).Err(); err != nil {
+	_, tokenID, err := ValidateRefreshTokenWithID(refreshToken, s.jwtSecret)
+	if err != nil {
+		return nil, fmt.Errorf("parse refresh token id: %w", err)
+	}
+	record := refreshTokenRecord{
+		UserID:    userID,
+		TokenID:   tokenID,
+		TokenHash: hashToken(refreshToken),
+		IssuedAt:  time.Now().UTC(),
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		return nil, fmt.Errorf("encode refresh token record: %w", err)
+	}
+
+	key := refreshTokenKey(tokenID)
+	if err := s.redis.Set(ctx, key, data, refreshTokenTTL).Err(); err != nil {
 		return nil, fmt.Errorf("store refresh token: %w", err)
 	}
+	if err := s.redis.SAdd(ctx, refreshUserSetKey(userID), tokenID).Err(); err != nil {
+		_ = s.redis.Del(ctx, key).Err()
+		return nil, fmt.Errorf("index refresh token: %w", err)
+	}
+	_ = s.redis.Expire(ctx, refreshUserSetKey(userID), refreshTokenTTL).Err()
 
 	return &TokenPair{
 		AccessToken:  accessToken,
@@ -120,40 +151,56 @@ func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair
 }
 
 func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*TokenPair, error) {
-	userID, err := ValidateRefreshToken(refreshToken, s.jwtSecret)
+	userID, tokenID, err := ValidateRefreshTokenWithID(refreshToken, s.jwtSecret)
 	if err != nil {
 		return nil, ErrInvalidRefreshToken
 	}
 
-	key := "refresh:" + refreshToken
-	storedUserID, err := s.redis.Get(ctx, key).Result()
+	key := refreshTokenKey(tokenID)
+	raw, err := s.redis.Get(ctx, key).Bytes()
 	if err == redis.Nil {
+		if s.wasRefreshTokenUsed(ctx, tokenID) {
+			_ = s.revokeUserRefreshTokens(ctx, userID)
+		}
 		return nil, ErrInvalidRefreshToken
 	}
 	if err != nil {
 		return nil, fmt.Errorf("check refresh token: %w", err)
 	}
-	if storedUserID != userID {
+	var record refreshTokenRecord
+	if err := json.Unmarshal(raw, &record); err != nil {
+		_ = s.redis.Del(ctx, key).Err()
+		_ = s.redis.SRem(ctx, refreshUserSetKey(userID), tokenID).Err()
+		return nil, fmt.Errorf("decode refresh token record: %w", err)
+	}
+	if record.UserID != userID || record.TokenID != tokenID || !equalTokenHash(record.TokenHash, hashToken(refreshToken)) {
+		_ = s.revokeUserRefreshTokens(ctx, userID)
 		return nil, ErrInvalidRefreshToken
 	}
 
 	if err := s.redis.Del(ctx, key).Err(); err != nil {
 		return nil, fmt.Errorf("revoke old refresh token: %w", err)
 	}
+	_ = s.redis.SRem(ctx, refreshUserSetKey(userID), tokenID).Err()
+	_ = s.redis.Set(ctx, usedRefreshTokenKey(tokenID), userID, refreshTokenTTL).Err()
 
 	return s.issueTokenPair(ctx, userID)
 }
 
 func (s *Service) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
-	key := "refresh:" + refreshToken
-	s.redis.Del(ctx, key)
+	userID, tokenID, err := ValidateRefreshTokenWithID(refreshToken, s.jwtSecret)
+	if err != nil {
+		return nil
+	}
+	_ = s.redis.Del(ctx, refreshTokenKey(tokenID)).Err()
+	_ = s.redis.SRem(ctx, refreshUserSetKey(userID), tokenID).Err()
 	return nil
 }
 
 func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) error {
 	if accessToken != "" {
 		if _, err := ValidateToken(accessToken, s.jwtSecret); err == nil {
-			key := "token:blacklist:" + accessToken
+			key := "token:blacklist:" + hashToken(accessToken)
 			_ = s.redis.Set(ctx, key, "1", accessTokenTTL)
 		}
 	}
@@ -164,12 +211,57 @@ func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) 
 }
 
 func (s *Service) IsTokenBlacklisted(ctx context.Context, token string) (bool, error) {
-	key := "token:blacklist:" + token
+	key := "token:blacklist:" + hashToken(token)
 	val, err := s.redis.Exists(ctx, key).Result()
 	if err != nil {
 		return false, fmt.Errorf("check blacklist: %w", err)
 	}
 	return val > 0, nil
+}
+
+func (s *Service) wasRefreshTokenUsed(ctx context.Context, tokenID string) bool {
+	exists, err := s.redis.Exists(ctx, usedRefreshTokenKey(tokenID)).Result()
+	return err == nil && exists > 0
+}
+
+func (s *Service) revokeUserRefreshTokens(ctx context.Context, userID string) error {
+	setKey := refreshUserSetKey(userID)
+	tokenIDs, err := s.redis.SMembers(ctx, setKey).Result()
+	if err != nil {
+		return fmt.Errorf("list user refresh tokens: %w", err)
+	}
+	if len(tokenIDs) > 0 {
+		keys := make([]string, 0, len(tokenIDs)+1)
+		for _, tokenID := range tokenIDs {
+			keys = append(keys, refreshTokenKey(tokenID))
+		}
+		keys = append(keys, setKey)
+		if err := s.redis.Del(ctx, keys...).Err(); err != nil {
+			return fmt.Errorf("revoke user refresh tokens: %w", err)
+		}
+	}
+	return nil
+}
+
+func refreshTokenKey(tokenID string) string {
+	return "refresh:jti:" + tokenID
+}
+
+func usedRefreshTokenKey(tokenID string) string {
+	return "refresh:used:" + tokenID
+}
+
+func refreshUserSetKey(userID string) string {
+	return "refresh:user:" + userID
+}
+
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func equalTokenHash(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 func (s *Service) ValidateTokenPublic(token string) (string, error) {

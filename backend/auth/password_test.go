@@ -41,3 +41,25 @@ func TestVerifyPassword_InvalidFormat(t *testing.T) {
 		t.Fatal("expected error for invalid hash format")
 	}
 }
+
+func TestValidatePasswordComplexity(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		pass    string
+		wantErr bool
+	}{
+		{name: "strong", pass: "StrongPass1!", wantErr: false},
+		{name: "short", pass: "Aa1!", wantErr: true},
+		{name: "no uppercase", pass: "strongpass1!", wantErr: true},
+		{name: "no lowercase", pass: "STRONGPASS1!", wantErr: true},
+		{name: "no number", pass: "StrongPass!", wantErr: true},
+		{name: "no special", pass: "StrongPass1", wantErr: true},
+	}
+	for _, tt := range tests {
+		err := ValidatePasswordComplexity(tt.pass)
+		if (err != nil) != tt.wantErr {
+			t.Fatalf("%s: err = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+	}
+}

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -151,11 +153,8 @@ func main() {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 					w.Header().Set("Access-Control-Allow-Credentials", "true")
 				} else if origin != "" {
-					// Origin not allowed — reject preflight, continue for non-CORS
-					if r.Method == http.MethodOptions {
-						w.WriteHeader(http.StatusForbidden)
-						return
-					}
+					w.WriteHeader(http.StatusForbidden)
+					return
 				}
 			}
 
@@ -317,14 +316,8 @@ func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		token := ""
-		if a := r.Header.Get("Authorization"); len(a) > 7 && a[:7] == "Bearer " {
-			token = a[7:]
-		}
-		if token == "" {
-			token = r.URL.Query().Get("token")
-		}
-		if token == "" || token != cfg.MetricsToken {
+		token := bearerToken(r)
+		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(cfg.MetricsToken)) != 1 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid metrics token required"}`))
@@ -332,4 +325,12 @@ func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func bearerToken(r *http.Request) string {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 }
