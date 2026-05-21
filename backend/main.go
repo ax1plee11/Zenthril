@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -129,16 +130,15 @@ func main() {
 
 			w.Header().Set("Vary", "Origin")
 
-			// Security: Block empty origins in production
+			// SECURITY: production must use an explicit allowlist to prevent hostile browser origins.
 			if len(allowed) == 0 {
 				if cfg.Environment == "production" {
-					// Production: reject all origins if not explicitly configured
 					if origin != "" {
+						slog.Warn("security cors origin rejected", "reason", "missing_origin_config", "origin", origin, "path", r.URL.Path)
 						w.WriteHeader(http.StatusForbidden)
 						return
 					}
 				} else {
-					// Dev mode: allow all
 					if origin != "" {
 						w.Header().Set("Access-Control-Allow-Origin", origin)
 					} else {
@@ -146,7 +146,6 @@ func main() {
 					}
 				}
 			} else {
-				// Production: strict origin check
 				originAllowed := false
 				for _, o := range allowed {
 					if o == origin {
@@ -158,6 +157,7 @@ func main() {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 					w.Header().Set("Access-Control-Allow-Credentials", "true")
 				} else if origin != "" {
+					slog.Warn("security cors origin rejected", "reason", "origin_not_allowed", "origin", origin, "path", r.URL.Path)
 					w.WriteHeader(http.StatusForbidden)
 					return
 				}
@@ -337,12 +337,14 @@ func main() {
 
 func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// SECURITY: metrics expose operational internals and require a dedicated bearer token outside development.
 		if cfg.MetricsToken == "" && cfg.Environment == "development" {
 			next(w, r)
 			return
 		}
 		token := bearerToken(r)
 		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(cfg.MetricsToken)) != 1 {
+			slog.Warn("security metrics access denied", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid metrics token required"}`))

@@ -21,6 +21,7 @@ func NewHandler(svc *Service, secureCookies ...bool) *Handler {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	// SECURITY: cap unauthenticated request bodies to limit memory pressure.
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	var req struct {
 		Username  string `json:"username"`
@@ -37,7 +38,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Security: Validate password complexity
+	// SECURITY: enforce minimum account password complexity at registration.
 	if err := ValidatePasswordComplexity(req.Password); err != nil {
 		var message string
 		switch {
@@ -79,6 +80,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	// SECURITY: cap unauthenticated request bodies to limit memory pressure.
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	var req struct {
 		Username string `json:"username"`
@@ -110,6 +112,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	// SECURITY: refresh payloads should contain only a token or use the HttpOnly cookie fallback.
 	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
@@ -186,6 +189,7 @@ const (
 )
 
 func (h *Handler) setTokenCookies(w http.ResponseWriter, pair *TokenPair) {
+	// SECURITY: cookies are HttpOnly/SameSite and Secure in production; JSON tokens remain for desktop compatibility.
 	http.SetCookie(w, h.authCookie(accessCookieName, pair.AccessToken, pair.ExpiresIn))
 	http.SetCookie(w, h.authCookie(refreshCookieName, pair.RefreshToken, int(refreshTokenTTL.Seconds())))
 }

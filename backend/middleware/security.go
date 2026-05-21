@@ -4,9 +4,10 @@ import (
 	"net/http"
 )
 
-// SecurityHeaders adds security-related HTTP headers to all responses
+// SecurityHeaders adds security-related HTTP headers to all responses.
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// SECURITY: defense-in-depth browser policy for hosted web clients.
 		// Content Security Policy - restrict resources that can be loaded
 		// Default-src 'self' - only allow resources from same origin
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';")

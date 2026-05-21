@@ -173,6 +173,18 @@ func (c Config) Validate() error {
 	if strings.EqualFold(c.Environment, "production") && len(c.Security.JWTSecret) < 32 {
 		return errors.New("JWT_SECRET must be at least 32 bytes in production")
 	}
+	if strings.EqualFold(c.Environment, "production") {
+		// SECURITY: production websocket gateways must fail closed without exact allowed origins.
+		if len(c.Gateway.AllowedOrigins) == 0 {
+			return errors.New("WS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS is required in production")
+		}
+		if hasWildcard(c.Gateway.AllowedOrigins) {
+			return errors.New("gateway allowed origins cannot contain wildcard in production")
+		}
+	}
+	if err := validateExactOrigins("gateway allowed origins", c.Gateway.AllowedOrigins); err != nil {
+		return err
+	}
 	if c.EventBus.Driver == "kafka" && len(c.EventBus.KafkaBrokers) == 0 {
 		return errors.New("KAFKA_BROKERS is required when EVENT_BUS_DRIVER=kafka")
 	}
@@ -261,6 +273,31 @@ func firstNonEmptyList(primary, fallback []string) []string {
 		return primary
 	}
 	return fallback
+}
+
+func hasWildcard(values []string) bool {
+	for _, value := range values {
+		if value == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+func validateExactOrigins(name string, origins []string) error {
+	for _, origin := range origins {
+		if origin == "*" {
+			continue
+		}
+		parsed, err := url.Parse(origin)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return fmt.Errorf("%s must contain exact origins only, got %q", name, origin)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("%s origin must use http or https, got %q", name, origin)
+		}
+	}
+	return nil
 }
 
 func parsePostgresShards(raw string, fallbackDSN string) []PostgresShardConfig {

@@ -73,6 +73,7 @@ func validateTypedToken(tokenStr, secret, expectedType string) (string, error) {
 
 func parseTypedToken(tokenStr, secret, expectedType string) (*claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(t *jwt.Token) (interface{}, error) {
+		// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
 		if t.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}

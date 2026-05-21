@@ -3,7 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	maxWSMessageBytes      = 64 << 10
-	maxWSMessagesPerMinute = 120
+	maxWSMessageBytes          = 64 << 10
+	maxWSMessagesPerMinute     = 120
+	maxWSUserMessagesPerMinute = 300
+	maxWSMalformedMessages     = 5
 )
 
 type ChannelAccessChecker interface {
@@ -31,26 +33,29 @@ func NewUpgrader(allowedOrigins []string, environment string) websocket.Upgrader
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 
-			// Security: Block empty origins in production
+			// SECURITY: fail closed in production when WS_ALLOWED_ORIGINS is missing.
 			if len(allow) == 0 {
 				if environment == "production" {
-					// Production: reject all origins if not explicitly configured
+					slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin)
 					return false
 				}
-				// Dev mode: allow all
 				return true
 			}
 
 			if len(allow) == 1 && allow[0] == "*" {
 				if environment == "production" {
-					// Security: Wildcard not allowed in production
+					slog.Warn("security websocket origin rejected", "reason", "wildcard_in_production", "origin", origin)
 					return false
 				}
 				return true
 			}
 
 			if origin == "" {
-				return environment != "production"
+				allowed := environment != "production"
+				if !allowed {
+					slog.Warn("security websocket origin rejected", "reason", "empty_origin")
+				}
+				return allowed
 			}
 
 			for _, o := range allow {
@@ -58,6 +63,7 @@ func NewUpgrader(allowedOrigins []string, environment string) websocket.Upgrader
 					return true
 				}
 			}
+			slog.Warn("security websocket origin rejected", "reason", "origin_not_allowed", "origin", origin)
 			return false
 		},
 	}
@@ -76,6 +82,7 @@ type Client struct {
 type Hub struct {
 	channels      map[string]map[*Client]bool
 	users         map[string]map[*Client]bool
+	userLimiters  map[string]*wsRateLimiter
 	voiceChannels map[string]map[string]bool
 	guild         ChannelAccessChecker
 	mu            sync.RWMutex
@@ -87,6 +94,7 @@ func NewHub(g ChannelAccessChecker) *Hub {
 	return &Hub{
 		channels:      make(map[string]map[*Client]bool),
 		users:         make(map[string]map[*Client]bool),
+		userLimiters:  make(map[string]*wsRateLimiter),
 		voiceChannels: make(map[string]map[string]bool),
 		guild:         g,
 		register:      make(chan *Client, 64),
@@ -102,6 +110,9 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			if h.users[client.UserID] == nil {
 				h.users[client.UserID] = make(map[*Client]bool)
+			}
+			if h.userLimiters[client.UserID] == nil {
+				h.userLimiters[client.UserID] = newWSRateLimiter(maxWSUserMessagesPerMinute)
 			}
 			h.users[client.UserID][client] = true
 			h.mu.Unlock()
@@ -129,6 +140,7 @@ func (h *Hub) Run() {
 				delete(clients, client)
 				if len(clients) == 0 {
 					delete(h.users, client.UserID)
+					delete(h.userLimiters, client.UserID)
 				}
 			}
 			h.mu.Unlock()
@@ -296,27 +308,39 @@ func (c *Client) readPump() {
 	}()
 
 	c.conn.SetReadLimit(maxWSMessageBytes)
+	malformedMessages := 0
 
 	for {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("ws read error user=%s: %v", c.UserID, err)
+				slog.Debug("websocket read ended", "user_id", c.UserID, "conn_id", c.ConnID, "error", err)
 			}
 			return
 		}
+		// SECURITY: enforce both per-connection and per-user limits to reduce flooding blast radius.
 		if !c.limiter.allow() {
-			log.Printf("security ws rate limit user=%s conn=%s", c.UserID, c.ConnID)
+			slog.Warn("security websocket connection rate limited", "user_id", c.UserID, "conn_id", c.ConnID)
+			c.hub.sendWSError(c, "rate_limited", "too many websocket messages")
+			return
+		}
+		if !c.hub.allowUserMessage(c.UserID) {
+			slog.Warn("security websocket user rate limited", "user_id", c.UserID, "conn_id", c.ConnID)
 			c.hub.sendWSError(c, "rate_limited", "too many websocket messages")
 			return
 		}
 
 		var evt wsEvent
 		if err := json.Unmarshal(data, &evt); err != nil {
-			log.Printf("security malformed ws message user=%s conn=%s", c.UserID, c.ConnID)
+			malformedMessages++
+			slog.Warn("security malformed websocket message", "user_id", c.UserID, "conn_id", c.ConnID, "count", malformedMessages)
 			c.hub.sendWSError(c, "malformed_message", "invalid websocket message")
+			if malformedMessages >= maxWSMalformedMessages {
+				return
+			}
 			continue
 		}
+		malformedMessages = 0
 
 		switch evt.Type {
 		case "subscribe":
@@ -395,10 +419,11 @@ type wsRateLimiter struct {
 	mu          sync.Mutex
 	windowStart time.Time
 	count       int
+	limit       int
 }
 
-func newWSRateLimiter() *wsRateLimiter {
-	return &wsRateLimiter{windowStart: time.Now()}
+func newWSRateLimiter(limit int) *wsRateLimiter {
+	return &wsRateLimiter{windowStart: time.Now(), limit: limit}
 }
 
 func (l *wsRateLimiter) allow() bool {
@@ -410,7 +435,18 @@ func (l *wsRateLimiter) allow() bool {
 		l.count = 0
 	}
 	l.count++
-	return l.count <= maxWSMessagesPerMinute
+	return l.count <= l.limit
+}
+
+func (h *Hub) allowUserMessage(userID string) bool {
+	h.mu.Lock()
+	limiter := h.userLimiters[userID]
+	if limiter == nil {
+		limiter = newWSRateLimiter(maxWSUserMessagesPerMinute)
+		h.userLimiters[userID] = limiter
+	}
+	h.mu.Unlock()
+	return limiter.allow()
 }
 
 func (h *Hub) voiceJoin(c *Client, channelID string) {
@@ -466,7 +502,7 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("ws upgrade error: %v", err)
+		slog.Warn("websocket upgrade failed", "error", err)
 		return
 	}
 
@@ -476,7 +512,7 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 		Send:    make(chan []byte, 256),
 		conn:    conn,
 		hub:     h,
-		limiter: newWSRateLimiter(),
+		limiter: newWSRateLimiter(maxWSMessagesPerMinute),
 	}
 
 	h.register <- client

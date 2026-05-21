@@ -26,11 +26,12 @@ type Registry struct {
 	maxConnections int
 	logger         *slog.Logger
 
-	draining  atomic.Bool
-	mu        sync.RWMutex
-	byID      map[string]*Connection
-	byUser    map[string]map[string]*Connection
-	byChannel map[string]map[string]*Connection
+	draining   atomic.Bool
+	mu         sync.RWMutex
+	byID       map[string]*Connection
+	byUser     map[string]map[string]*Connection
+	byUserRate map[string]*rateLimiter
+	byChannel  map[string]map[string]*Connection
 }
 
 type Connection struct {
@@ -66,6 +67,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		logger:         opts.Logger,
 		byID:           make(map[string]*Connection),
 		byUser:         make(map[string]map[string]*Connection),
+		byUserRate:     make(map[string]*rateLimiter),
 		byChannel:      make(map[string]map[string]*Connection),
 	}
 }
@@ -100,6 +102,9 @@ func (r *Registry) Register(conn *Connection) error {
 	if r.byUser[conn.UserID] == nil {
 		r.byUser[conn.UserID] = make(map[string]*Connection)
 	}
+	if r.byUserRate[conn.UserID] == nil {
+		r.byUserRate[conn.UserID] = newRateLimiter(gatewayUserMessagesPerMinute)
+	}
 	r.byUser[conn.UserID][conn.ID] = conn
 	return nil
 }
@@ -117,6 +122,7 @@ func (r *Registry) Unregister(connectionID string) {
 		delete(userConnections, connectionID)
 		if len(userConnections) == 0 {
 			delete(r.byUser, conn.UserID)
+			delete(r.byUserRate, conn.UserID)
 		}
 	}
 	for channelID := range conn.subscriptions {
@@ -128,6 +134,17 @@ func (r *Registry) Unregister(connectionID string) {
 		}
 	}
 	conn.close()
+}
+
+func (r *Registry) AllowUserMessage(userID string) bool {
+	r.mu.Lock()
+	limiter := r.byUserRate[userID]
+	if limiter == nil {
+		limiter = newRateLimiter(gatewayUserMessagesPerMinute)
+		r.byUserRate[userID] = limiter
+	}
+	r.mu.Unlock()
+	return limiter.Allow()
 }
 
 func (r *Registry) Subscribe(connectionID, channelID string) error {

@@ -80,11 +80,16 @@ func NewHandler(opts HandlerOptions) *Handler {
 				if len(allowedOrigins) == 0 {
 					return true
 				}
+				// SECURITY: when an allowlist exists, empty or unknown origins are rejected to prevent CSWSH.
 				origin := r.Header.Get("Origin")
 				if origin == "" {
-					return true
+					opts.Logger.Warn("security gateway websocket origin rejected", "reason", "empty_origin")
+					return false
 				}
 				_, ok := allowedOrigins[origin]
+				if !ok {
+					opts.Logger.Warn("security gateway websocket origin rejected", "reason", "origin_not_allowed", "origin", origin)
+				}
 				return ok
 			},
 		},
@@ -176,10 +181,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Connection) error {
+	connectionLimiter := newRateLimiter(gatewayConnectionMessagesPerMinute)
 	for {
 		var command ClientCommand
 		if err := socket.ReadJSON(&command); err != nil {
+			h.logger.Warn("security gateway malformed websocket message", "connection_id", conn.ID, "user_id", conn.UserID, "error", err)
 			return err
+		}
+		// SECURITY: enforce both per-connection and per-user command limits.
+		if !connectionLimiter.Allow() {
+			h.logger.Warn("security gateway connection rate limited", "connection_id", conn.ID, "user_id", conn.UserID)
+			h.sendError(conn, "rate_limited", "too many websocket commands")
+			return nil
+		}
+		if !h.registry.AllowUserMessage(conn.UserID) {
+			h.logger.Warn("security gateway user rate limited", "connection_id", conn.ID, "user_id", conn.UserID)
+			h.sendError(conn, "rate_limited", "too many websocket commands")
+			return nil
 		}
 
 		select {
@@ -260,10 +278,8 @@ func (h *Handler) sendEnvelope(conn *Connection, env Envelope) {
 }
 
 func extractToken(r *http.Request) string {
+	// SECURITY: support short-lived websocket tickets and Authorization headers; avoid generic token query names.
 	if token := strings.TrimSpace(r.URL.Query().Get("ticket")); token != "" {
-		return token
-	}
-	if token := strings.TrimSpace(r.URL.Query().Get("token")); token != "" {
 		return token
 	}
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
