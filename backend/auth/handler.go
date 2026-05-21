@@ -8,14 +8,20 @@ import (
 )
 
 type Handler struct {
-	svc *Service
+	svc           *Service
+	secureCookies bool
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, secureCookies ...bool) *Handler {
+	secure := false
+	if len(secureCookies) > 0 {
+		secure = secureCookies[0]
+	}
+	return &Handler{svc: svc, secureCookies: secure}
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	var req struct {
 		Username  string `json:"username"`
 		Password  string `json:"password"`
@@ -62,6 +68,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.setTokenCookies(w, pair)
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"user_id":       user.ID.String(),
 		"access_token":  pair.AccessToken,
@@ -72,6 +79,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -91,6 +99,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.setTokenCookies(w, pair)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"access_token":  pair.AccessToken,
 		"refresh_token": pair.RefreshToken,
@@ -101,10 +110,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.RefreshToken == "" {
+		if cookie, err := r.Cookie(refreshCookieName); err == nil {
+			req.RefreshToken = cookie.Value
+		}
+	}
+	if req.RefreshToken == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "refresh_token is required")
 		return
 	}
@@ -119,6 +135,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.setTokenCookies(w, pair)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"access_token":  pair.AccessToken,
 		"refresh_token": pair.RefreshToken,
@@ -148,13 +165,46 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		RefreshToken string `json:"refresh_token"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.RefreshToken == "" {
+		if cookie, err := r.Cookie(refreshCookieName); err == nil {
+			body.RefreshToken = cookie.Value
+		}
+	}
 
 	if err := h.svc.Logout(r.Context(), accessToken, body.RefreshToken); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Logout failed")
 		return
 	}
 
+	h.clearTokenCookies(w)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+const (
+	accessCookieName  = "zenthril_access"
+	refreshCookieName = "zenthril_refresh"
+)
+
+func (h *Handler) setTokenCookies(w http.ResponseWriter, pair *TokenPair) {
+	http.SetCookie(w, h.authCookie(accessCookieName, pair.AccessToken, pair.ExpiresIn))
+	http.SetCookie(w, h.authCookie(refreshCookieName, pair.RefreshToken, int(refreshTokenTTL.Seconds())))
+}
+
+func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
+	http.SetCookie(w, h.authCookie(accessCookieName, "", -1))
+	http.SetCookie(w, h.authCookie(refreshCookieName, "", -1))
+}
+
+func (h *Handler) authCookie(name, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   h.secureCookies,
+		SameSite: http.SameSiteStrictMode,
+	}
 }
 
 func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
@@ -174,6 +224,7 @@ func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var req struct {
 		Reason string `json:"reason"`
 	}

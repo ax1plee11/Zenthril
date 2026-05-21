@@ -106,3 +106,13 @@ func TestLoad_ProductionRejectsPlaceholderSecrets(t *testing.T) {
 		t.Fatal("expected placeholder JWT validation error")
 	}
 }
+
+func TestLoadRejectsOriginWithPath(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com/path")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected origin with path to be rejected")
+	}
+}

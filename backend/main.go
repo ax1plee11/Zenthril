@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -90,7 +91,7 @@ func main() {
 	rdb := redis.NewClient(redisOpts)
 
 	authSvc := auth.NewService(database, rdb, cfg.JWTSecret)
-	authHandler := auth.NewHandler(authSvc)
+	authHandler := auth.NewHandler(authSvc, cfg.Environment == "production")
 	deviceSvc := device.NewService(database)
 	deviceHandler := device.NewHandler(deviceSvc)
 
@@ -114,6 +115,7 @@ func main() {
 	federationHandler := federation.NewHandler(federationSvc)
 
 	r := chi.NewRouter()
+	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -315,12 +317,21 @@ func main() {
 		r.Get("/peers", federationHandler.Peers)
 	})
 
+	server := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
 	log.Printf("Zenthril node starting on %s", cfg.HTTPAddr)
 
 	if cfg.TLSCertFile != "" && cfg.TLSKeyFile != "" {
-		log.Fatal(http.ListenAndServeTLS(cfg.HTTPAddr, cfg.TLSCertFile, cfg.TLSKeyFile, r))
+		log.Fatal(server.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
 	} else {
-		log.Fatal(http.ListenAndServe(cfg.HTTPAddr, r))
+		log.Fatal(server.ListenAndServe())
 	}
 }
 

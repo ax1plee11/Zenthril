@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestGenerateTokenValidateToken_RoundTrip(t *testing.T) {
@@ -78,5 +81,26 @@ func TestValidateToken_Tampered(t *testing.T) {
 	_, err = ValidateToken(tampered, "somesecretsomesecretsomesecret")
 	if err == nil {
 		t.Fatal("expected error for tampered token")
+	}
+}
+
+func TestValidateTokenRejectsNonHS256Algorithms(t *testing.T) {
+	t.Parallel()
+	claims := claims{
+		UserID:    "user-uuid-123",
+		TokenType: "access",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+	signed, err := token.SignedString([]byte("test-secret-at-least-32-bytes-long!!"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValidateToken(signed, "test-secret-at-least-32-bytes-long!!"); err == nil {
+		t.Fatal("expected HS512 token to be rejected")
+	}
+	noneToken := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`)) +
+		"." + base64.RawURLEncoding.EncodeToString([]byte(`{"user_id":"user-uuid-123","token_type":"access"}`)) + "."
+	if _, err := ValidateToken(noneToken, "test-secret-at-least-32-bytes-long!!"); err == nil {
+		t.Fatal("expected alg none token to be rejected")
 	}
 }

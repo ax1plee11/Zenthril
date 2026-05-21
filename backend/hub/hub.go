@@ -14,6 +14,11 @@ import (
 	"zenthril-backend/metrics"
 )
 
+const (
+	maxWSMessageBytes      = 64 << 10
+	maxWSMessagesPerMinute = 120
+)
+
 type ChannelAccessChecker interface {
 	UserHasChannelAccess(ctx context.Context, userID, channelID string) (bool, error)
 }
@@ -65,6 +70,7 @@ type Client struct {
 	GuildIDs []string
 	conn     *websocket.Conn
 	hub      *Hub
+	limiter  *wsRateLimiter
 }
 
 type Hub struct {
@@ -289,6 +295,8 @@ func (c *Client) readPump() {
 		c.conn.Close()
 	}()
 
+	c.conn.SetReadLimit(maxWSMessageBytes)
+
 	for {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
@@ -297,9 +305,16 @@ func (c *Client) readPump() {
 			}
 			return
 		}
+		if !c.limiter.allow() {
+			log.Printf("security ws rate limit user=%s conn=%s", c.UserID, c.ConnID)
+			c.hub.sendWSError(c, "rate_limited", "too many websocket messages")
+			return
+		}
 
 		var evt wsEvent
 		if err := json.Unmarshal(data, &evt); err != nil {
+			log.Printf("security malformed ws message user=%s conn=%s", c.UserID, c.ConnID)
+			c.hub.sendWSError(c, "malformed_message", "invalid websocket message")
 			continue
 		}
 
@@ -376,6 +391,28 @@ func (c *Client) readPump() {
 	}
 }
 
+type wsRateLimiter struct {
+	mu          sync.Mutex
+	windowStart time.Time
+	count       int
+}
+
+func newWSRateLimiter() *wsRateLimiter {
+	return &wsRateLimiter{windowStart: time.Now()}
+}
+
+func (l *wsRateLimiter) allow() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+	if now.Sub(l.windowStart) >= time.Minute {
+		l.windowStart = now
+		l.count = 0
+	}
+	l.count++
+	return l.count <= maxWSMessagesPerMinute
+}
+
 func (h *Hub) voiceJoin(c *Client, channelID string) {
 	if !h.userHasChannelAccess(c.UserID, channelID) {
 		h.sendWSError(c, "forbidden", "no access to this voice channel")
@@ -434,11 +471,12 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 	}
 
 	client := &Client{
-		UserID: userID,
-		ConnID: r.Header.Get("X-Request-Id"),
-		Send:   make(chan []byte, 256),
-		conn:   conn,
-		hub:    h,
+		UserID:  userID,
+		ConnID:  r.Header.Get("X-Request-Id"),
+		Send:    make(chan []byte, 256),
+		conn:    conn,
+		hub:     h,
+		limiter: newWSRateLimiter(),
 	}
 
 	h.register <- client

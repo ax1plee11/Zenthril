@@ -23,6 +23,9 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// X-XSS-Protection - enable XSS filter
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 
+		// Hide implementation details from proxies/framework defaults.
+		w.Header().Del("Server")
+
 		// Referrer-Policy - control referrer information
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 

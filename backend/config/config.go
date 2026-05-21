@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -81,6 +82,12 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("WS_ALLOWED_ORIGINS cannot contain wildcard in production")
 		}
 	}
+	if err := validateOrigins("CORS_ALLOWED_ORIGINS", cfg.CORSAllowedOrigins); err != nil {
+		return nil, err
+	}
+	if err := validateOrigins("WS_ALLOWED_ORIGINS", cfg.WSAllowedOrigins); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }
@@ -130,6 +137,22 @@ func hasWildcard(values []string) bool {
 		}
 	}
 	return false
+}
+
+func validateOrigins(name string, origins []string) error {
+	for _, origin := range origins {
+		if origin == "*" {
+			continue
+		}
+		u, err := url.Parse(origin)
+		if err != nil || u.Scheme == "" || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf("%s must contain exact origins only, got %q", name, origin)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("%s origin must use http or https, got %q", name, origin)
+		}
+	}
+	return nil
 }
 
 func isPlaceholderSecret(value string) bool {
