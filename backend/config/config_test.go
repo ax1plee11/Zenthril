@@ -81,6 +81,17 @@ func TestLoad_ProductionRejectsWildcardOrigins(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsWildcardOriginsOutsideProduction(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "*")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected wildcard origin validation error")
+	}
+}
+
 func TestLoad_ProductionOK(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "production")
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
@@ -114,5 +125,17 @@ func TestLoadRejectsOriginWithPath(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("expected origin with path to be rejected")
+	}
+}
+
+func TestSecurityWarnings(t *testing.T) {
+	cfg := &Config{
+		Environment: "development",
+		JWTSecret:   "change-me-use-openssl-rand-hex-64",
+	}
+
+	warnings := cfg.SecurityWarnings()
+	if len(warnings) == 0 {
+		t.Fatal("expected development security warnings")
 	}
 }

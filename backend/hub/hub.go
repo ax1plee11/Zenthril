@@ -26,44 +26,31 @@ type ChannelAccessChecker interface {
 }
 
 func NewUpgrader(allowedOrigins []string, environment string) websocket.Upgrader {
-	allow := allowedOrigins
+	allow := make(map[string]struct{}, len(allowedOrigins))
+	for _, origin := range allowedOrigins {
+		allow[origin] = struct{}{}
+	}
 	return websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 
-			// SECURITY: fail closed in production when WS_ALLOWED_ORIGINS is missing.
+			// SECURITY-HARDENING: fail closed when WS_ALLOWED_ORIGINS is missing.
 			if len(allow) == 0 {
-				if environment == "production" {
-					slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin)
-					return false
-				}
-				return true
-			}
-
-			if len(allow) == 1 && allow[0] == "*" {
-				if environment == "production" {
-					slog.Warn("security websocket origin rejected", "reason", "wildcard_in_production", "origin", origin)
-					return false
-				}
-				return true
+				slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin, "environment", environment)
+				return false
 			}
 
 			if origin == "" {
-				allowed := environment != "production"
-				if !allowed {
-					slog.Warn("security websocket origin rejected", "reason", "empty_origin")
-				}
-				return allowed
+				slog.Warn("security websocket origin rejected", "reason", "empty_origin", "environment", environment)
+				return false
 			}
 
-			for _, o := range allow {
-				if o == origin {
-					return true
-				}
+			if _, ok := allow[origin]; ok {
+				return true
 			}
-			slog.Warn("security websocket origin rejected", "reason", "origin_not_allowed", "origin", origin)
+			slog.Warn("security websocket origin rejected", "reason", "origin_not_allowed", "origin", origin, "environment", environment)
 			return false
 		},
 	}
@@ -292,6 +279,27 @@ type wsEvent struct {
 	Candidate    json.RawMessage `json:"candidate,omitempty"`
 }
 
+func (evt wsEvent) valid() bool {
+	switch evt.Type {
+	case "subscribe", "unsubscribe":
+		return evt.ChannelID != ""
+	case "ping":
+		return true
+	case "typing":
+		return evt.ChannelID != ""
+	case "invite.send":
+		return evt.TargetUserID != "" && evt.InviteCode != ""
+	case "voice.join", "voice.leave":
+		return evt.ChannelID != ""
+	case "voice.signal":
+		return evt.ChannelID != "" && evt.TargetUserID != "" && evt.SDP != nil
+	case "voice.ice":
+		return evt.ChannelID != "" && evt.TargetUserID != "" && evt.Candidate != nil
+	default:
+		return false
+	}
+}
+
 func (c *Client) writePump() {
 	defer c.conn.Close()
 	for msg := range c.Send {
@@ -335,6 +343,16 @@ func (c *Client) readPump() {
 			malformedMessages++
 			slog.Warn("security malformed websocket message", "user_id", c.UserID, "conn_id", c.ConnID, "count", malformedMessages)
 			c.hub.sendWSError(c, "malformed_message", "invalid websocket message")
+			if malformedMessages >= maxWSMalformedMessages {
+				return
+			}
+			continue
+		}
+		if !evt.valid() {
+			malformedMessages++
+			// SECURITY-HARDENING: unknown or incomplete commands are counted as malformed to slow flooding.
+			slog.Warn("security invalid websocket command", "user_id", c.UserID, "conn_id", c.ConnID, "type", evt.Type, "count", malformedMessages)
+			c.hub.sendWSError(c, "malformed_message", "invalid websocket command")
 			if malformedMessages >= maxWSMalformedMessages {
 				return
 			}

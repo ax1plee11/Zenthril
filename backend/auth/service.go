@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -108,6 +109,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (*models
 }
 
 func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair, error) {
+	// SECURITY-HARDENING: access tokens are short-lived; refresh tokens are single-use and server-tracked.
 	accessToken, err := GenerateToken(userID, s.jwtSecret)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
@@ -153,6 +155,7 @@ func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair
 func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*TokenPair, error) {
 	userID, tokenID, err := ValidateRefreshTokenWithID(refreshToken, s.jwtSecret)
 	if err != nil {
+		slog.Warn("security refresh token rejected", "reason", "invalid_jwt")
 		return nil, ErrInvalidRefreshToken
 	}
 
@@ -160,6 +163,8 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 	raw, err := s.redis.Get(ctx, key).Bytes()
 	if err == redis.Nil {
 		if s.wasRefreshTokenUsed(ctx, tokenID) {
+			// SECURITY-HARDENING: refresh-token replay indicates theft; revoke the user's active refresh set.
+			slog.Warn("security refresh token replay detected", "user_id", userID, "token_id", tokenID)
 			_ = s.revokeUserRefreshTokens(ctx, userID)
 		}
 		return nil, ErrInvalidRefreshToken
@@ -174,6 +179,7 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 		return nil, fmt.Errorf("decode refresh token record: %w", err)
 	}
 	if record.UserID != userID || record.TokenID != tokenID || !equalTokenHash(record.TokenHash, hashToken(refreshToken)) {
+		slog.Warn("security refresh token record mismatch", "user_id", userID, "token_id", tokenID)
 		_ = s.revokeUserRefreshTokens(ctx, userID)
 		return nil, ErrInvalidRefreshToken
 	}
@@ -182,6 +188,7 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 		return nil, fmt.Errorf("revoke old refresh token: %w", err)
 	}
 	_ = s.redis.SRem(ctx, refreshUserSetKey(userID), tokenID).Err()
+	// SECURITY-HARDENING: remember used refresh IDs to detect replay after rotation.
 	_ = s.redis.Set(ctx, usedRefreshTokenKey(tokenID), userID, refreshTokenTTL).Err()
 
 	return s.issueTokenPair(ctx, userID)
@@ -200,6 +207,7 @@ func (s *Service) RevokeRefreshToken(ctx context.Context, refreshToken string) e
 func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) error {
 	if accessToken != "" {
 		if _, err := ValidateToken(accessToken, s.jwtSecret); err == nil {
+			// SECURITY-HARDENING: blacklist valid access tokens until natural expiry on logout.
 			key := "token:blacklist:" + hashToken(accessToken)
 			_ = s.redis.Set(ctx, key, "1", accessTokenTTL)
 		}

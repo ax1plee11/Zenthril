@@ -78,7 +78,9 @@ func NewHandler(opts HandlerOptions) *Handler {
 			WriteBufferSize: 4096,
 			CheckOrigin: func(r *http.Request) bool {
 				if len(allowedOrigins) == 0 {
-					return true
+					// SECURITY-HARDENING: the next-gen gateway also fails closed without WS_ALLOWED_ORIGINS.
+					opts.Logger.Warn("security gateway websocket origin rejected", "reason", "missing_origin_config")
+					return false
 				}
 				// SECURITY: when an allowlist exists, empty or unknown origins are rejected to prevent CSWSH.
 				origin := r.Header.Get("Origin")
@@ -182,6 +184,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Connection) error {
 	connectionLimiter := newRateLimiter(gatewayConnectionMessagesPerMinute)
+	malformedMessages := 0
 	for {
 		var command ClientCommand
 		if err := socket.ReadJSON(&command); err != nil {
@@ -209,23 +212,40 @@ func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Co
 		switch command.Type {
 		case CommandSubscribeChannel:
 			if command.ChannelID == "" {
+				malformedMessages++
+				// SECURITY-HARDENING: incomplete commands count toward malformed flooding limits.
+				if malformedMessages >= 5 {
+					return nil
+				}
 				h.sendError(conn, "bad_request", "channel_id is required")
 				continue
 			}
+			malformedMessages = 0
 			if err := h.registry.Subscribe(conn.ID, command.ChannelID); err != nil {
 				h.sendError(conn, "subscribe_failed", err.Error())
 			}
 		case CommandUnsubscribeChannel:
 			if command.ChannelID == "" {
+				malformedMessages++
+				if malformedMessages >= 5 {
+					return nil
+				}
 				h.sendError(conn, "bad_request", "channel_id is required")
 				continue
 			}
+			malformedMessages = 0
 			if err := h.registry.Unsubscribe(conn.ID, command.ChannelID); err != nil {
 				h.sendError(conn, "unsubscribe_failed", err.Error())
 			}
 		case CommandPing:
+			malformedMessages = 0
 			h.sendEnvelope(conn, Envelope{Type: EventPong, SentAt: time.Now().UTC()})
 		default:
+			malformedMessages++
+			h.logger.Warn("security gateway invalid command", "connection_id", conn.ID, "user_id", conn.UserID, "type", command.Type, "count", malformedMessages)
+			if malformedMessages >= 5 {
+				return nil
+			}
 			h.sendError(conn, "unknown_command", "unsupported websocket command")
 		}
 	}

@@ -76,8 +76,9 @@ type ObjectStoreConfig struct {
 }
 
 type SecurityConfig struct {
-	JWTSecret string
-	VaultAddr string
+	JWTSecret        string
+	OperationalToken string
+	VaultAddr        string
 }
 
 type ShardingConfig struct {
@@ -135,8 +136,9 @@ func Load() (Config, error) {
 			UseSSL:    envBool("S3_USE_SSL", true),
 		},
 		Security: SecurityConfig{
-			JWTSecret: env("JWT_SECRET", ""),
-			VaultAddr: env("VAULT_ADDR", ""),
+			JWTSecret:        env("JWT_SECRET", ""),
+			OperationalToken: firstNonEmpty(env("OPERATIONAL_TOKEN", ""), env("METRICS_TOKEN", "")),
+			VaultAddr:        env("VAULT_ADDR", ""),
 		},
 		Sharding: ShardingConfig{
 			VirtualNodes: envInt("SHARD_VIRTUAL_NODES", 128),
@@ -174,13 +176,22 @@ func (c Config) Validate() error {
 		return errors.New("JWT_SECRET must be at least 32 bytes in production")
 	}
 	if strings.EqualFold(c.Environment, "production") {
+		if isPlaceholderSecret(c.Security.JWTSecret) {
+			return errors.New("JWT_SECRET must be replaced in production")
+		}
+		if len(c.Security.OperationalToken) < 32 {
+			return errors.New("OPERATIONAL_TOKEN or METRICS_TOKEN must be at least 32 bytes in production")
+		}
+		if isPlaceholderSecret(c.Security.OperationalToken) {
+			return errors.New("OPERATIONAL_TOKEN or METRICS_TOKEN must be replaced in production")
+		}
 		// SECURITY: production websocket gateways must fail closed without exact allowed origins.
 		if len(c.Gateway.AllowedOrigins) == 0 {
 			return errors.New("WS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS is required in production")
 		}
-		if hasWildcard(c.Gateway.AllowedOrigins) {
-			return errors.New("gateway allowed origins cannot contain wildcard in production")
-		}
+	}
+	if hasWildcard(c.Gateway.AllowedOrigins) {
+		return errors.New("gateway allowed origins cannot contain wildcard")
 	}
 	if err := validateExactOrigins("gateway allowed origins", c.Gateway.AllowedOrigins); err != nil {
 		return err
@@ -275,6 +286,13 @@ func firstNonEmptyList(primary, fallback []string) []string {
 	return fallback
 }
 
+func firstNonEmpty(primary, fallback string) string {
+	if strings.TrimSpace(primary) != "" {
+		return primary
+	}
+	return fallback
+}
+
 func hasWildcard(values []string) bool {
 	for _, value := range values {
 		if value == "*" {
@@ -286,9 +304,6 @@ func hasWildcard(values []string) bool {
 
 func validateExactOrigins(name string, origins []string) error {
 	for _, origin := range origins {
-		if origin == "*" {
-			continue
-		}
 		parsed, err := url.Parse(origin)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 			return fmt.Errorf("%s must contain exact origins only, got %q", name, origin)
@@ -332,4 +347,14 @@ func defaultNodeID() string {
 		host = "localhost"
 	}
 	return fmt.Sprintf("%s-%d", host, os.Getpid())
+}
+
+func isPlaceholderSecret(value string) bool {
+	normalized := strings.ToLower(value)
+	for _, placeholder := range []string{"change-me", "changeme", "replace-me", "example-password"} {
+		if strings.Contains(normalized, placeholder) {
+			return true
+		}
+	}
+	return false
 }

@@ -7,31 +7,17 @@ import (
 // SecurityHeaders adds security-related HTTP headers to all responses.
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// SECURITY: defense-in-depth browser policy for hosted web clients.
-		// Content Security Policy - restrict resources that can be loaded
-		// Default-src 'self' - only allow resources from same origin
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';")
+		// SECURITY-HARDENING: defense-in-depth browser policy for hosted web clients.
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests")
 
-		// Strict-Transport-Security - enforce HTTPS for 1 year
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
-
-		// X-Content-Type-Options - prevent MIME type sniffing
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-
-		// X-Frame-Options - prevent clickjacking
 		w.Header().Set("X-Frame-Options", "DENY")
-
-		// X-XSS-Protection - enable XSS filter
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
-
-		// Hide implementation details from proxies/framework defaults.
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Permissions-Policy", "accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 		w.Header().Del("Server")
-
-		// Referrer-Policy - control referrer information
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-		// Permissions-Policy - restrict browser features
-		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 
 		next.ServeHTTP(w, r)
 	})

@@ -34,10 +34,7 @@ import (
 const maxRequestBodyBytes int64 = 1 << 20
 
 func wsAllowedOrigins(cfg *config.Config) []string {
-	if len(cfg.WSAllowedOrigins) > 0 {
-		return cfg.WSAllowedOrigins
-	}
-	return cfg.CORSAllowedOrigins
+	return cfg.WSAllowedOrigins
 }
 
 func isAdmin(cfg *config.Config, userID string) bool {
@@ -80,12 +77,77 @@ func requestBodyLimit(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
+func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(cfg.CORSAllowedOrigins))
+	for _, origin := range cfg.CORSAllowedOrigins {
+		allowed[origin] = struct{}{}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := strings.TrimSpace(r.Header.Get("Origin"))
+
+			w.Header().Add("Vary", "Origin")
+			w.Header().Add("Vary", "Access-Control-Request-Method")
+			w.Header().Add("Vary", "Access-Control-Request-Headers")
+
+			if origin != "" {
+				if _, ok := allowed[origin]; !ok {
+					// SECURITY-HARDENING: reject unknown browser origins instead of reflecting them.
+					slog.Warn("security cors origin rejected", "reason", "origin_not_allowed", "origin", origin, "path", r.URL.Path)
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "600")
+
+			if r.Method == http.MethodOptions {
+				if origin == "" {
+					slog.Warn("security cors preflight rejected", "reason", "empty_origin", "path", r.URL.Path)
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func operationalTokenAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// SECURITY-HARDENING: operational endpoints expose runtime state and require a bearer token in production.
+		if cfg.Environment != "production" {
+			next(w, r)
+			return
+		}
+		if cfg.MetricsToken == "" || subtle.ConstantTimeCompare([]byte(bearerToken(r)), []byte(cfg.MetricsToken)) != 1 {
+			slog.Warn("security operational endpoint access denied", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid operational token required"}`))
+			return
+		}
+		next(w, r)
+	}
+}
+
 func main() {
 	_ = godotenv.Load()
 
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config error: %v", err)
+	}
+	for _, warning := range cfg.SecurityWarnings() {
+		slog.Warn("security configuration warning", "warning", warning)
 	}
 
 	database, err := db.Open(cfg.DBURL)
@@ -137,67 +199,16 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(securityheaders.SecurityHeaders)
 	r.Use(metrics.HTTPMiddleware)
-
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-			allowed := cfg.CORSAllowedOrigins
-
-			w.Header().Set("Vary", "Origin")
-
-			// SECURITY: production must use an explicit allowlist to prevent hostile browser origins.
-			if len(allowed) == 0 {
-				if cfg.Environment == "production" {
-					if origin != "" {
-						slog.Warn("security cors origin rejected", "reason", "missing_origin_config", "origin", origin, "path", r.URL.Path)
-						w.WriteHeader(http.StatusForbidden)
-						return
-					}
-				} else {
-					if origin != "" {
-						w.Header().Set("Access-Control-Allow-Origin", origin)
-					} else {
-						w.Header().Set("Access-Control-Allow-Origin", "*")
-					}
-				}
-			} else {
-				originAllowed := false
-				for _, o := range allowed {
-					if o == origin {
-						originAllowed = true
-						break
-					}
-				}
-				if originAllowed {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
-					w.Header().Set("Access-Control-Allow-Credentials", "true")
-				} else if origin != "" {
-					slog.Warn("security cors origin rejected", "reason", "origin_not_allowed", "origin", origin, "path", r.URL.Path)
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-			}
-
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	})
+	r.Use(corsMiddleware(cfg))
 
 	r.Use(secGuard.IPRateLimit)
 	r.Use(requestBodyLimit(maxRequestBodyBytes))
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/health", operationalTokenAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok","app":"zenthril"}`))
-	})
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
 
 	r.Get("/metrics", metricsAuth(cfg, metrics.Handler()))
 	r.Get("/metrics/prometheus", metricsAuth(cfg, metrics.PrometheusHandler()))

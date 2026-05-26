@@ -73,15 +73,15 @@ func Load() (*Config, error) {
 		if len(cfg.CORSAllowedOrigins) == 0 {
 			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS is required in production")
 		}
-		if hasWildcard(cfg.CORSAllowedOrigins) {
-			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS cannot contain wildcard in production")
-		}
 		if len(cfg.WSAllowedOrigins) == 0 {
 			return nil, fmt.Errorf("WS_ALLOWED_ORIGINS is required in production")
 		}
-		if hasWildcard(cfg.WSAllowedOrigins) {
-			return nil, fmt.Errorf("WS_ALLOWED_ORIGINS cannot contain wildcard in production")
-		}
+	}
+	if hasWildcard(cfg.CORSAllowedOrigins) {
+		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS cannot contain wildcard")
+	}
+	if hasWildcard(cfg.WSAllowedOrigins) {
+		return nil, fmt.Errorf("WS_ALLOWED_ORIGINS cannot contain wildcard")
 	}
 	if err := validateOrigins("CORS_ALLOWED_ORIGINS", cfg.CORSAllowedOrigins); err != nil {
 		return nil, err
@@ -91,6 +91,27 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (cfg *Config) SecurityWarnings() []string {
+	if cfg == nil || cfg.Environment == "production" {
+		return nil
+	}
+	var warnings []string
+	// SECURITY-HARDENING: development warnings catch insecure defaults before they reach production.
+	if len(cfg.CORSAllowedOrigins) == 0 {
+		warnings = append(warnings, "CORS_ALLOWED_ORIGINS is empty; browser clients will be rejected")
+	}
+	if len(cfg.WSAllowedOrigins) == 0 {
+		warnings = append(warnings, "WS_ALLOWED_ORIGINS is empty; websocket upgrades will be rejected")
+	}
+	if isPlaceholderSecret(cfg.JWTSecret) {
+		warnings = append(warnings, "JWT_SECRET appears to be a placeholder")
+	}
+	if cfg.MetricsToken == "" {
+		warnings = append(warnings, "METRICS_TOKEN is empty; metrics are public only in development")
+	}
+	return warnings
 }
 
 func getEnv(key, defaultVal string) string {

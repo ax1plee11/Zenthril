@@ -39,6 +39,7 @@ func TestLoadParsesPostgresShards(t *testing.T) {
 func TestProductionRequiresStrongJWTSecret(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
 	t.Setenv("JWT_SECRET", "short")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
 
@@ -50,10 +51,22 @@ func TestProductionRequiresStrongJWTSecret(t *testing.T) {
 func TestProductionRequiresGatewayOrigins(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
 	t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!!")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
 	t.Setenv("APP_ENV", "production")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("expected production origin validation error")
+	}
+}
+
+func TestProductionRequiresOperationalToken(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
+	t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!!")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected production operational token validation error")
 	}
 }
 
@@ -65,5 +78,16 @@ func TestRejectsGatewayOriginWithPath(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("expected origin with path validation error")
+	}
+}
+
+func TestRejectsGatewayWildcardOutsideProduction(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
+	t.Setenv("JWT_SECRET", "dev-secret")
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("WS_ALLOWED_ORIGINS", "*")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected gateway wildcard validation error")
 	}
 }

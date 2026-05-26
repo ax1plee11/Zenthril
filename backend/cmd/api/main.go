@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log"
@@ -38,18 +39,18 @@ func main() {
 	router.Use(chimiddleware.RealIP)
 	router.Use(chimiddleware.Recoverer)
 
-	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/healthz", operationalTokenAuth(container, func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
-	router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	router.Get("/readyz", operationalTokenAuth(container, func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status": "ready",
 			"shards": len(container.ShardManager.Shards()),
 		})
-	})
-	router.Get("/api/v2/gateway/stats", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	router.Get("/api/v2/gateway/stats", operationalTokenAuth(container, func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, container.GatewayRegistry.Stats())
-	})
+	}))
 	router.Handle("/ws", container.GatewayHandler)
 
 	server := &http.Server{
@@ -89,4 +90,31 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	if err := json.NewEncoder(w).Encode(value); err != nil {
 		http.Error(w, `{"error":"encode_failed"}`, http.StatusInternalServerError)
 	}
+}
+
+func operationalTokenAuth(container *app.Container, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// SECURITY-HARDENING: health/readiness/stats endpoints are operational surfaces in production.
+		if container.Config.Environment != "production" {
+			next(w, r)
+			return
+		}
+		token := bearerToken(r)
+		expected := container.Config.Security.OperationalToken
+		if expected == "" || subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
+			container.Logger.Warn("security operational endpoint access denied", "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			return
+		}
+		next(w, r)
+	}
+}
+
+func bearerToken(r *http.Request) string {
+	const prefix = "Bearer "
+	header := r.Header.Get("Authorization")
+	if len(header) <= len(prefix) || header[:len(prefix)] != prefix {
+		return ""
+	}
+	return header[len(prefix):]
 }
