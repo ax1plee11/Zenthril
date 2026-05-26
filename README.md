@@ -25,7 +25,7 @@ It is currently suitable for local development, self-hosted testing in controlle
 
 **Backend**
 
-- Go 1.22+
+- Go 1.23+
 - Chi router
 - PostgreSQL + Redis
 - Gorilla WebSocket
