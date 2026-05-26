@@ -200,7 +200,7 @@ const (
 func (h *Handler) setTokenCookies(w http.ResponseWriter, pair *TokenPair) {
 	// SECURITY: cookies are HttpOnly/SameSite and Secure in production; JSON tokens remain for desktop compatibility.
 	http.SetCookie(w, h.authCookie(accessCookieName, pair.AccessToken, pair.ExpiresIn))
-	http.SetCookie(w, h.authCookie(refreshCookieName, pair.RefreshToken, int(refreshTokenTTL.Seconds())))
+	http.SetCookie(w, h.authCookie(refreshCookieName, pair.RefreshToken, int(h.svc.RefreshTokenTTL().Seconds())))
 }
 
 func (h *Handler) clearTokenCookies(w http.ResponseWriter) {

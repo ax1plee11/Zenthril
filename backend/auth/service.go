@@ -39,13 +39,29 @@ type refreshTokenRecord struct {
 }
 
 type Service struct {
-	db        *pgxpool.Pool
-	redis     *redis.Client
-	jwtSecret string
+	db              *pgxpool.Pool
+	redis           *redis.Client
+	jwtSecret       string
+	accessTokenTTL  time.Duration
+	refreshTokenTTL time.Duration
 }
 
-func NewService(db *pgxpool.Pool, rdb *redis.Client, jwtSecret string) *Service {
-	return &Service{db: db, redis: rdb, jwtSecret: jwtSecret}
+func NewService(db *pgxpool.Pool, rdb *redis.Client, jwtSecret string, ttl ...time.Duration) *Service {
+	accessTTL := DefaultAccessTokenTTL
+	refreshTTL := DefaultRefreshTokenTTL
+	if len(ttl) > 0 && ttl[0] > 0 {
+		accessTTL = ttl[0]
+	}
+	if len(ttl) > 1 && ttl[1] > 0 {
+		refreshTTL = ttl[1]
+	}
+	return &Service{
+		db:              db,
+		redis:           rdb,
+		jwtSecret:       jwtSecret,
+		accessTokenTTL:  accessTTL,
+		refreshTokenTTL: refreshTTL,
+	}
 }
 
 func (s *Service) Register(ctx context.Context, username, password, publicKey string) (*models.User, *TokenPair, error) {
@@ -110,12 +126,12 @@ func (s *Service) Login(ctx context.Context, username, password string) (*models
 
 func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair, error) {
 	// SECURITY-HARDENING: access tokens are short-lived; refresh tokens are single-use and server-tracked.
-	accessToken, err := GenerateToken(userID, s.jwtSecret)
+	accessToken, err := GenerateAccessToken(userID, s.jwtSecret, s.accessTokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err := generateTypedToken(userID, "refresh", refreshTokenTTL, s.jwtSecret)
+	refreshToken, err := GenerateRefreshToken(userID, s.jwtSecret, s.refreshTokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
@@ -136,19 +152,19 @@ func (s *Service) issueTokenPair(ctx context.Context, userID string) (*TokenPair
 	}
 
 	key := refreshTokenKey(tokenID)
-	if err := s.redis.Set(ctx, key, data, refreshTokenTTL).Err(); err != nil {
+	if err := s.redis.Set(ctx, key, data, s.refreshTokenTTL).Err(); err != nil {
 		return nil, fmt.Errorf("store refresh token: %w", err)
 	}
 	if err := s.redis.SAdd(ctx, refreshUserSetKey(userID), tokenID).Err(); err != nil {
 		_ = s.redis.Del(ctx, key).Err()
 		return nil, fmt.Errorf("index refresh token: %w", err)
 	}
-	_ = s.redis.Expire(ctx, refreshUserSetKey(userID), refreshTokenTTL).Err()
+	_ = s.redis.Expire(ctx, refreshUserSetKey(userID), s.refreshTokenTTL).Err()
 
 	return &TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		ExpiresIn:    int(accessTokenTTL.Seconds()),
+		ExpiresIn:    int(s.accessTokenTTL.Seconds()),
 	}, nil
 }
 
@@ -189,7 +205,7 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 
 	_ = s.redis.SRem(ctx, refreshUserSetKey(userID), tokenID).Err()
 	// SECURITY-HARDENING: remember used refresh IDs to detect replay after rotation.
-	if err := s.redis.Set(ctx, usedRefreshTokenKey(tokenID), userID, refreshTokenTTL).Err(); err != nil {
+	if err := s.redis.Set(ctx, usedRefreshTokenKey(tokenID), userID, s.refreshTokenTTL).Err(); err != nil {
 		return nil, fmt.Errorf("mark refresh token used: %w", err)
 	}
 
@@ -211,7 +227,7 @@ func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) 
 		if _, err := ValidateToken(accessToken, s.jwtSecret); err == nil {
 			// SECURITY-HARDENING: blacklist valid access tokens until natural expiry on logout.
 			key := "token:blacklist:" + hashToken(accessToken)
-			_ = s.redis.Set(ctx, key, "1", accessTokenTTL)
+			_ = s.redis.Set(ctx, key, "1", s.accessTokenTTL)
 		}
 	}
 	if refreshToken != "" {
@@ -276,6 +292,10 @@ func equalTokenHash(a, b string) bool {
 
 func (s *Service) ValidateTokenPublic(token string) (string, error) {
 	return ValidateToken(token, s.jwtSecret)
+}
+
+func (s *Service) RefreshTokenTTL() time.Duration {
+	return s.refreshTokenTTL
 }
 
 const wsTicketTTL = 2 * time.Minute

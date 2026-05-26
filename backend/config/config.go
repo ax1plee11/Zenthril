@@ -5,12 +5,15 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
 	DBURL              string
 	RedisURL           string
 	JWTSecret          string
+	JWTAccessTTL       time.Duration
+	JWTRefreshTTL      time.Duration
 	HTTPAddr           string
 	TLSCertFile        string
 	TLSKeyFile         string
@@ -35,6 +38,8 @@ func Load() (*Config, error) {
 		DBURL:              getEnvWithFallback("DB_URL", "DATABASE_URL", ""),
 		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:          getEnv("JWT_SECRET", ""),
+		JWTAccessTTL:       getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
+		JWTRefreshTTL:      getEnvDuration("JWT_REFRESH_TTL", 30*24*time.Hour),
 		HTTPAddr:           getEnvWithFallback("HTTP_ADDR", "PORT", ":8080"),
 		TLSCertFile:        getEnv("TLS_CERT_FILE", ""),
 		TLSKeyFile:         getEnv("TLS_KEY_FILE", ""),
@@ -58,6 +63,12 @@ func Load() (*Config, error) {
 	}
 	if len(cfg.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	if cfg.JWTAccessTTL <= 0 {
+		return nil, fmt.Errorf("JWT_ACCESS_TTL must be positive")
+	}
+	if cfg.JWTRefreshTTL <= 0 {
+		return nil, fmt.Errorf("JWT_REFRESH_TTL must be positive")
 	}
 	if cfg.Environment == "production" {
 		// SECURITY-HARDENING: production must fail fast on placeholder secrets and open origin policy.
@@ -161,6 +172,18 @@ func getEnvBool(key string, defaultVal bool) bool {
 		return defaultVal
 	}
 	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+	return d
 }
 
 func splitCommaList(s string) []string {

@@ -50,7 +50,7 @@ func TestValidateToken_Garbage(t *testing.T) {
 func TestValidateRefreshTokenWithID(t *testing.T) {
 	t.Parallel()
 	const secret = "test-secret-at-least-32-bytes-long!!"
-	token, err := generateTypedToken("user-uuid-123", "refresh", refreshTokenTTL, secret)
+	token, err := generateTypedToken("user-uuid-123", "refresh", DefaultRefreshTokenTTL, secret)
 	if err != nil {
 		t.Fatalf("generate refresh token: %v", err)
 	}

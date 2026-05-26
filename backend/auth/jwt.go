@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	accessTokenTTL  = 15 * time.Minute
-	refreshTokenTTL = 30 * 24 * time.Hour
+	DefaultAccessTokenTTL  = 15 * time.Minute
+	DefaultRefreshTokenTTL = 30 * 24 * time.Hour
 )
 
 type claims struct {
@@ -21,7 +21,21 @@ type claims struct {
 }
 
 func GenerateToken(userID string, secret string) (string, error) {
-	return generateTypedToken(userID, "access", accessTokenTTL, secret)
+	return GenerateAccessToken(userID, secret, DefaultAccessTokenTTL)
+}
+
+func GenerateAccessToken(userID string, secret string, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		ttl = DefaultAccessTokenTTL
+	}
+	return generateTypedToken(userID, "access", ttl, secret)
+}
+
+func GenerateRefreshToken(userID string, secret string, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		ttl = DefaultRefreshTokenTTL
+	}
+	return generateTypedToken(userID, "refresh", ttl, secret)
 }
 
 func generateTypedToken(userID, tokenType string, ttl time.Duration, secret string) (string, error) {

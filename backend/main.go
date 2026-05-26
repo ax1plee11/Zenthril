@@ -255,7 +255,7 @@ func main() {
 	}
 	rdb := redis.NewClient(redisOpts)
 
-	authSvc := auth.NewService(database, rdb, cfg.JWTSecret)
+	authSvc := auth.NewService(database, rdb, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	authHandler := auth.NewHandler(authSvc, cfg.Environment == "production")
 	deviceSvc := device.NewService(database)
 	deviceHandler := device.NewHandler(deviceSvc)
