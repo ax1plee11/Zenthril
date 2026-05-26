@@ -1,23 +1,23 @@
 #!/bin/bash
-# Запуск всего проекта в Codespaces
+set -euo pipefail
 
-echo "🚀 Starting Zenthril..."
+echo "Starting Zenthril development stack..."
 
-# Поднимаем PostgreSQL + Redis через Docker
 docker compose up -d postgres redis
 
-echo "⏳ Waiting for DB..."
+echo "Waiting for local services..."
 sleep 5
 
-# Запускаем бэкенд в фоне
-cd /workspaces/$(basename $PWD)/backend
+cd "/workspaces/$(basename "$PWD")/backend"
 go run . &
 BACKEND_PID=$!
-echo "✅ Backend started (PID $BACKEND_PID)"
+echo "Backend started with PID ${BACKEND_PID}"
 
-# Запускаем фронтенд
-cd /workspaces/$(basename $PWD)/client
+cleanup() {
+  echo "Stopping backend..."
+  kill "${BACKEND_PID}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+cd "/workspaces/$(basename "$PWD")/client"
 npm run dev -- --host 0.0.0.0
-
-# При выходе останавливаем бэкенд
-kill $BACKEND_PID
