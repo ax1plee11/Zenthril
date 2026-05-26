@@ -144,6 +144,27 @@ func operationalTokenAuth(cfg *config.Config, next http.HandlerFunc) http.Handle
 	}
 }
 
+func federationAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// SECURITY-HARDENING: federation is alpha and fail-closed unless explicitly enabled.
+		if !cfg.FederationEnabled {
+			slog.Warn("security federation endpoint rejected", "reason", "disabled", "path", r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotImplemented)
+			_, _ = w.Write([]byte(`{"error":"federation_disabled","message":"Federation is not enabled on this node"}`))
+			return
+		}
+		if cfg.FederationToken == "" || subtle.ConstantTimeCompare([]byte(bearerToken(r)), []byte(cfg.FederationToken)) != 1 {
+			slog.Warn("security federation endpoint rejected", "reason", "invalid_token", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid federation token required"}`))
+			return
+		}
+		next(w, r)
+	}
+}
+
 func main() {
 	_ = godotenv.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -347,8 +368,8 @@ func main() {
 	})
 
 	r.Route("/federation/v1", func(r chi.Router) {
-		r.Post("/announce", federationHandler.Announce)
-		r.Get("/peers", federationHandler.Peers)
+		r.Post("/announce", federationAuth(cfg, federationHandler.Announce))
+		r.Get("/peers", federationAuth(cfg, federationHandler.Peers))
 	})
 
 	server := &http.Server{

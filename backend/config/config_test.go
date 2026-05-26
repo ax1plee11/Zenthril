@@ -118,6 +118,20 @@ func TestLoad_ProductionRejectsPlaceholderSecrets(t *testing.T) {
 	}
 }
 
+func TestLoad_ProductionFederationRequiresTokenWhenEnabled(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("FEDERATION_ENABLED", "true")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected missing federation token validation error")
+	}
+}
+
 func TestLoadRejectsOriginWithPath(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
 	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")

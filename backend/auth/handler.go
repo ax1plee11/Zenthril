@@ -112,6 +112,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	if !h.allowCookieBackedRequest(r) {
+		writeError(w, http.StatusForbidden, "origin_required", "Trusted Origin header required")
+		return
+	}
 	// SECURITY: refresh payloads should contain only a token or use the HttpOnly cookie fallback.
 	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var req struct {
@@ -162,8 +166,13 @@ func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	if !h.allowCookieBackedRequest(r) {
+		writeError(w, http.StatusForbidden, "origin_required", "Trusted Origin header required")
+		return
+	}
 	accessToken := extractBearerToken(r)
 
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var body struct {
 		RefreshToken string `json:"refresh_token"`
 	}
@@ -209,6 +218,20 @@ func (h *Handler) authCookie(name, value string, maxAge int) *http.Cookie {
 		Secure:   h.secureCookies,
 		SameSite: http.SameSiteStrictMode,
 	}
+}
+
+func (h *Handler) allowCookieBackedRequest(r *http.Request) bool {
+	if !h.secureCookies {
+		return true
+	}
+	if _, err := r.Cookie(accessCookieName); err != nil {
+		if _, err := r.Cookie(refreshCookieName); err != nil {
+			return true
+		}
+	}
+	// SECURITY-HARDENING: production cookie-backed auth mutations must come from
+	// browser requests that passed the global strict CORS Origin allowlist.
+	return strings.TrimSpace(r.Header.Get("Origin")) != ""
 }
 
 func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {

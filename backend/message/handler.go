@@ -1,15 +1,23 @@
 package message
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"zenthril-backend/auth"
 	"zenthril-backend/models"
+)
+
+const (
+	maxCiphertextBytes = 64 << 10
+	maxKeyIDLength     = 128
 )
 
 type Handler struct {
@@ -34,8 +42,8 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
 	}
-	if payload.Ciphertext == "" || payload.IV == "" || payload.KeyID == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "ciphertext, iv and key_id are required")
+	if err := validateEncryptedPayload(payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
@@ -101,8 +109,8 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
 	}
-	if payload.Ciphertext == "" || payload.IV == "" || payload.KeyID == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "ciphertext, iv and key_id are required")
+	if err := validateEncryptedPayload(payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
@@ -168,4 +176,44 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 		"error":   code,
 		"message": message,
 	})
+}
+
+func validateEncryptedPayload(payload models.EncryptedPayload) error {
+	ciphertext := strings.TrimSpace(payload.Ciphertext)
+	iv := strings.TrimSpace(payload.IV)
+	keyID := strings.TrimSpace(payload.KeyID)
+	if ciphertext == "" || iv == "" || keyID == "" {
+		return errors.New("ciphertext, iv and key_id are required")
+	}
+	if len(keyID) > maxKeyIDLength {
+		return fmt.Errorf("key_id must be at most %d characters", maxKeyIDLength)
+	}
+	ciphertextBytes, err := decodeBase64(ciphertext)
+	if err != nil {
+		return errors.New("ciphertext must be base64")
+	}
+	if len(ciphertextBytes) == 0 || len(ciphertextBytes) > maxCiphertextBytes {
+		return fmt.Errorf("ciphertext must decode to 1..%d bytes", maxCiphertextBytes)
+	}
+	ivBytes, err := decodeBase64(iv)
+	if err != nil {
+		return errors.New("iv must be base64")
+	}
+	if len(ivBytes) != 12 {
+		return errors.New("iv must decode to 12 bytes")
+	}
+	return nil
+}
+
+func decodeBase64(value string) ([]byte, error) {
+	if out, err := base64.StdEncoding.DecodeString(value); err == nil {
+		return out, nil
+	}
+	if out, err := base64.RawStdEncoding.DecodeString(value); err == nil {
+		return out, nil
+	}
+	if out, err := base64.RawURLEncoding.DecodeString(value); err == nil {
+		return out, nil
+	}
+	return base64.URLEncoding.DecodeString(value)
 }

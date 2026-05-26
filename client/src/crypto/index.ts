@@ -197,6 +197,10 @@ export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI__" in window;
 }
 
+function allowInsecureLocalKeyStorage(): boolean {
+  return !import.meta.env.PROD || import.meta.env.VITE_ALLOW_INSECURE_KEY_STORAGE === "true";
+}
+
 // ─── Хранение приватного ключа ────────────────────────────────────────────────
 
 /**
@@ -210,6 +214,10 @@ export async function storePrivateKey(key: Uint8Array): Promise<void> {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("store_private_key", { key: b64 });
   } else {
+    if (!allowInsecureLocalKeyStorage()) {
+      // SECURITY-HARDENING: production web builds must not silently persist private keys in localStorage.
+      throw new Error("Secure private key storage is unavailable");
+    }
     localStorage.setItem(PRIVATE_KEY_STORAGE_KEY, b64);
   }
 }
@@ -231,6 +239,10 @@ export async function loadPrivateKey(): Promise<Uint8Array | null> {
       return null;
     }
   } else {
+    if (!allowInsecureLocalKeyStorage()) {
+      // SECURITY-HARDENING: avoid reading production private keys from localStorage fallback.
+      return null;
+    }
     const raw = localStorage.getItem(PRIVATE_KEY_STORAGE_KEY);
     if (!raw) return null;
     try {

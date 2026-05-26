@@ -6,6 +6,10 @@ export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI__" in window;
 }
 
+function allowInsecureLocalKeyStorage(): boolean {
+  return !import.meta.env.PROD || import.meta.env.VITE_ALLOW_INSECURE_KEY_STORAGE === "true";
+}
+
 export async function storeDeviceKeyBundle(
   bundle: StoredDeviceKeyBundle,
 ): Promise<void> {
@@ -18,6 +22,10 @@ export async function storeDeviceKeyBundle(
     });
     return;
   }
+  if (!allowInsecureLocalKeyStorage()) {
+    // SECURITY-HARDENING: production web builds must not persist E2EE private material in localStorage.
+    throw new Error("Secure device key storage is unavailable");
+  }
   localStorage.setItem(storageKey(bundle.userId), serialized);
 }
 
@@ -26,7 +34,9 @@ export async function loadDeviceKeyBundle(
 ): Promise<StoredDeviceKeyBundle | null> {
   const raw = isTauriRuntime()
     ? await loadFromTauri(userId)
-    : localStorage.getItem(storageKey(userId));
+    : allowInsecureLocalKeyStorage()
+      ? localStorage.getItem(storageKey(userId))
+      : null;
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredDeviceKeyBundle;
@@ -39,6 +49,9 @@ export async function deleteDeviceKeyBundle(userId: string): Promise<void> {
   if (isTauriRuntime()) {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("delete_device_key_bundle", { userId });
+    return;
+  }
+  if (!allowInsecureLocalKeyStorage()) {
     return;
   }
   localStorage.removeItem(storageKey(userId));

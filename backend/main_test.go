@@ -88,3 +88,45 @@ func TestCORSMiddlewareRejectsUnknownOrigins(t *testing.T) {
 		t.Fatalf("allow origin = %q, want allowed origin", got)
 	}
 }
+
+func TestFederationAuthFailsClosed(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{Environment: "production"}
+	handler := federationAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/federation/v1/announce", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("disabled federation status = %d, want %d", rec.Code, http.StatusNotImplemented)
+	}
+}
+
+func TestFederationAuthRequiresDedicatedToken(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Environment:       "production",
+		FederationEnabled: true,
+		FederationToken:   "federation-token-minimum-32-chars",
+	}
+	handler := federationAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/federation/v1/peers", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing federation token status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/federation/v1/peers", nil)
+	req.Header.Set("Authorization", "Bearer federation-token-minimum-32-chars")
+	rec = httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("valid federation token status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}

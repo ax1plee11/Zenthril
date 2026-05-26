@@ -15,6 +15,8 @@ func NewHandler(svc *Service) *Handler {
 }
 
 func (h *Handler) Announce(w http.ResponseWriter, r *http.Request) {
+	// SECURITY-HARDENING: federation announcements are bounded before JSON decoding.
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	var req struct {
 		Domain    string `json:"domain"`
 		PublicKey string `json:"public_key"`

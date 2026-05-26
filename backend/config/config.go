@@ -20,6 +20,8 @@ type Config struct {
 	WSAllowedOrigins   []string
 	AdminUserIDs       []string
 	MetricsToken       string
+	FederationEnabled  bool
+	FederationToken    string
 	Environment        string
 }
 
@@ -41,6 +43,8 @@ func Load() (*Config, error) {
 		WSAllowedOrigins:   wsOrigins,
 		AdminUserIDs:       adminIDs,
 		MetricsToken:       getEnv("METRICS_TOKEN", ""),
+		FederationEnabled:  getEnvBool("FEDERATION_ENABLED", false),
+		FederationToken:    getEnv("FEDERATION_TOKEN", ""),
 		Environment:        getEnvWithFallback("ENVIRONMENT", "APP_ENV", "development"),
 	}
 
@@ -69,6 +73,14 @@ func Load() (*Config, error) {
 		}
 		if isPlaceholderSecret(cfg.MetricsToken) {
 			return nil, fmt.Errorf("METRICS_TOKEN must be replaced in production")
+		}
+		if cfg.FederationEnabled {
+			if len(cfg.FederationToken) < 32 {
+				return nil, fmt.Errorf("FEDERATION_TOKEN must be at least 32 characters when federation is enabled in production")
+			}
+			if isPlaceholderSecret(cfg.FederationToken) {
+				return nil, fmt.Errorf("FEDERATION_TOKEN must be replaced in production")
+			}
 		}
 		if len(cfg.CORSAllowedOrigins) == 0 {
 			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS is required in production")
@@ -132,6 +144,14 @@ func getEnvWithFallback(primary, fallback, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func getEnvBool(key string, defaultVal bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return defaultVal
+	}
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
 func splitCommaList(s string) []string {

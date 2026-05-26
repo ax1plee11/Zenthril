@@ -51,13 +51,21 @@ Caddy health checks in `deployments/Caddyfile` also send `Authorization: Bearer 
 - Refresh token replay triggers revocation of the user's active refresh token set.
 - Logged-out access tokens are blacklisted in Redis until natural expiry.
 - JWT validation pins `HS256` and rejects `alg:none` / algorithm-confusion attempts.
+- Production refresh/logout requests using auth cookies require an `Origin` header that has already passed the strict global CORS allowlist.
+
+## Federation
+
+- Federation endpoints are disabled by default.
+- `FEDERATION_ENABLED=true` is required before `/federation/v1/*` will process requests.
+- Enabled federation endpoints require `Authorization: Bearer <FEDERATION_TOKEN>`.
+- Federation request bodies are size-limited before JSON decoding.
 
 ## Remaining Alpha Risks
 
 Client-side storage still needs more hardening:
 
 - The web fallback stores access tokens in `localStorage`.
-- E2EE private-key fallback paths use `localStorage` when Tauri commands are unavailable.
+- E2EE private-key fallback paths use `localStorage` only in development unless `VITE_ALLOW_INSECURE_KEY_STORAGE=true` is set explicitly.
 - Tauri currently uses `tauri-plugin-store`; a production-grade desktop build should move private keys to OS keychain or Stronghold.
 
 E2EE is still foundational:
