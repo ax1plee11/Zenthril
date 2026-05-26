@@ -165,6 +165,18 @@ func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"ticket": ticket})
 }
 
+func (h *Handler) TOTPStart(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "not_implemented", "TOTP MFA setup is not implemented yet")
+}
+
+func (h *Handler) TOTPConfirm(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "not_implemented", "TOTP MFA confirmation is not implemented yet")
+}
+
+func (h *Handler) TOTPDisable(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "not_implemented", "TOTP MFA disable is not implemented yet")
+}
+
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	if !h.allowCookieBackedRequest(r) {
 		writeError(w, http.StatusForbidden, "origin_required", "Trusted Origin header required")

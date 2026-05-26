@@ -307,6 +307,9 @@ func main() {
 			r.With(secGuard.BruteForceProtect).Post("/login", authHandler.Login)
 			r.Post("/logout", authHandler.Logout)
 			r.Post("/refresh", authHandler.Refresh)
+			r.Post("/mfa/totp/start", authHandler.TOTPStart)
+			r.Post("/mfa/totp/confirm", authHandler.TOTPConfirm)
+			r.Post("/mfa/totp/disable", authHandler.TOTPDisable)
 			r.Group(func(r chi.Router) {
 				r.Use(authSvc.Middleware)
 				r.Post("/ws-ticket", authHandler.WSTicket)

@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS user_mfa_totp (
+  user_id    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  secret_enc TEXT    NOT NULL,
+  enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
