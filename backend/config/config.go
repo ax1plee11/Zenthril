@@ -20,6 +20,7 @@ type Config struct {
 	WSAllowedOrigins   []string
 	AdminUserIDs       []string
 	MetricsToken       string
+	OperationalToken   string
 	FederationEnabled  bool
 	FederationToken    string
 	Environment        string
@@ -43,6 +44,7 @@ func Load() (*Config, error) {
 		WSAllowedOrigins:   wsOrigins,
 		AdminUserIDs:       adminIDs,
 		MetricsToken:       getEnv("METRICS_TOKEN", ""),
+		OperationalToken:   getEnvWithFallback("OPERATIONAL_TOKEN", "METRICS_TOKEN", ""),
 		FederationEnabled:  getEnvBool("FEDERATION_ENABLED", false),
 		FederationToken:    getEnv("FEDERATION_TOKEN", ""),
 		Environment:        getEnvWithFallback("ENVIRONMENT", "APP_ENV", "development"),
@@ -73,6 +75,12 @@ func Load() (*Config, error) {
 		}
 		if isPlaceholderSecret(cfg.MetricsToken) {
 			return nil, fmt.Errorf("METRICS_TOKEN must be replaced in production")
+		}
+		if len(cfg.OperationalToken) < 32 {
+			return nil, fmt.Errorf("OPERATIONAL_TOKEN must be at least 32 characters in production")
+		}
+		if isPlaceholderSecret(cfg.OperationalToken) {
+			return nil, fmt.Errorf("OPERATIONAL_TOKEN must be replaced in production")
 		}
 		if cfg.FederationEnabled {
 			if len(cfg.FederationToken) < 32 {
@@ -204,6 +212,9 @@ func isPlaceholderSecret(value string) bool {
 		"changeme",
 		"replace-me",
 		"example-password",
+		"test-secret",
+		"dev-secret",
+		"your-super-secret",
 	}
 	for _, placeholder := range placeholders {
 		if strings.Contains(normalized, placeholder) {

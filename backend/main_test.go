@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"zenthril-backend/auth"
 	"zenthril-backend/config"
 )
 
@@ -13,6 +14,7 @@ func TestMetricsAuthRequiresBearerToken(t *testing.T) {
 	cfg := &config.Config{
 		Environment:  "production",
 		MetricsToken: "metrics-token-minimum-32-chars!!!!",
+		JWTSecret:    "test-secret-at-least-32-bytes-long!!",
 	}
 	handler := metricsAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -34,11 +36,36 @@ func TestMetricsAuthRequiresBearerToken(t *testing.T) {
 	}
 }
 
-func TestOperationalTokenAuthProtectsHealthInProduction(t *testing.T) {
+func TestMetricsAuthAllowsAdminJWT(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{
 		Environment:  "production",
 		MetricsToken: "metrics-token-minimum-32-chars!!!!",
+		JWTSecret:    "test-secret-at-least-32-bytes-long!!",
+		AdminUserIDs: []string{"admin-user"},
+	}
+	token, err := auth.GenerateToken("admin-user", cfg.JWTSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := metricsAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("admin token status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
+func TestOperationalTokenAuthProtectsHealthInProduction(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Environment:      "production",
+		OperationalToken: "operational-token-minimum-32-chars",
 	}
 	handler := operationalTokenAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -52,11 +79,26 @@ func TestOperationalTokenAuthProtectsHealthInProduction(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/health", nil)
-	req.Header.Set("Authorization", "Bearer metrics-token-minimum-32-chars!!!!")
+	req.Header.Set("Authorization", "Bearer operational-token-minimum-32-chars")
 	rec = httptest.NewRecorder()
 	handler(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("health with token status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
+func TestBlockDebugEndpointsInProduction(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{Environment: "production"}
+	handler := blockDebugEndpoints(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/debug/pprof", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("debug status = %d, want %d", rec.Code, http.StatusNotFound)
 	}
 }
 
@@ -79,6 +121,8 @@ func TestCORSMiddlewareRejectsUnknownOrigins(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodOptions, "/api/v1/test", nil)
 	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
@@ -86,6 +130,34 @@ func TestCORSMiddlewareRejectsUnknownOrigins(t *testing.T) {
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
 		t.Fatalf("allow origin = %q, want allowed origin", got)
+	}
+}
+
+func TestCORSMiddlewareRejectsInvalidPreflight(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		CORSAllowedOrigins: []string{"https://app.example.com"},
+	}
+	handler := corsMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/test", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("missing preflight method status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+
+	req = httptest.NewRequest(http.MethodOptions, "/api/v1/test", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "X-Unsafe-Header")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unsafe preflight header status = %d, want %d", rec.Code, http.StatusForbidden)
 	}
 }
 

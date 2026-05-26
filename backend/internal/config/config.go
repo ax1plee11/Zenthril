@@ -351,7 +351,7 @@ func defaultNodeID() string {
 
 func isPlaceholderSecret(value string) bool {
 	normalized := strings.ToLower(value)
-	for _, placeholder := range []string{"change-me", "changeme", "replace-me", "example-password"} {
+	for _, placeholder := range []string{"change-me", "changeme", "replace-me", "example-password", "test-secret", "dev-secret", "your-super-secret"} {
 		if strings.Contains(normalized, placeholder) {
 			return true
 		}

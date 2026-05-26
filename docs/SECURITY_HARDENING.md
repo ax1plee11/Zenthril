@@ -10,7 +10,9 @@ Zenthril is currently an alpha project. The backend now defaults to a stricter s
 - WebSocket upgrades fail closed when no allowed origin is configured.
 - WebSocket handlers reject missing or cross-site `Origin` headers to prevent Cross-Site WebSocket Hijacking.
 - Legacy WebSocket tickets are not consumed until the request origin is accepted.
+- The next-generation gateway rejects untrusted origins before authentication and does not accept long-lived credentials from query strings.
 - WebSocket messages have size limits, per-connection limits, per-user limits, and malformed command limits.
+- CORS preflight requests must ask only for allowed methods and headers.
 
 ## Operational Endpoints
 
@@ -18,6 +20,7 @@ Operational endpoints are protected in production:
 
 - Legacy API: `/health`, `/metrics`, `/metrics/prometheus`
 - Next-generation API: `/healthz`, `/readyz`, `/api/v2/gateway/stats`
+- Debug and pprof-style `/debug/*` endpoints are explicitly blocked in production.
 
 Use an authorization header:
 
@@ -25,7 +28,7 @@ Use an authorization header:
 Authorization: Bearer <OPERATIONAL_TOKEN or METRICS_TOKEN>
 ```
 
-`OPERATIONAL_TOKEN` is preferred for health/readiness/stat endpoints. If it is not set in the next-generation API, `METRICS_TOKEN` is used as a fallback.
+`OPERATIONAL_TOKEN` is used for health/readiness/stat endpoints. `METRICS_TOKEN` is used for metrics scraping. Metrics can also be accessed by configured admins with a valid access token.
 
 ## Deployment Requirements
 
@@ -48,9 +51,10 @@ Caddy health checks in `deployments/Caddyfile` also send `Authorization: Bearer 
 - Access tokens are short-lived.
 - Refresh tokens are stored server-side in Redis by token ID and hash.
 - Refresh token rotation marks old token IDs as used.
+- Refresh token rotation consumes the Redis record atomically with `GETDEL`.
 - Refresh token replay triggers revocation of the user's active refresh token set.
 - Logged-out access tokens are blacklisted in Redis until natural expiry.
-- JWT validation pins `HS256` and rejects `alg:none` / algorithm-confusion attempts.
+- JWT validation pins `HS256`, requires `exp`, and rejects `alg:none` / algorithm-confusion attempts.
 - Production refresh/logout requests using auth cookies require an `Origin` header that has already passed the strict global CORS allowlist.
 
 ## Federation

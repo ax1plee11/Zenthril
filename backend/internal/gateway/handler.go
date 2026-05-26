@@ -132,6 +132,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY: reject untrusted WebSocket origins before authentication work.
+	// This prevents CSWSH attempts from using the gateway as an auth oracle.
+	if h.upgrader.CheckOrigin != nil && !h.upgrader.CheckOrigin(r) {
+		http.Error(w, "websocket origin not allowed", http.StatusForbidden)
+		return
+	}
+
 	token := extractToken(r)
 	claims, err := h.authenticator.AuthenticateWebSocket(r.Context(), token)
 	if err != nil {
@@ -298,10 +305,10 @@ func (h *Handler) sendEnvelope(conn *Connection, env Envelope) {
 }
 
 func extractToken(r *http.Request) string {
-	// SECURITY: support short-lived websocket tickets and Authorization headers; avoid generic token query names.
-	if token := strings.TrimSpace(r.URL.Query().Get("ticket")); token != "" {
-		return token
-	}
+	// SECURITY: next-gen gateway accepts credentials only from Authorization.
+	// Query-string credentials are avoided because URLs are commonly logged by
+	// proxies, browsers, and observability tools. Legacy `/ws` uses one-time
+	// tickets in its own handler and consumes them after Origin validation.
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(header), "bearer ") {
 		return strings.TrimSpace(header[7:])

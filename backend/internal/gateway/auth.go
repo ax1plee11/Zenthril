@@ -38,13 +38,19 @@ func (a *JWTAuthenticator) AuthenticateWebSocket(ctx context.Context, tokenStrin
 	}
 
 	claims := jwtClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
-		// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(a.secret), nil
-	})
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&claims,
+		func(token *jwt.Token) (interface{}, error) {
+			// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(a.secret), nil
+		},
+		jwt.WithExpirationRequired(),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
 	if err != nil {
 		return UserClaims{}, fmt.Errorf("parse websocket token: %w", err)
 	}

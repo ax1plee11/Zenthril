@@ -104,3 +104,20 @@ func TestValidateTokenRejectsNonHS256Algorithms(t *testing.T) {
 		t.Fatal("expected alg none token to be rejected")
 	}
 }
+
+func TestValidateTokenRequiresExpiration(t *testing.T) {
+	t.Parallel()
+	const secret = "test-secret-at-least-32-bytes-long!!"
+	c := claims{
+		UserID:    "user-uuid-123",
+		TokenType: "access",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
+	signed, err := token.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValidateToken(signed, secret); err == nil {
+		t.Fatal("expected token without exp to be rejected")
+	}
+}

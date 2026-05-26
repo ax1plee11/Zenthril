@@ -2,6 +2,8 @@ package config
 
 import "testing"
 
+const productionJWTSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
 func TestLoadUsesSingleDBURLAsPrimaryShard(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
 	t.Setenv("JWT_SECRET", "dev-secret")
@@ -50,7 +52,7 @@ func TestProductionRequiresStrongJWTSecret(t *testing.T) {
 
 func TestProductionRequiresGatewayOrigins(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
-	t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
 	t.Setenv("APP_ENV", "production")
 
@@ -61,7 +63,7 @@ func TestProductionRequiresGatewayOrigins(t *testing.T) {
 
 func TestProductionRequiresOperationalToken(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
-	t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
 

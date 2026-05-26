@@ -38,6 +38,20 @@ import (
 
 const maxRequestBodyBytes int64 = 1 << 20
 
+var allowedCORSMethods = map[string]struct{}{
+	http.MethodGet:     {},
+	http.MethodPost:    {},
+	http.MethodPut:     {},
+	http.MethodPatch:   {},
+	http.MethodDelete:  {},
+	http.MethodOptions: {},
+}
+
+var allowedCORSHeaders = map[string]struct{}{
+	"authorization": {},
+	"content-type":  {},
+}
+
 func wsAllowedOrigins(cfg *config.Config) []string {
 	return cfg.WSAllowedOrigins
 }
@@ -82,6 +96,22 @@ func requestBodyLimit(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
+func blockDebugEndpoints(cfg *config.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if cfg.Environment == "production" && (r.URL.Path == "/debug" || strings.HasPrefix(r.URL.Path, "/debug/")) {
+				// SECURITY: debug/pprof endpoints must never be exposed in production.
+				slog.Warn("security debug endpoint blocked", "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"not_found","message":"Not found"}`))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(cfg.CORSAllowedOrigins))
 	for _, origin := range cfg.CORSAllowedOrigins {
@@ -117,6 +147,12 @@ func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 					w.WriteHeader(http.StatusForbidden)
 					return
 				}
+				if !validPreflightRequest(r) {
+					// SECURITY: preflight must request only methods and headers the API intentionally exposes.
+					slog.Warn("security cors preflight rejected", "reason", "method_or_headers_not_allowed", "origin", origin, "path", r.URL.Path)
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -126,6 +162,26 @@ func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 	}
 }
 
+func validPreflightRequest(r *http.Request) bool {
+	method := strings.ToUpper(strings.TrimSpace(r.Header.Get("Access-Control-Request-Method")))
+	if method == "" {
+		return false
+	}
+	if _, ok := allowedCORSMethods[method]; !ok {
+		return false
+	}
+	for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+		header = strings.ToLower(strings.TrimSpace(header))
+		if header == "" {
+			continue
+		}
+		if _, ok := allowedCORSHeaders[header]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func operationalTokenAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// SECURITY-HARDENING: operational endpoints expose runtime state and require a bearer token in production.
@@ -133,7 +189,7 @@ func operationalTokenAuth(cfg *config.Config, next http.HandlerFunc) http.Handle
 			next(w, r)
 			return
 		}
-		if cfg.MetricsToken == "" || subtle.ConstantTimeCompare([]byte(bearerToken(r)), []byte(cfg.MetricsToken)) != 1 {
+		if cfg.OperationalToken == "" || subtle.ConstantTimeCompare([]byte(bearerToken(r)), []byte(cfg.OperationalToken)) != 1 {
 			slog.Warn("security operational endpoint access denied", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -226,6 +282,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(securityheaders.SecurityHeaders)
+	r.Use(blockDebugEndpoints(cfg))
 	r.Use(metrics.HTTPMiddleware)
 	r.Use(corsMiddleware(cfg))
 
@@ -417,14 +474,28 @@ func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		token := bearerToken(r)
-		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(cfg.MetricsToken)) != 1 {
+		if token != "" && cfg.MetricsToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(cfg.MetricsToken)) == 1 {
+			next(w, r)
+			return
+		}
+		if token != "" {
+			if userID, err := auth.ValidateToken(token, cfg.JWTSecret); err == nil && isAdmin(cfg, userID) {
+				// SECURITY: human access to metrics is limited to configured admins.
+				next(w, r)
+				return
+			}
+		}
+		if token == "" {
 			slog.Warn("security metrics access denied", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid metrics token required"}`))
 			return
 		}
-		next(w, r)
+		slog.Warn("security metrics access denied", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"unauthorized","message":"Valid metrics token required"}`))
 	}
 }
 

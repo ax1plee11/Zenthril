@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+const productionJWTSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
 func TestSplitCommaList(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -41,7 +43,7 @@ func TestLoad_RequiresDBAndJWT(t *testing.T) {
 
 func TestLoad_OK(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
-	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://a.com, https://b.com")
 	t.Setenv("ADMIN_USER_IDS", " id-1 , id-2 ")
 	cfg, err := Load()
@@ -59,7 +61,7 @@ func TestLoad_OK(t *testing.T) {
 func TestLoad_ProductionRequiresExplicitSecurityConfig(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "production")
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
-	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 
 	_, err := Load()
 	if err == nil {
@@ -70,7 +72,7 @@ func TestLoad_ProductionRequiresExplicitSecurityConfig(t *testing.T) {
 func TestLoad_ProductionRejectsWildcardOrigins(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "production")
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
-	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
@@ -83,7 +85,7 @@ func TestLoad_ProductionRejectsWildcardOrigins(t *testing.T) {
 
 func TestLoadRejectsWildcardOriginsOutsideProduction(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
-	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 	t.Setenv("CORS_ALLOWED_ORIGINS", "*")
 
 	_, err := Load()
@@ -95,8 +97,9 @@ func TestLoadRejectsWildcardOriginsOutsideProduction(t *testing.T) {
 func TestLoad_ProductionOK(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "production")
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
-	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
 	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
 
@@ -110,6 +113,7 @@ func TestLoad_ProductionRejectsPlaceholderSecrets(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
 	t.Setenv("JWT_SECRET", "change-me-use-openssl-rand-hex-64")
 	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
 
@@ -118,11 +122,26 @@ func TestLoad_ProductionRejectsPlaceholderSecrets(t *testing.T) {
 	}
 }
 
+func TestLoad_ProductionRejectsTestSecrets(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected test JWT validation error")
+	}
+}
+
 func TestLoad_ProductionFederationRequiresTokenWhenEnabled(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "production")
 	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
 	t.Setenv("JWT_SECRET", "test-secret-key-minimum-32-chars!!")
 	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("FEDERATION_ENABLED", "true")

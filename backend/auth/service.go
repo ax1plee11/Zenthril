@@ -160,7 +160,9 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 	}
 
 	key := refreshTokenKey(tokenID)
-	raw, err := s.redis.Get(ctx, key).Bytes()
+	// SECURITY: GETDEL makes refresh token rotation atomic. Only one request can
+	// consume a refresh token; concurrent replays see a missing/used token.
+	raw, err := s.redis.GetDel(ctx, key).Bytes()
 	if err == redis.Nil {
 		if s.wasRefreshTokenUsed(ctx, tokenID) {
 			// SECURITY-HARDENING: refresh-token replay indicates theft; revoke the user's active refresh set.
@@ -184,12 +186,11 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 		return nil, ErrInvalidRefreshToken
 	}
 
-	if err := s.redis.Del(ctx, key).Err(); err != nil {
-		return nil, fmt.Errorf("revoke old refresh token: %w", err)
-	}
 	_ = s.redis.SRem(ctx, refreshUserSetKey(userID), tokenID).Err()
 	// SECURITY-HARDENING: remember used refresh IDs to detect replay after rotation.
-	_ = s.redis.Set(ctx, usedRefreshTokenKey(tokenID), userID, refreshTokenTTL).Err()
+	if err := s.redis.Set(ctx, usedRefreshTokenKey(tokenID), userID, refreshTokenTTL).Err(); err != nil {
+		return nil, fmt.Errorf("mark refresh token used: %w", err)
+	}
 
 	return s.issueTokenPair(ctx, userID)
 }

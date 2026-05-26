@@ -72,13 +72,19 @@ func validateTypedToken(tokenStr, secret, expectedType string) (string, error) {
 }
 
 func parseTypedToken(tokenStr, secret, expectedType string) (*claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(t *jwt.Token) (interface{}, error) {
-		// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
-		if t.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		return []byte(secret), nil
-	})
+	token, err := jwt.ParseWithClaims(
+		tokenStr,
+		&claims{},
+		func(t *jwt.Token) (interface{}, error) {
+			// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
+			if t.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return []byte(secret), nil
+		},
+		jwt.WithExpirationRequired(),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("parse token: %w", err)
 	}
