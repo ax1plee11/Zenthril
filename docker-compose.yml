@@ -9,8 +9,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-zenthril}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-zenthril}
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
@@ -24,8 +24,8 @@ services:
     image: redis:7-alpine
     container_name: zenthril-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -45,7 +45,7 @@ services:
       HTTP_ADDR: ":8080"
       ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
