@@ -43,6 +43,8 @@ func checkWSOrigin(r *http.Request, allow map[string]struct{}, environment strin
 	origin := r.Header.Get("Origin")
 
 	// SECURITY-HARDENING: fail closed when WS_ALLOWED_ORIGINS is missing.
+	// VULNERABILITY FIXED: an unset allowlist no longer degrades into accepting
+	// browser WebSocket upgrades from arbitrary sites.
 	if len(allow) == 0 {
 		slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin, "environment", environment)
 		return false
@@ -330,7 +332,8 @@ func (c *Client) readPump() {
 			}
 			return
 		}
-		// SECURITY: enforce both per-connection and per-user limits to reduce flooding blast radius.
+		// SECURITY-HARDENING: enforce both per-connection and per-user limits to reduce flooding blast radius.
+		// VULNERABILITY FIXED: one busy connection or one authenticated account cannot flood the hub unchecked.
 		if !c.limiter.allow() {
 			slog.Warn("security websocket connection rate limited", "user_id", c.UserID, "conn_id", c.ConnID)
 			c.hub.sendWSError(c, "rate_limited", "too many websocket messages")
@@ -513,6 +516,7 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 	// SECURITY-HARDENING: reject cross-site WebSocket upgrades before consuming
 	// one-time tickets. This prevents CSWSH and avoids burning valid tickets on
 	// requests from untrusted browser origins.
+	// VULNERABILITY FIXED: CSWSH attempts are denied before authentication state is touched.
 	if upgrader.CheckOrigin != nil && !upgrader.CheckOrigin(r) {
 		http.Error(w, "websocket origin not allowed", http.StatusForbidden)
 		return

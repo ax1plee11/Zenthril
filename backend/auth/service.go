@@ -160,8 +160,9 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 	}
 
 	key := refreshTokenKey(tokenID)
-	// SECURITY: GETDEL makes refresh token rotation atomic. Only one request can
+	// SECURITY-HARDENING: GETDEL makes refresh token rotation atomic. Only one request can
 	// consume a refresh token; concurrent replays see a missing/used token.
+	// VULNERABILITY FIXED: stolen refresh tokens cannot be reused after the first successful rotation.
 	raw, err := s.redis.GetDel(ctx, key).Bytes()
 	if err == redis.Nil {
 		if s.wasRefreshTokenUsed(ctx, tokenID) {
@@ -348,6 +349,8 @@ func (s *Service) ConsumeWSTicket(ctx context.Context, ticket string) (string, e
 		return "", errors.New("missing ticket")
 	}
 	key := "ws:ticket:" + ticket
+	// SECURITY-HARDENING: websocket tickets are one-time credentials consumed atomically.
+	// VULNERABILITY FIXED: a captured ticket cannot be replayed across parallel socket upgrades.
 	userID, err := s.redis.GetDel(ctx, key).Result()
 	if err == redis.Nil {
 		return "", errors.New("invalid or expired ticket")

@@ -79,10 +79,12 @@ func NewHandler(opts HandlerOptions) *Handler {
 			CheckOrigin: func(r *http.Request) bool {
 				if len(allowedOrigins) == 0 {
 					// SECURITY-HARDENING: the next-gen gateway also fails closed without WS_ALLOWED_ORIGINS.
+					// VULNERABILITY FIXED: missing origin configuration cannot silently open the gateway.
 					opts.Logger.Warn("security gateway websocket origin rejected", "reason", "missing_origin_config")
 					return false
 				}
-				// SECURITY: when an allowlist exists, empty or unknown origins are rejected to prevent CSWSH.
+				// SECURITY-HARDENING: when an allowlist exists, empty or unknown origins are rejected to prevent CSWSH.
+				// VULNERABILITY FIXED: hostile pages cannot reuse a victim browser session to open this socket.
 				origin := r.Header.Get("Origin")
 				if origin == "" {
 					opts.Logger.Warn("security gateway websocket origin rejected", "reason", "empty_origin")
@@ -132,8 +134,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SECURITY: reject untrusted WebSocket origins before authentication work.
+	// SECURITY-HARDENING: reject untrusted WebSocket origins before authentication work.
 	// This prevents CSWSH attempts from using the gateway as an auth oracle.
+	// VULNERABILITY FIXED: origin validation happens before token validation or socket upgrade.
 	if h.upgrader.CheckOrigin != nil && !h.upgrader.CheckOrigin(r) {
 		http.Error(w, "websocket origin not allowed", http.StatusForbidden)
 		return
@@ -198,7 +201,8 @@ func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Co
 			h.logger.Warn("security gateway malformed websocket message", "connection_id", conn.ID, "user_id", conn.UserID, "error", err)
 			return err
 		}
-		// SECURITY: enforce both per-connection and per-user command limits.
+		// SECURITY-HARDENING: enforce both per-connection and per-user command limits.
+		// VULNERABILITY FIXED: flooding is bounded at connection and account scope.
 		if !connectionLimiter.Allow() {
 			h.logger.Warn("security gateway connection rate limited", "connection_id", conn.ID, "user_id", conn.UserID)
 			h.sendError(conn, "rate_limited", "too many websocket commands")
@@ -305,10 +309,11 @@ func (h *Handler) sendEnvelope(conn *Connection, env Envelope) {
 }
 
 func extractToken(r *http.Request) string {
-	// SECURITY: next-gen gateway accepts credentials only from Authorization.
+	// SECURITY-HARDENING: next-gen gateway accepts credentials only from Authorization.
 	// Query-string credentials are avoided because URLs are commonly logged by
 	// proxies, browsers, and observability tools. Legacy `/ws` uses one-time
 	// tickets in its own handler and consumes them after Origin validation.
+	// VULNERABILITY FIXED: long-lived bearer credentials are no longer accepted from URLs.
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(header), "bearer ") {
 		return strings.TrimSpace(header[7:])

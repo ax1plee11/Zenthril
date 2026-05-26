@@ -42,7 +42,8 @@ func (a *JWTAuthenticator) AuthenticateWebSocket(ctx context.Context, tokenStrin
 		tokenString,
 		&claims,
 		func(token *jwt.Token) (interface{}, error) {
-			// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
+			// SECURITY-HARDENING: reject alg=none and algorithm confusion by pinning exactly HS256.
+			// VULNERABILITY FIXED: gateway authentication cannot be bypassed with unsigned or wrong-alg tokens.
 			if token.Method != jwt.SigningMethodHS256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}

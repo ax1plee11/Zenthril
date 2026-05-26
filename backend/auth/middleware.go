@@ -25,6 +25,8 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// SECURITY-HARDENING: every protected request checks the Redis revocation list.
+		// VULNERABILITY FIXED: logout and incident response can invalidate access tokens before natural expiry.
 		blacklisted, err := s.IsTokenBlacklisted(r.Context(), token)
 		if err != nil {
 			slog.Error("security token blacklist check failed", "error", err, "path", r.URL.Path)

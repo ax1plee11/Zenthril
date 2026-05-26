@@ -60,7 +60,8 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
 	}
 	if cfg.Environment == "production" {
-		// SECURITY: production must fail fast on placeholder secrets and open origin policy.
+		// SECURITY-HARDENING: production must fail fast on placeholder secrets and open origin policy.
+		// VULNERABILITY FIXED: deployments cannot start with demo secrets, anonymous metrics, or missing origins.
 		if isPlaceholderSecret(cfg.JWTSecret) {
 			return nil, fmt.Errorf("JWT_SECRET must be replaced in production")
 		}

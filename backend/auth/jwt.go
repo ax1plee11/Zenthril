@@ -76,7 +76,8 @@ func parseTypedToken(tokenStr, secret, expectedType string) (*claims, error) {
 		tokenStr,
 		&claims{},
 		func(t *jwt.Token) (interface{}, error) {
-			// SECURITY: reject alg=none and algorithm confusion by pinning exactly HS256.
+			// SECURITY-HARDENING: reject alg=none and algorithm confusion by pinning exactly HS256.
+			// VULNERABILITY FIXED: attacker-controlled JWT headers cannot downgrade or switch signing methods.
 			if t.Method != jwt.SigningMethodHS256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}

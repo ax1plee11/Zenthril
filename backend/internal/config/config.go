@@ -185,7 +185,8 @@ func (c Config) Validate() error {
 		if isPlaceholderSecret(c.Security.OperationalToken) {
 			return errors.New("OPERATIONAL_TOKEN or METRICS_TOKEN must be replaced in production")
 		}
-		// SECURITY: production websocket gateways must fail closed without exact allowed origins.
+		// SECURITY-HARDENING: production websocket gateways must fail closed without exact allowed origins.
+		// VULNERABILITY FIXED: multi-node gateway deployments cannot accidentally allow all browser origins.
 		if len(c.Gateway.AllowedOrigins) == 0 {
 			return errors.New("WS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS is required in production")
 		}

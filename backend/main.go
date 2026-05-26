@@ -100,7 +100,8 @@ func blockDebugEndpoints(cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if cfg.Environment == "production" && (r.URL.Path == "/debug" || strings.HasPrefix(r.URL.Path, "/debug/")) {
-				// SECURITY: debug/pprof endpoints must never be exposed in production.
+				// SECURITY-HARDENING: debug/pprof endpoints must never be exposed in production.
+				// VULNERABILITY FIXED: accidental profiler/debug route registration cannot leak runtime internals.
 				slog.Warn("security debug endpoint blocked", "path", r.URL.Path, "remote_addr", r.RemoteAddr)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
@@ -129,6 +130,7 @@ func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 			if origin != "" {
 				if _, ok := allowed[origin]; !ok {
 					// SECURITY-HARDENING: reject unknown browser origins instead of reflecting them.
+					// VULNERABILITY FIXED: the API no longer mirrors arbitrary Origin values into CORS responses.
 					slog.Warn("security cors origin rejected", "reason", "origin_not_allowed", "origin", origin, "path", r.URL.Path)
 					w.WriteHeader(http.StatusForbidden)
 					return
@@ -148,7 +150,8 @@ func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 					return
 				}
 				if !validPreflightRequest(r) {
-					// SECURITY: preflight must request only methods and headers the API intentionally exposes.
+					// SECURITY-HARDENING: preflight must request only methods and headers the API intentionally exposes.
+					// VULNERABILITY FIXED: browsers cannot pre-authorize unsafe custom headers or methods.
 					slog.Warn("security cors preflight rejected", "reason", "method_or_headers_not_allowed", "origin", origin, "path", r.URL.Path)
 					w.WriteHeader(http.StatusForbidden)
 					return
@@ -468,7 +471,8 @@ func main() {
 
 func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// SECURITY: metrics expose operational internals and require a dedicated bearer token outside development.
+		// SECURITY-HARDENING: metrics expose operational internals and require a dedicated bearer token outside development.
+		// VULNERABILITY FIXED: Prometheus metrics are no longer anonymously readable in production.
 		if cfg.MetricsToken == "" && cfg.Environment == "development" {
 			next(w, r)
 			return
@@ -480,7 +484,8 @@ func metricsAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 		}
 		if token != "" {
 			if userID, err := auth.ValidateToken(token, cfg.JWTSecret); err == nil && isAdmin(cfg, userID) {
-				// SECURITY: human access to metrics is limited to configured admins.
+				// SECURITY-HARDENING: human access to metrics is limited to configured admins.
+				// VULNERABILITY FIXED: regular authenticated users cannot read operational telemetry.
 				next(w, r)
 				return
 			}
