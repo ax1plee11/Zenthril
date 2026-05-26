@@ -78,7 +78,7 @@ function normalizeParticipants(
   const sorted = [first, second].sort((left, right) =>
     participantSortKey(left).localeCompare(participantSortKey(right)),
   );
-  return [sorted[0], sorted[1]];
+  return [sorted[0]!, sorted[1]!];
 }
 
 function normalizeParticipant(value: ParticipantIdentity): ParticipantIdentity {

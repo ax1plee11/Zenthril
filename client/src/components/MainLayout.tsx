@@ -65,7 +65,8 @@ export default function MainLayout() {
   useEffect(() => {
     api.guilds.list().then(gs => {
       setGuilds(gs);
-      if (gs.length > 0) setSelectedGuildId(gs[0].id);
+      const firstGuild = gs[0];
+      if (firstGuild) setSelectedGuildId(firstGuild.id);
     }).catch(console.error);
   }, []);
 

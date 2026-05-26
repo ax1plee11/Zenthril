@@ -10,7 +10,7 @@ interface GuildListProps {
   onCreateGuild: (name: string) => Promise<void>;
   onJoinGuild?: (guild: GuildAPI) => void;
   hasBg?: boolean;
-  panelBg?: string;
+  panelBg?: string | undefined;
 }
 
 const COLORS = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF"];
@@ -55,7 +55,7 @@ type ModalTab = "pick" | "create" | "join";
 interface ServerModalProps {
   onClose: () => void;
   onCreateGuild: (name: string) => Promise<void>;
-  onJoinGuild?: (guild: GuildAPI) => void;
+  onJoinGuild?: ((guild: GuildAPI) => void) | undefined;
 }
 
 function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) {

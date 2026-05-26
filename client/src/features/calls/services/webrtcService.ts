@@ -78,9 +78,11 @@ class WebRTCService {
     };
 
     this.pc.ontrack = (event) => {
-      this.remoteStream = event.streams[0];
-      this.playRemoteAudio();
-      useCallStore.getState().updateCallState('connected');
+      this.remoteStream = event.streams[0] ?? null;
+      if (this.remoteStream) {
+        this.playRemoteAudio();
+        useCallStore.getState().updateCallState('connected');
+      }
     };
 
     this.pc.onconnectionstatechange = () => {

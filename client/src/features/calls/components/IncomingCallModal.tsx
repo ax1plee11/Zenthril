@@ -33,7 +33,7 @@ export function IncomingCallModal({ call, onAccept, onDecline }: Props) {
         <div className="relative mx-auto mb-4 w-20 h-20">
           <div className="absolute inset-0 rounded-full bg-violet-500/20 animate-ping" />
           <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-2xl font-bold text-white">
-            {call.caller.username[0].toUpperCase()}
+            {call.caller.username.charAt(0).toUpperCase()}
           </div>
         </div>
 

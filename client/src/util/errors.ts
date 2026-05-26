@@ -14,5 +14,8 @@ export function apiErrorFields(err: unknown): {
       : err instanceof Error
         ? err.message
         : undefined;
-  return { code, message };
+  return {
+    ...(code !== undefined ? { code } : {}),
+    ...(message !== undefined ? { message } : {}),
+  };
 }

@@ -34,10 +34,10 @@ interface Props {
   onAcceptFriend: (userId: string) => Promise<void>;
   onDeclineFriend: (userId: string) => Promise<void>;
   onJoinGuild: (code: string) => Promise<void>;
-  anchorBottom?: number;
-  anchorLeft?: number;
-  anchorTop?: number;
-  anchorRight?: number;
+  anchorBottom?: number | undefined;
+  anchorLeft?: number | undefined;
+  anchorTop?: number | undefined;
+  anchorRight?: number | undefined;
 }
 
 export default function NotificationsPanel({ onClose, onAcceptFriend, onDeclineFriend, onJoinGuild, anchorBottom, anchorLeft, anchorTop, anchorRight }: Props) {

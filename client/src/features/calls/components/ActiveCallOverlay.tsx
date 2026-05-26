@@ -38,7 +38,7 @@ export function ActiveCallOverlay({ call, onEndCall, onToggleMute }: Props) {
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white font-bold">
-            {peer.username[0].toUpperCase()}
+            {peer.username.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1">
             <p className="text-white font-medium text-sm">{peer.username}</p>

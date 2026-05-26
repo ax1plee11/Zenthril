@@ -116,6 +116,7 @@ export class TransportLayer {
     for (let attempt = 0; attempt < totalNodes; attempt++) {
       this.currentNodeIndex = (this.currentNodeIndex + 1) % totalNodes;
       const nextNode = this.nodes[this.currentNodeIndex];
+      if (!nextNode) continue;
 
       try {
         await this.connect(nextNode);
@@ -166,6 +167,9 @@ export class TransportLayer {
 
   async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const baseUrl = this.nodes[this.currentNodeIndex];
+    if (!baseUrl) {
+      throw new Error("No transport node configured");
+    }
     const url = `${baseUrl}${path}`;
     const token = localStorage.getItem(TOKEN_KEY);
 
@@ -176,11 +180,15 @@ export class TransportLayer {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
+    const init: RequestInit = {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    };
+    if (body !== undefined) {
+      init.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, init);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

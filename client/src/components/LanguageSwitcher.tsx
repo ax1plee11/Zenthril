@@ -11,7 +11,7 @@ import { languages, type Language } from '../i18n';
 export default function LanguageSwitcher() {
   const { i18n } = useTranslation();
 
-  const currentLanguage = languages.find((lang) => lang.code === i18n.language) || languages[0];
+  const currentLanguage = languages.find((lang) => lang.code === i18n.language) ?? languages[0]!;
 
   const changeLanguage = (lang: Language) => {
     i18n.changeLanguage(lang);

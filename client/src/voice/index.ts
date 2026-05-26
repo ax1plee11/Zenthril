@@ -219,8 +219,10 @@ export class VoiceClient {
 
     // Воспроизводим входящий аудиопоток
     pc.ontrack = (e) => {
+      const stream = e.streams[0];
+      if (!stream) return;
       const audio = new Audio();
-      audio.srcObject = e.streams[0];
+      audio.srcObject = stream;
       audio.play().catch(() => {/* autoplay policy */});
     };
 

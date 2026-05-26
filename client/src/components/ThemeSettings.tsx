@@ -458,14 +458,20 @@ function TopbarCustomizer({ items, onChange }: {
   function moveUp(idx: number) {
     if (idx === 0) return;
     const next = [...items];
-    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    const current = next[idx];
+    const previous = next[idx - 1];
+    if (!current || !previous) return;
+    [next[idx - 1], next[idx]] = [current, previous];
     onChange(next);
   }
 
   function moveDown(idx: number) {
     if (idx === items.length - 1) return;
     const next = [...items];
-    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    const current = next[idx];
+    const following = next[idx + 1];
+    if (!current || !following) return;
+    [next[idx], next[idx + 1]] = [following, current];
     onChange(next);
   }
 

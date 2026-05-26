@@ -3,7 +3,7 @@ import type { CallState } from '../types';
 
 interface Props {
   state: CallState;
-  connectedAt?: number;
+  connectedAt?: number | undefined;
 }
 
 const STATE_LABELS: Record<CallState, string> = {

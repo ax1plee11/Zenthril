@@ -68,11 +68,15 @@ async function request<T>(
     }
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const init: RequestInit = {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, init);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "unknown" }));

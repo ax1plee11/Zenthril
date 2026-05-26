@@ -234,7 +234,7 @@ describe("TransportLayer", () => {
 
       expect(ws.sentMessages).toHaveLength(1);
       // Первое сообщение — heartbeat ping или наше событие
-      const parsed = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]);
+      const parsed = JSON.parse(ws.sentMessages[ws.sentMessages.length - 1]!);
       expect(parsed).toEqual(event);
     });
 
