@@ -20,6 +20,7 @@ var (
 	ErrForbidden     = errors.New("forbidden")
 	ErrInviteExpired = errors.New("invite_expired_or_invalid")
 	ErrAlreadyMember = errors.New("already_member")
+	ErrGuildBanned   = errors.New("guild_banned")
 )
 
 const (
@@ -235,13 +236,21 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 		memberRoleID = &roleID
 	}
 
-	_, err = tx.Exec(ctx,
+	var joined int
+	err = tx.QueryRow(ctx,
 		`INSERT INTO guild_members (guild_id, user_id, role_id)
 		 VALUES ($1, $2, $3)
-		 ON CONFLICT (guild_id, user_id) DO UPDATE SET banned = FALSE`,
+		 ON CONFLICT (guild_id, user_id) DO UPDATE
+		 SET role_id = COALESCE(guild_members.role_id, EXCLUDED.role_id)
+		 WHERE guild_members.banned = FALSE
+		 RETURNING 1`,
 		invite.GuildID, userUUID, memberRoleID,
-	)
+	).Scan(&joined)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// SECURITY: invites must never clear an existing guild ban.
+			return nil, ErrGuildBanned
+		}
 		return nil, fmt.Errorf("insert member: %w", err)
 	}
 

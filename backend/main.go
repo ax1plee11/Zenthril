@@ -31,6 +31,8 @@ import (
 	"zenthril-backend/spam"
 )
 
+const maxRequestBodyBytes int64 = 1 << 20
+
 func wsAllowedOrigins(cfg *config.Config) []string {
 	if len(cfg.WSAllowedOrigins) > 0 {
 		return cfg.WSAllowedOrigins
@@ -59,6 +61,19 @@ func adminOnly(cfg *config.Config) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusForbidden)
 				_, _ = w.Write([]byte(`{"error":"forbidden","message":"Admin access required"}`))
 				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func requestBodyLimit(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// SECURITY: all mutating endpoints get a hard body cap before JSON decoding.
+			switch r.Method {
+			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -176,6 +191,7 @@ func main() {
 	})
 
 	r.Use(secGuard.IPRateLimit)
+	r.Use(requestBodyLimit(maxRequestBodyBytes))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -133,6 +133,11 @@ func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusGone, "invite_expired_or_invalid", "Invite has expired or is invalid")
 			return
 		}
+		if errors.Is(err, ErrGuildBanned) {
+			// SECURITY: banned users must not be able to rejoin by consuming an invite.
+			writeError(w, http.StatusForbidden, "guild_banned", "You are banned from this guild")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to join guild")
 		return
 	}
