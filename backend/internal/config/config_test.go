@@ -72,6 +72,19 @@ func TestProductionRequiresOperationalToken(t *testing.T) {
 	}
 }
 
+func TestProductionRejectsMemoryEventBus(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
+	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("EVENT_BUS_DRIVER", "memory")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected production memory event bus validation error")
+	}
+}
+
 func TestRejectsGatewayOriginWithPath(t *testing.T) {
 	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
 	t.Setenv("JWT_SECRET", "dev-secret")

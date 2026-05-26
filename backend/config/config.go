@@ -26,6 +26,7 @@ type Config struct {
 	OperationalToken   string
 	FederationEnabled  bool
 	FederationToken    string
+	EventBusDriver     string
 	Environment        string
 }
 
@@ -52,6 +53,7 @@ func Load() (*Config, error) {
 		OperationalToken:   getEnvWithFallback("OPERATIONAL_TOKEN", "METRICS_TOKEN", ""),
 		FederationEnabled:  getEnvBool("FEDERATION_ENABLED", false),
 		FederationToken:    getEnv("FEDERATION_TOKEN", ""),
+		EventBusDriver:     strings.ToLower(getEnv("EVENT_BUS_DRIVER", "memory")),
 		Environment:        getEnvWithFallback("ENVIRONMENT", "APP_ENV", "development"),
 	}
 
@@ -107,6 +109,9 @@ func Load() (*Config, error) {
 		}
 		if len(cfg.WSAllowedOrigins) == 0 {
 			return nil, fmt.Errorf("WS_ALLOWED_ORIGINS is required in production")
+		}
+		if cfg.EventBusDriver == "memory" {
+			return nil, fmt.Errorf("EVENT_BUS_DRIVER=memory is not allowed in production; use kafka or nats")
 		}
 	}
 	if hasWildcard(cfg.CORSAllowedOrigins) {

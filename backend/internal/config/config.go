@@ -190,6 +190,9 @@ func (c Config) Validate() error {
 		if len(c.Gateway.AllowedOrigins) == 0 {
 			return errors.New("WS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS is required in production")
 		}
+		if c.EventBus.Driver == "memory" {
+			return errors.New("EVENT_BUS_DRIVER=memory is not allowed in production; use kafka or nats")
+		}
 	}
 	if hasWildcard(c.Gateway.AllowedOrigins) {
 		return errors.New("gateway allowed origins cannot contain wildcard")

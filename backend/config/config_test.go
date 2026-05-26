@@ -102,9 +102,25 @@ func TestLoad_ProductionOK(t *testing.T) {
 	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("EVENT_BUS_DRIVER", "kafka")
 
 	if _, err := Load(); err != nil {
 		t.Fatalf("Load: %v", err)
+	}
+}
+
+func TestLoad_ProductionRejectsMemoryEventBus(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DB_URL", "postgres://u:p@localhost:5432/db")
+	t.Setenv("JWT_SECRET", productionJWTSecret)
+	t.Setenv("METRICS_TOKEN", "metrics-token-minimum-32-chars!!!!")
+	t.Setenv("OPERATIONAL_TOKEN", "operational-token-minimum-32-chars")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("EVENT_BUS_DRIVER", "memory")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected production memory event bus validation error")
 	}
 }
 
