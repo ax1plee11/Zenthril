@@ -67,6 +67,8 @@ Zenthril currently implements **foundational E2EE components**. A full Signal-gr
 
 **Do not use for highly sensitive communications at this stage.**
 
+See [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md) for current backend hardening controls and remaining alpha risks.
+
 ## Performance Research
 
 All published performance figures were measured in controlled benchmark environments.

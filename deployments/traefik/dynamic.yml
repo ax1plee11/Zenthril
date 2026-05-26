@@ -17,6 +17,8 @@ http:
           path: /healthz
           interval: 10s
           timeout: 3s
+          headers:
+            Authorization: "Bearer ${OPERATIONAL_TOKEN}"
         servers:
           - url: "http://api:8080"
 

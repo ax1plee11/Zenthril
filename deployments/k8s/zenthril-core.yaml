@@ -68,15 +68,19 @@ spec:
             - name: HTTP_ADDR
               value: :8080
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - wget -q --spider --header "Authorization: Bearer ${OPERATIONAL_TOKEN}" http://127.0.0.1:8080/readyz
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - wget -q --spider --header "Authorization: Bearer ${OPERATIONAL_TOKEN}" http://127.0.0.1:8080/healthz
             initialDelaySeconds: 10
             periodSeconds: 10
           resources:
