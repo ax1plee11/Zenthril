@@ -8,6 +8,8 @@ Zenthril is currently an alpha project. The backend now defaults to a stricter s
 - `WS_ALLOWED_ORIGINS` must contain exact origins only and is required for WebSocket upgrades.
 - Wildcards such as `*` and origins with paths are rejected by configuration validation.
 - WebSocket upgrades fail closed when no allowed origin is configured.
+- WebSocket handlers reject missing or cross-site `Origin` headers to prevent Cross-Site WebSocket Hijacking.
+- Legacy WebSocket tickets are not consumed until the request origin is accepted.
 - WebSocket messages have size limits, per-connection limits, per-user limits, and malformed command limits.
 
 ## Operational Endpoints

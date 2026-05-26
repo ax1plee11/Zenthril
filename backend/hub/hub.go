@@ -34,26 +34,30 @@ func NewUpgrader(allowedOrigins []string, environment string) websocket.Upgrader
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			origin := r.Header.Get("Origin")
-
-			// SECURITY-HARDENING: fail closed when WS_ALLOWED_ORIGINS is missing.
-			if len(allow) == 0 {
-				slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin, "environment", environment)
-				return false
-			}
-
-			if origin == "" {
-				slog.Warn("security websocket origin rejected", "reason", "empty_origin", "environment", environment)
-				return false
-			}
-
-			if _, ok := allow[origin]; ok {
-				return true
-			}
-			slog.Warn("security websocket origin rejected", "reason", "origin_not_allowed", "origin", origin, "environment", environment)
-			return false
+			return checkWSOrigin(r, allow, environment)
 		},
 	}
+}
+
+func checkWSOrigin(r *http.Request, allow map[string]struct{}, environment string) bool {
+	origin := r.Header.Get("Origin")
+
+	// SECURITY-HARDENING: fail closed when WS_ALLOWED_ORIGINS is missing.
+	if len(allow) == 0 {
+		slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin, "environment", environment)
+		return false
+	}
+
+	if origin == "" {
+		slog.Warn("security websocket origin rejected", "reason", "empty_origin", "environment", environment)
+		return false
+	}
+
+	if _, ok := allow[origin]; ok {
+		return true
+	}
+	slog.Warn("security websocket origin rejected", "reason", "origin_not_allowed", "origin", origin, "environment", environment)
+	return false
 }
 
 type Client struct {
@@ -506,6 +510,14 @@ func (h *Hub) voiceLeave(c *Client, channelID string) {
 }
 
 func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.ResponseWriter, r *http.Request) {
+	// SECURITY-HARDENING: reject cross-site WebSocket upgrades before consuming
+	// one-time tickets. This prevents CSWSH and avoids burning valid tickets on
+	// requests from untrusted browser origins.
+	if upgrader.CheckOrigin != nil && !upgrader.CheckOrigin(r) {
+		http.Error(w, "websocket origin not allowed", http.StatusForbidden)
+		return
+	}
+
 	ticket := r.URL.Query().Get("ticket")
 	if ticket == "" {
 		http.Error(w, "missing ticket", http.StatusUnauthorized)
