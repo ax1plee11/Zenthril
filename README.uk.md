@@ -2,182 +2,134 @@
 
 **[English](README.md)** | **[Русский](README.ru.md)** | **[Українська](README.uk.md)**
 
----
+**Zenthril** — open-source self-hosted платформа обміну повідомленнями, сфокусована на безпеці, продуктивності та дослідженні realtime communication systems.
 
-Децентралізований месенджер з федеративною архітектурою та наскрізним шифруванням.
+Проєкт розробляється студентом випускного курсу Software Engineering як практичний застосунок і академічний інженерний проєкт.
 
-## Технологічний стек
+## Статус
 
-- **Backend**: Go + PostgreSQL + Redis
-- **Client**: Tauri + Vite + React/TypeScript
-- **Шифрування**: X25519 + AES-256-GCM (E2EE)
-- **Аутентифікація**: JWT + Argon2id
-- **UI**: Tailwind CSS + shadcn/ui + Glass Minimal Design
-- **i18n**: Підтримка кількох мов (EN, RU, UK)
+**Alpha Stage**
 
-## Можливості
+Проєкт активно розвивається. Core messaging, hybrid voice і foundational E2EE components уже реалізовані, але **Zenthril поки не рекомендований для production-використання в недовірених середовищах**.
 
-✨ **Сучасний дизайн**
-- Glass Minimal UI в стилі Apple/Notion
-- Темна тема з ефектами glassmorphism
-- Плавні анімації та переходи
-- Адаптивна верстка
+На цьому етапі проєкт підходить для локальної розробки, controlled self-hosted testing і академічних досліджень.
 
-🌍 **Інтернаціоналізація**
-- Автоматичне визначення мови
-- Підтримка англійської, російської, української
-- Легко додати нові мови
+## Ключові можливості
 
-🔒 **Безпека та приватність**
-- Наскрізне шифрування (E2EE)
-- Федеративна архітектура
-- Без відстеження та збору даних
-- Відкритий вихідний код
+- Realtime messaging через WebSocket.
+- Guilds і channels з базовою модерацією.
+- Hybrid Voice system: P2P + Mesh + SFU з fallback-логікою.
+- Device management і key revocation foundation.
+- JWT authentication з refresh token support.
+- Multi-language interface: EN / RU / UK.
 
-💬 **Комунікація**
-- Текстові канали та особисті повідомлення
-- Голосові канали (WebRTC)
-- Підтримка GIF (Tenor/Giphy)
-- Обмін повідомленнями в реальному часі (WebSocket)
+## Технічний стек
 
-## Документація
+**Backend**
 
-- [SECURITY.md](SECURITY.md) — Як повідомляти про вразливості
-- [docs/PRIVACY.md](docs/PRIVACY.md) — Чернетка політики конфіденційності
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Публічний хостинг: TLS, `VITE_API_BASE`, CORS/WS, бекапи
-- [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) — Як зібрати desktop-додаток (.exe)
+- Go 1.23+
+- Chi router
+- PostgreSQL + Redis
+- Gorilla WebSocket
 
-## Якість коду (локально)
+**Client**
 
-**Backend** (`backend/`):
+- Tauri 2
+- React + TypeScript
+- Tailwind CSS + shadcn/ui
+
+**Research & Observability**
+
+- Go benchmarks.
+- k6 load testing.
+- Prometheus-compatible metrics endpoint.
+
+## Архітектура
+
+- Модульний Go backend з authentication, guilds, messaging, device keys, voice і gateway foundations.
+- WebSocket realtime layer з ongoing security hardening.
+- PostgreSQL для relational data і Redis для cache/session-oriented infrastructure.
+- Tauri desktop client на React і TypeScript.
+- Research artifacts і benchmark results у [`research/`](research/).
+
+## Безпека та E2EE
+
+Безпека — один із головних пріоритетів проєкту.
+
+**Уже реалізовано**
+
+- Argon2id password hashing.
+- JWT з refresh tokens.
+- Device key management і revocation.
+- Basic E2EE foundation: X25519 + AES-256-GCM.
+
+**Важливий disclaimer**
+
+Zenthril зараз реалізує **foundational E2EE components**, а не повний Signal-grade protocol. Double Ratchet, повноцінна forward secrecy, robust session healing і зріла multi-device модель ще перебувають у розробці.
+
+**Не використовуйте проєкт для високочутливих комунікацій на цій стадії.**
+
+Поточні security controls описані в [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md).
+
+## Performance Research
+
+Усі опубліковані performance numbers вимірювалися в controlled benchmark environments.
+
+**Приклад результатів: single node, Intel Core i7-12700K, 32GB RAM**
+
+- Peak WebSocket throughput: близько 14,800 messages/sec.
+- P95 latency при 500 concurrent users: близько 98ms.
+
+Методологія, scripts і raw results знаходяться в [`research/`](research/). Академічний план описано в [`docs/ACADEMIC_RESEARCH_PLAN.md`](docs/ACADEMIC_RESEARCH_PLAN.md).
+
+## Roadmap
+
+Короткий напрям:
+
+- Security hardening і E2EE protocol maturity.
+- WebSocket gateway layer для multi-instance deployments.
+- Production deployment improvements.
+- Basic federation лише після проєктування безпечного protocol.
+- Comparative research і матеріали для дипломної/магістерської роботи.
+
+Детальна дорожня карта: [`docs/ROADMAP.uk.md`](docs/ROADMAP.uk.md).
+
+## Для розробників
 
 ```bash
-go vet ./...
-go test ./... -count=1
-# go test -race ./...   # на Linux/macOS і Windows amd64; на win/386 недоступний
-```
+git clone https://github.com/ax1plee11/Zenthril.git
+cd Zenthril
 
-Лінтер: [golangci-lint](https://golangci-lint.run/) з конфігом `backend/.golangci.yml` (той самий запускається в CI).
-
-**Client** (`client/`):
-
-```bash
-npm run lint
-npm run test
-npm run test:coverage
-npm run build
-```
-
-## Структура проекту
-
-```
-zenthril/
-├── backend/          # Go-сервер (вузол федеративної мережі)
-│   ├── config/       # Конфігурація через змінні оточення
-│   ├── migrations/   # SQL-міграції PostgreSQL
-│   └── main.go       # Точка входу HTTP-сервера
-├── client/           # Tauri + Vite + React/TypeScript desktop-клієнт
-│   ├── src/
-│   │   ├── components/  # React-компоненти
-│   │   ├── i18n/        # Інтернаціоналізація (EN, RU, UK)
-│   │   └── store/       # Управління станом
-│   └── src-tauri/    # Tauri (Rust) desktop-обгортка
-├── docs/             # Документація
-├── docker-compose.yml
-└── .env.example
-```
-
-## Швидкий старт
-
-```bash
-# 1. Скопіювати змінні оточення
 cp .env.example .env
-
-# 2. Запустити backend-сервіси (PostgreSQL + Redis)
-docker compose up -d
-
-# 3. Встановити залежності клієнта
-cd client
-npm install
-
-# 4. Скопіювати змінні оточення клієнта
-cp .env.example .env
-
-# 5. Запустити dev-сервер
-npm run dev -- --host 0.0.0.0 --port 1420
+# Налаштуйте сильні секрети та allowed origins
 ```
 
-Відкрий `http://localhost:1420/`. Backend буде доступний на `http://localhost:8080/`.
+Backend:
 
-## Змінні оточення
+```bash
+cd backend
+go run .
+```
 
-### Backend (корінь репозиторію)
-
-- `DB_URL` (обов'язково) — Рядок підключення до PostgreSQL
-- `REDIS_URL` (за замовчуванням: `redis://localhost:6379`)
-- `JWT_SECRET` (обов'язково) — Секретний ключ для JWT-токенів
-- `HTTP_ADDR` (за замовчуванням: `:8080`)
-- `CORS_ALLOWED_ORIGINS` (опціонально) — Дозволені CORS origins
-- `WS_ALLOWED_ORIGINS` (опціонально) — Дозволені WebSocket origins
-- `ADMIN_USER_IDS` (опціонально, UUID через кому) — Доступ до `/api/v1/admin/*` (включаючи global ban)
-
-### Client (папка `client/`)
-
-Скопіюй `client/.env.example` → `client/.env`.
-
-- `VITE_API_BASE` (для production-збірки) — Origin backend'у, наприклад `https://api.example.com` (див. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
-- `VITE_TENOR_KEY` (опціонально) — API-ключ Tenor для пошуку GIF
-- `VITE_GIPHY_KEY` (опціонально) — API-ключ Giphy для пошуку GIF
-
-## Збірка desktop-додатку (Windows)
-
-Для збірки desktop-додатку на Windows потрібні **Visual Studio Build Tools** (з `link.exe`):
-
-1. Завантаж [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
-2. Вибери "Desktop development with C++"
-3. Встанови (~6 ГБ)
-4. Перезапусти термінал
-
-Потім зібери:
+Client:
 
 ```bash
 cd client
-npm run tauri build
+npm install
+npm run tauri dev
 ```
 
-Файл `.exe` буде в `client/src-tauri/target/release/bundle/`.
+## Contribution
 
-Детальні інструкції в [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
+Contributions вітаються. Пріоритетні напрями:
 
-## Скріншоти
+- Security review і cryptographic improvements.
+- E2EE protocol development і testing.
+- Performance analysis і benchmarking.
+- Documentation.
 
-### Glass Minimal дизайн
-![Екран авторизації](https://via.placeholder.com/800x500?text=Auth+Screen+with+Language+Switcher)
+Для великих змін спочатку відкрийте Issue.
 
-### Підтримка кількох мов
-- 🇬🇧 English
-- 🇷🇺 Русский
-- 🇺🇦 Українська
+## License
 
-Мова автоматично визначається з налаштувань браузера і може бути змінена вручну.
-
-## Участь у розробці
-
-Ми вітаємо внесок у проект! Будь ласка, прочитайте [CONTRIBUTING.md](CONTRIBUTING.md) для інформації про:
-- 🐛 Як повідомляти про баги
-- 💡 Як пропонувати нові функції
-- 🔒 Як повідомляти про вразливості безпеки
-- 🛠️ Як брати участь у коді
-- 🌍 Як додавати переклади
-
-**Контакт:** ax1plee@gmail.com
-
-## Ліцензія
-
-Цей проект з відкритим вихідним кодом. Див. файл LICENSE для деталей.
-
-## Подяки
-
-- Дизайн натхненний Apple та Notion
-- UI-компоненти від [shadcn/ui](https://ui.shadcn.com/)
-- Іконки від [Lucide](https://lucide.dev/)
+MIT License. Див. [`LICENSE`](LICENSE).

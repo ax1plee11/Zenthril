@@ -78,9 +78,11 @@ All published performance figures were measured in controlled benchmark environm
 - Peak WebSocket throughput: ~14,800 messages/sec
 - P95 latency at 500 concurrent users: ~98ms
 
-Detailed methodology, scripts, and raw results are available in the [`research/`](research/) directory.
+Detailed methodology, scripts, and raw results are available in the [`research/`](research/) directory. For academic framing, see [`docs/ACADEMIC_RESEARCH_PLAN.md`](docs/ACADEMIC_RESEARCH_PLAN.md).
 
 ## Roadmap
+
+The short roadmap below summarizes the current direction. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed version.
 
 **Phase 1 (In Progress)**
 
