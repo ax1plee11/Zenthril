@@ -5,6 +5,8 @@ services:
     image: postgres:16-alpine
     container_name: zenthril-postgres
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.75"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-zenthril}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
@@ -24,6 +26,8 @@ services:
     image: redis:7-alpine
     container_name: zenthril-redis
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: "0.5"
     expose:
       - "6379"
     volumes:
@@ -38,6 +42,8 @@ services:
     build: ./backend
     container_name: zenthril-backend
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1.0"
     environment:
       DB_URL: postgres://${POSTGRES_USER:-zenthril}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-zenthril}?sslmode=disable
       REDIS_URL: redis://redis:6379
