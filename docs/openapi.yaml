@@ -1,0 +1,42 @@
+openapi: 3.1.0
+info:
+  title: Zenthril API
+  version: 0.1.0-alpha
+  description: Federated E2EE messenger API
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit/
+servers:
+  - url: http://localhost:8080
+security: []
+paths:
+  /api/v1/auth/login:
+    post:
+      operationId: loginWithPassword
+      summary: Login with password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Token pair issued
+        "401":
+          description: Invalid credentials
+        "423":
+          description: MFA required
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+        "401":
+          description: Operational token required in production

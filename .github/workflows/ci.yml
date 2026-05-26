@@ -90,6 +90,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Lint OpenAPI
+      run: npx --yes @redocly/cli@latest lint docs/openapi.yaml
+
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
