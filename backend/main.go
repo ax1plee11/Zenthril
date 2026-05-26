@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -141,6 +146,8 @@ func operationalTokenAuth(cfg *config.Config, next http.HandlerFunc) http.Handle
 
 func main() {
 	_ = godotenv.Load()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -355,10 +362,29 @@ func main() {
 
 	log.Printf("Zenthril node starting on %s", cfg.HTTPAddr)
 
-	if cfg.TLSCertFile != "" && cfg.TLSKeyFile != "" {
-		log.Fatal(server.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
-	} else {
-		log.Fatal(server.ListenAndServe())
+	errCh := make(chan error, 1)
+	go func() {
+		if cfg.TLSCertFile != "" && cfg.TLSKeyFile != "" {
+			errCh <- server.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+			return
+		}
+		errCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		slog.Info("shutdown requested")
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server error: %v", err)
+		}
+	}
+
+	// ARCHITECTURE: legacy entrypoint now drains HTTP requests on SIGTERM like cmd/api.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("server shutdown error: %v", err)
 	}
 }
 

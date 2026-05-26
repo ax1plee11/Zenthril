@@ -39,6 +39,8 @@ Production environments must provide:
 
 Kubernetes probes in `deployments/k8s/zenthril-core.yaml` use `OPERATIONAL_TOKEN` through an exec probe. Traefik health checks in `deployments/traefik/dynamic.yml` also include an authorization header.
 
+Caddy health checks in `deployments/Caddyfile` also send `Authorization: Bearer {$OPERATIONAL_TOKEN}`. Keep proxy and application tokens in sync when rotating secrets.
+
 ## JWT And Refresh Tokens
 
 - Access tokens are short-lived.

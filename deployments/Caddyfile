@@ -26,6 +26,9 @@
 
 	reverse_proxy api:8080 {
 		health_uri /healthz
+		health_headers {
+			Authorization "Bearer {$OPERATIONAL_TOKEN}"
+		}
 		health_interval 10s
 		health_timeout 3s
 	}

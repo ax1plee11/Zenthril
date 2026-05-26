@@ -16,17 +16,21 @@ ARG TARGET=./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ${TARGET}
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.20
 
 RUN apk --no-cache add ca-certificates tzdata
+RUN addgroup -S zenthril && adduser -S -G zenthril zenthril
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /app/server .
 
 # Copy migrations
 COPY backend/migrations ./migrations/
+
+RUN chown -R zenthril:zenthril /app
+USER zenthril
 
 # Expose port
 EXPOSE 8080
