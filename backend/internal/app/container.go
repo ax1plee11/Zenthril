@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 
+	"go.uber.org/fx"
+
 	"zenthril-backend/internal/config"
 	"zenthril-backend/internal/event"
 	"zenthril-backend/internal/gateway"
@@ -19,57 +21,32 @@ type Container struct {
 	ShardManager    *repository.ShardManager
 	GatewayRegistry *gateway.Registry
 	GatewayHandler  *gateway.Handler
+
+	fxApp *fx.App
 }
 
 func New(ctx context.Context) (*Container, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, err
-	}
+	var container *Container
+	app := fx.New(
+		fx.NopLogger,
+		Module,
+		fx.Populate(&container),
+	)
 
-	logger := newLogger(cfg)
-	shards, err := repository.NewShardManagerFromConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("create shard manager: %w", err)
+	if err := app.Start(ctx); err != nil {
+		return nil, fmt.Errorf("start fx app: %w", err)
 	}
-
-	bus, err := event.NewBusFromConfig(cfg.EventBus, logger)
-	if err != nil {
-		return nil, fmt.Errorf("create event bus: %w", err)
-	}
-	registry := gateway.NewRegistry(gateway.RegistryOptions{
-		NodeID:         cfg.Gateway.NodeID,
-		MaxConnections: cfg.Gateway.MaxConnections,
-		Logger:         logger,
-	})
-	handler := gateway.NewHandler(gateway.HandlerOptions{
-		NodeID:         cfg.Gateway.NodeID,
-		Registry:       registry,
-		Bus:            bus,
-		Authenticator:  gateway.NewJWTAuthenticator(cfg.Security.JWTSecret),
-		Logger:         logger,
-		AllowedOrigins: cfg.Gateway.AllowedOrigins,
-		ReadLimitBytes: cfg.Gateway.ReadLimitBytes,
-		WriteTimeout:   cfg.Gateway.WriteTimeout,
-		PongWait:       cfg.Gateway.PongWait,
-		PingPeriod:     cfg.Gateway.PingPeriod,
-	})
-	if err := handler.Start(ctx); err != nil {
-		return nil, fmt.Errorf("start gateway handler: %w", err)
-	}
-
-	return &Container{
-		Config:          cfg,
-		Logger:          logger,
-		EventBus:        bus,
-		ShardManager:    shards,
-		GatewayRegistry: registry,
-		GatewayHandler:  handler,
-	}, nil
+	container.fxApp = app
+	return container, nil
 }
 
 func (c *Container) Close(ctx context.Context) error {
 	c.GatewayRegistry.StartDraining()
+	if c.fxApp != nil {
+		if err := c.fxApp.Stop(ctx); err != nil {
+			return fmt.Errorf("stop fx app: %w", err)
+		}
+	}
 	if c.EventBus != nil {
 		return c.EventBus.Close(ctx)
 	}
