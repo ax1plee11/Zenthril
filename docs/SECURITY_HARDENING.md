@@ -60,4 +60,5 @@ E2EE is still foundational:
 
 - X25519 and AES-256-GCM primitives exist.
 - Device key management and revocation are present.
-- Full Double Ratchet, robust session healing, and mature multi-device recovery are still roadmap items.
+- Backend Double Ratchet state and HKDF key-evolution foundations are present.
+- Full message protocol integration, robust session healing, and mature multi-device recovery are still roadmap items.

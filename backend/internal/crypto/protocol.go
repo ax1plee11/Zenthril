@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 )
 
@@ -55,12 +56,21 @@ func (s *X3DHService) StartSession(ctx context.Context, local DeviceKeyBundle, p
 		return SessionState{}, errors.New("incomplete X3DH key bundle")
 	}
 
-	// The concrete DH/KDF steps intentionally live behind this boundary. The
-	// next implementation phase wires audited primitives and test vectors here.
-	return SessionState{
+	// SECURITY: this is a deterministic session bootstrap placeholder until
+	// audited X25519 X3DH test vectors are wired into this boundary.
+	bootstrap := sha256.Sum256(append(append(cloneBytes(local.IdentityKey), peer.IdentityKey...), peer.SignedPreKey...))
+	sessionInfo := []byte(local.UserID + ":" + local.DeviceID + "->" + peer.UserID + ":" + peer.DeviceID)
+	ratchet, err := DeriveInitialRatchetState(bootstrap[:], sessionInfo, true)
+	if err != nil {
+		return SessionState{}, err
+	}
+
+	session := SessionState{
 		UserID:       local.UserID,
 		PeerUserID:   peer.UserID,
 		DeviceID:     local.DeviceID,
 		PeerDeviceID: peer.DeviceID,
-	}, nil
+	}
+	session.ApplyRatchetState(ratchet)
+	return session, nil
 }

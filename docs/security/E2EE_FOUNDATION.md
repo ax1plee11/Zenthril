@@ -15,7 +15,9 @@ Implemented backend primitives:
 - signed prekey and signed prekey signature;
 - one-time prekey upload and consumption;
 - device fingerprint for safety verification UX;
-- authenticated endpoint to claim an X3DH-style key bundle.
+- authenticated endpoint to claim an X3DH-style key bundle;
+- initial Double Ratchet state model with HKDF-SHA256 root, chain, and
+  message-key derivation boundaries.
 
 Implemented client primitives:
 
@@ -53,8 +55,8 @@ and removes its one-time prekeys so new sessions cannot be established with it.
 
 1. Add client-side secure device key storage in Tauri.
 2. Add safety number display and manual verification UX.
-3. Implement X3DH shared secret derivation with test vectors.
-4. Add Double Ratchet session state for direct messages.
+3. Replace the temporary X3DH bootstrap placeholder with audited X25519 test vectors.
+4. Persist Double Ratchet session state for direct messages.
 5. Add academic threat model and protocol limitations section.
 
 ## Security Notes
@@ -67,5 +69,9 @@ and removes its one-time prekeys so new sessions cannot be established with it.
   production-grade private key storage.
 - Safety numbers are local verification UX primitives. They do not replace
   signature verification, trust decisions, or future per-user trust records.
+- The current Double Ratchet code is a backend foundation for deterministic key
+  evolution and tests. It is not yet a complete message protocol with skipped
+  message keys, header encryption, full DH ratchet turns, or production session
+  persistence.
 - The protocol must remain marked experimental until reviewed and tested with
   reproducible vectors.
