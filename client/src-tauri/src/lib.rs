@@ -7,6 +7,8 @@ const DEVICE_KEY_PREFIX: &str = "device_key_bundle:";
 
 /// Сохраняет приватный ключ в защищённое хранилище Tauri Store.
 #[tauri::command]
+// SECURITY: this temporary Tauri Store backend is not OS keychain/Stronghold storage.
+// It must be replaced before production desktop use of private E2EE key material.
 fn store_private_key(app: tauri::AppHandle, key: String) -> Result<(), String> {
     let store = app
         .store(STORE_PATH)
@@ -18,6 +20,7 @@ fn store_private_key(app: tauri::AppHandle, key: String) -> Result<(), String> {
 
 /// Загружает приватный ключ из защищённого хранилища.
 #[tauri::command]
+// SECURITY: this reads from the temporary Tauri Store backend, not OS keychain/Stronghold.
 fn load_private_key(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let store = app
         .store(STORE_PATH)

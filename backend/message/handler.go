@@ -37,8 +37,8 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	channelID := chi.URLParam(r, "channelId")
 
-	var payload models.EncryptedPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	payload, err := decodeEncryptedPayloadRequest(r)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
 	}
@@ -104,8 +104,8 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 
 	messageID := chi.URLParam(r, "messageId")
 
-	var payload models.EncryptedPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	payload, err := decodeEncryptedPayloadRequest(r)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
 	}
@@ -178,15 +178,39 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	})
 }
 
+func decodeEncryptedPayloadRequest(r *http.Request) (models.EncryptedPayload, error) {
+	var raw json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		return models.EncryptedPayload{}, err
+	}
+
+	var wrapped struct {
+		Payload *models.EncryptedPayload `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &wrapped); err == nil && wrapped.Payload != nil {
+		return *wrapped.Payload, nil
+	}
+
+	var payload models.EncryptedPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return models.EncryptedPayload{}, err
+	}
+	return payload, nil
+}
+
 func validateEncryptedPayload(payload models.EncryptedPayload) error {
 	ciphertext := strings.TrimSpace(payload.Ciphertext)
 	iv := strings.TrimSpace(payload.IV)
 	keyID := strings.TrimSpace(payload.KeyID)
-	if ciphertext == "" || iv == "" || keyID == "" {
-		return errors.New("ciphertext, iv and key_id are required")
+	tag := strings.TrimSpace(payload.Tag)
+	if ciphertext == "" || iv == "" || keyID == "" || tag == "" {
+		return errors.New("ciphertext, iv, key_id and tag are required")
 	}
 	if len(keyID) > maxKeyIDLength {
 		return fmt.Errorf("key_id must be at most %d characters", maxKeyIDLength)
+	}
+	if payload.ProtocolVersion != models.CryptoProtocolVersion {
+		return fmt.Errorf("protocol_version must be %d", models.CryptoProtocolVersion)
 	}
 	ciphertextBytes, err := decodeBase64(ciphertext)
 	if err != nil {
@@ -201,6 +225,13 @@ func validateEncryptedPayload(payload models.EncryptedPayload) error {
 	}
 	if len(ivBytes) != 12 {
 		return errors.New("iv must decode to 12 bytes")
+	}
+	tagBytes, err := decodeBase64(tag)
+	if err != nil {
+		return errors.New("tag must be base64")
+	}
+	if len(tagBytes) != 16 {
+		return errors.New("tag must decode to 16 bytes")
 	}
 	return nil
 }

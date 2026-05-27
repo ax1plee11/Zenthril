@@ -6,10 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
+const CryptoProtocolVersion = 1
+
 type EncryptedPayload struct {
-	Ciphertext string `json:"ciphertext"`
-	IV         string `json:"iv"`
-	KeyID      string `json:"key_id"`
+	Ciphertext      string `json:"ciphertext"`
+	IV              string `json:"iv"`
+	KeyID           string `json:"key_id"`
+	Tag             string `json:"tag"`
+	ProtocolVersion int    `json:"protocol_version"`
 }
 
 type Message struct {

@@ -222,7 +222,8 @@ export interface EncryptedPayloadAPI {
   ciphertext: string;
   iv: string;
   key_id: string;
-  tag?: string;
+  tag: string;
+  protocol_version: number;
 }
 
 export interface GuildAPI {

@@ -101,6 +101,7 @@ function toApiPayload(p: EncryptedPayload): EncryptedPayloadAPI {
     iv: p.iv,
     key_id: p.keyId,
     tag: p.tag,
+    protocol_version: p.protocolVersion,
   };
 }
 
@@ -110,7 +111,8 @@ function fromApiPayload(p: EncryptedPayloadAPI): EncryptedPayload {
     ciphertext: p.ciphertext,
     iv: p.iv,
     keyId: p.key_id,
-    tag: p.tag ?? "",
+    tag: p.tag,
+    protocolVersion: p.protocol_version,
   };
 }
 

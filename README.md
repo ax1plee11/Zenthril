@@ -36,7 +36,7 @@ This repository should be read as an engineering alpha: useful, testable, and ac
 - Guilds, channels, invites, and basic moderation
 - JWT authentication with refresh token support
 - Device registration and key revocation foundation
-- Basic E2EE building blocks using X25519 and AES-256-GCM
+- Basic E2EE building blocks using X25519, HKDF-SHA256, and AES-256-GCM
 - Hybrid voice foundation with P2P / mesh / SFU-oriented architecture
 - Strict CORS and WebSocket Origin validation
 - Security headers, protected metrics, and production configuration validation
@@ -78,7 +78,7 @@ Zenthril currently provides **E2EE foundations**, not a finished, audited, Signa
 
 Do **not** use Zenthril for highly sensitive communication at this stage. Treat the current E2EE layer as a work in progress and as research-oriented engineering, not as a security promise.
 
-See [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md) and [`docs/security/E2EE_FOUNDATION.md`](docs/security/E2EE_FOUNDATION.md) for more detail.
+See [`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md), and [`docs/security/E2EE_FOUNDATION.md`](docs/security/E2EE_FOUNDATION.md) for more detail.
 
 ## Technical Stack
 

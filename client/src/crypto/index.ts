@@ -1,29 +1,23 @@
-/**
- * CryptoModule — E2EE для Zenthril
- *
- * X25519 ECDH: @noble/curves (работает в браузере, Tauri и Node.js)
- * AES-256-GCM:  WebCrypto API (window.crypto.subtle)
- */
-
 import { x25519 } from "@noble/curves/ed25519.js";
+import { hkdf } from "@noble/hashes/hkdf.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import type { EncryptedPayload } from "../types/index";
 
-// ─── Типы ────────────────────────────────────────────────────────────────────
+export const CRYPTO_PROTOCOL_VERSION = 1;
 
-/** Ключевая пара X25519: приватный и публичный ключи в виде Uint8Array */
+const PRIVATE_KEY_STORAGE_KEY = "zenthril_private_key";
+const KEY_BYTES = 32;
+const AES_GCM_IV_BYTES = 12;
+const AES_GCM_TAG_BYTES = 16;
+const ECDH_HKDF_SALT = new TextEncoder().encode("zenthril.e2ee.ecdh.hkdf.v1");
+const ECDH_HKDF_INFO = new TextEncoder().encode("zenthril.e2ee.message-key.v1");
+
+const sessionKeys = new Map<string, CryptoKey>();
+
 export interface X25519KeyPair {
   secretKey: Uint8Array;
   publicKey: Uint8Array;
 }
-
-// ─── Константы ───────────────────────────────────────────────────────────────
-
-const PRIVATE_KEY_STORAGE_KEY = "zenthril_private_key";
-
-/** Сессионные ключи: channelId → CryptoKey (AES-256-GCM) */
-const sessionKeys = new Map<string, CryptoKey>();
-
-// ─── Вспомогательные функции ─────────────────────────────────────────────────
 
 function bufferToBase64(buf: Uint8Array | ArrayBuffer): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -49,83 +43,87 @@ function generateKeyId(): string {
   return bufferToBase64(bytes);
 }
 
-/** Копия в BufferSource, совместимый с типами WebCrypto (TS 5.6+). */
 function toBufferSource(u8: Uint8Array): BufferSource {
   const buf = new ArrayBuffer(u8.byteLength);
   new Uint8Array(buf).set(u8);
   return buf;
 }
 
-// ─── Генерация ключевой пары ─────────────────────────────────────────────────
+export function deriveMessageKeyBytes(sharedSecret: Uint8Array): Uint8Array {
+  if (sharedSecret.byteLength !== KEY_BYTES) {
+    throw new Error("sharedSecret must be 32 bytes");
+  }
+  return hkdf(sha256, sharedSecret, ECDH_HKDF_SALT, ECDH_HKDF_INFO, KEY_BYTES);
+}
 
-/**
- * Генерирует X25519 ключевую пару.
- * Использует @noble/curves для совместимости с браузером, Tauri и Node.js.
- */
+export function encryptedPayloadAAD(protocolVersion: number, keyId: string): Uint8Array {
+  if (!Number.isInteger(protocolVersion) || protocolVersion <= 0) {
+    throw new Error("protocolVersion must be a positive integer");
+  }
+  if (!keyId) {
+    throw new Error("keyId is required");
+  }
+  return new TextEncoder().encode(
+    `zenthril.e2ee.payload|v=${protocolVersion}|key_id=${keyId}`,
+  );
+}
+
 export function generateKeyPair(): X25519KeyPair {
   return x25519.keygen();
 }
 
-// ─── Экспорт / импорт публичного ключа ───────────────────────────────────────
-
-/**
- * Экспортирует публичный ключ в base64.
- */
 export function exportPublicKey(key: Uint8Array): string {
   return bufferToBase64(key);
 }
 
-/**
- * Импортирует публичный ключ из base64.
- */
 export function importPublicKey(base64: string): Uint8Array {
   return base64ToUint8Array(base64);
 }
 
-// ─── ECDH: общий секрет → AES-256-GCM ключ ───────────────────────────────────
-
-/**
- * Выполняет X25519 ECDH и возвращает AES-256-GCM CryptoKey из общего секрета.
- * Общий секрет (32 байта) используется напрямую как ключ AES-256.
- */
 export async function deriveSharedSecret(
   myPrivateKey: Uint8Array,
   theirPublicKey: Uint8Array,
 ): Promise<CryptoKey> {
-  const sharedBytes = toBufferSource(
-    x25519.getSharedSecret(myPrivateKey, theirPublicKey),
-  );
-  return crypto.subtle.importKey(
-    "raw",
-    sharedBytes,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
+  const sharedBytes = x25519.getSharedSecret(myPrivateKey, theirPublicKey);
+  const keyBytes = deriveMessageKeyBytes(sharedBytes);
+
+  try {
+    return await crypto.subtle.importKey(
+      "raw",
+      toBufferSource(keyBytes),
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  } finally {
+    sharedBytes.fill(0);
+    keyBytes.fill(0);
+  }
 }
 
-// ─── AES-256-GCM: шифрование / дешифрование ──────────────────────────────────
-
-/**
- * Шифрует plaintext с помощью AES-256-GCM.
- * WebCrypto возвращает ciphertext + 16-байтовый auth tag слитно.
- * Мы разделяем их для явного хранения в EncryptedPayload.
- */
 export async function encrypt(
   plaintext: string,
   key: CryptoKey,
 ): Promise<EncryptedPayload> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
   const encoded = new TextEncoder().encode(plaintext);
+  const keyId = generateKeyId();
+  const protocolVersion = CRYPTO_PROTOCOL_VERSION;
+  const aad = encryptedPayloadAAD(protocolVersion, keyId);
 
   const ciphertextWithTag = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv, tagLength: 128 },
+    {
+      name: "AES-GCM",
+      iv: toBufferSource(iv),
+      tagLength: AES_GCM_TAG_BYTES * 8,
+      additionalData: toBufferSource(aad),
+    },
     key,
     encoded,
   );
 
   const ctBytes = new Uint8Array(ciphertextWithTag);
-  const tagOffset = ctBytes.length - 16;
+  const tagOffset = ctBytes.length - AES_GCM_TAG_BYTES;
   const ciphertextBytes = ctBytes.slice(0, tagOffset);
   const tagBytes = ctBytes.slice(tagOffset);
 
@@ -133,28 +131,48 @@ export async function encrypt(
     ciphertext: bufferToBase64(ciphertextBytes),
     iv: bufferToBase64(iv),
     tag: bufferToBase64(tagBytes),
-    keyId: generateKeyId(),
+    keyId,
+    protocolVersion,
   };
 }
 
-/**
- * Дешифрует EncryptedPayload с помощью AES-256-GCM.
- */
 export async function decrypt(
   payload: EncryptedPayload,
   key: CryptoKey,
 ): Promise<string> {
-  const ivBytes = base64ToUint8Array(payload.iv);
-  const ciphertextBytes = base64ToUint8Array(payload.ciphertext);
-  const tagBytes = base64ToUint8Array(payload.tag);
+  if (payload.protocolVersion !== CRYPTO_PROTOCOL_VERSION) {
+    throw new Error("Unsupported crypto protocol version");
+  }
+  if (!payload.keyId) {
+    throw new Error("Missing keyId");
+  }
+  if (!payload.tag) {
+    throw new Error("Missing authentication tag");
+  }
 
-  // Собираем обратно: ciphertext || tag
+  const ivBytes = base64ToUint8Array(payload.iv);
+  if (ivBytes.byteLength !== AES_GCM_IV_BYTES) {
+    throw new Error("Invalid IV length");
+  }
+
+  const tagBytes = base64ToUint8Array(payload.tag);
+  if (tagBytes.byteLength !== AES_GCM_TAG_BYTES) {
+    throw new Error("Invalid authentication tag length");
+  }
+
+  const ciphertextBytes = base64ToUint8Array(payload.ciphertext);
   const combined = new Uint8Array(ciphertextBytes.length + tagBytes.length);
   combined.set(ciphertextBytes, 0);
   combined.set(tagBytes, ciphertextBytes.length);
 
+  const aad = encryptedPayloadAAD(payload.protocolVersion, payload.keyId);
   const plainBuffer = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: toBufferSource(ivBytes), tagLength: 128 },
+    {
+      name: "AES-GCM",
+      iv: toBufferSource(ivBytes),
+      tagLength: AES_GCM_TAG_BYTES * 8,
+      additionalData: toBufferSource(aad),
+    },
     key,
     toBufferSource(combined),
   );
@@ -162,11 +180,6 @@ export async function decrypt(
   return new TextDecoder().decode(plainBuffer);
 }
 
-// ─── Ротация сессионного ключа ────────────────────────────────────────────────
-
-/**
- * Генерирует новый AES-256-GCM ключ для канала (forward secrecy).
- */
 export async function rotateSessionKey(channelId: string): Promise<CryptoKey> {
   const newKey = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
@@ -177,9 +190,6 @@ export async function rotateSessionKey(channelId: string): Promise<CryptoKey> {
   return newKey;
 }
 
-/**
- * Возвращает текущий сессионный ключ для канала или создаёт новый.
- */
 export async function getOrCreateSessionKey(
   channelId: string,
 ): Promise<CryptoKey> {
@@ -188,11 +198,6 @@ export async function getOrCreateSessionKey(
   return rotateSessionKey(channelId);
 }
 
-// ─── Tauri detection ─────────────────────────────────────────────────────────
-
-/**
- * Возвращает true если код выполняется внутри Tauri-приложения.
- */
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI__" in window;
 }
@@ -201,13 +206,6 @@ function allowInsecureLocalKeyStorage(): boolean {
   return !import.meta.env.PROD || import.meta.env.VITE_ALLOW_INSECURE_KEY_STORAGE === "true";
 }
 
-// ─── Хранение приватного ключа ────────────────────────────────────────────────
-
-/**
- * Сохраняет приватный ключ X25519.
- * В Tauri-окружении использует invoke("store_private_key") для безопасного хранилища,
- * иначе fallback на localStorage.
- */
 export async function storePrivateKey(key: Uint8Array): Promise<void> {
   const b64 = bufferToBase64(key);
   if (isTauri()) {
@@ -222,12 +220,6 @@ export async function storePrivateKey(key: Uint8Array): Promise<void> {
   }
 }
 
-/**
- * Загружает приватный ключ.
- * В Tauri-окружении использует invoke("load_private_key"),
- * иначе fallback на localStorage.
- * Возвращает null, если ключ не найден.
- */
 export async function loadPrivateKey(): Promise<Uint8Array | null> {
   if (isTauri()) {
     const { invoke } = await import("@tauri-apps/api/core");

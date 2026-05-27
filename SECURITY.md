@@ -2,30 +2,84 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| 1.x | ✅ |
+Zenthril is currently an alpha-stage project. There are no production-supported
+stable releases yet.
+
+| Version | Security support |
+| --- | --- |
+| `main` / `0.1.x-alpha` | Best-effort fixes during active development |
+| Older commits | Not supported |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please **do not** open a public GitHub issue.
+Please do not open a public GitHub issue for vulnerabilities.
 
-Instead, email: **ax1plee@gmail.com**
+Send reports to: **ax1plee@gmail.com**
 
 Include:
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if any)
 
-You will receive a response within 48 hours.
+- A short description of the issue.
+- Steps to reproduce.
+- Expected impact.
+- A suggested fix, if you have one.
 
-## Security Features
+The maintainer aims to respond within 48 hours, but this is a student/academic
+project and response times are best effort.
 
-- End-to-end encryption (X25519 + AES-256-GCM)
-- Password hashing with Argon2id
-- JWT authentication with token blacklisting
-- DDoS protection (rate limiting per IP)
-- Brute-force protection on login
-- TLS support for all connections
-- Input validation and parameterized queries (no SQL injection)
+## Current Security Status
+
+Zenthril includes several security-oriented controls:
+
+- Argon2id password hashing.
+- Short-lived JWT access tokens.
+- Redis-backed refresh token rotation and replay detection.
+- Redis-backed access token blacklist on logout.
+- Strict CORS and WebSocket Origin allowlists.
+- One-time WebSocket tickets.
+- Basic HTTP security headers.
+- Message payload size and envelope validation.
+- PostgreSQL parameterized queries in the current backend.
+- Production config validation for secrets and browser origins.
+
+## E2EE Status
+
+Zenthril is **not** Signal-grade and has not been externally audited.
+
+Current alpha crypto work includes:
+
+- X25519 key agreement primitives.
+- HKDF-SHA256 derivation before AES-GCM key import.
+- AES-256-GCM message encryption with protocol versioning.
+- AES-GCM associated data binding the payload to `protocol_version` and `key_id`.
+- Device key registration and revocation foundations.
+- Safety number foundations.
+
+Known limitations:
+
+- Full X3DH session setup is not integrated into all real message flows.
+- Full Double Ratchet, skipped-message-key handling, and session healing are not complete.
+- Multi-device recovery and key backup are not production-ready.
+- Messages created before the protocol-v1 envelope stored an incomplete server-side payload and may not be decryptable from history.
+- No independent cryptographic audit has been completed.
+
+Do not use Zenthril for highly sensitive communication at this stage.
+
+## Key Storage Status
+
+Production web builds intentionally refuse to store private E2EE material in
+`localStorage` unless `VITE_ALLOW_INSECURE_KEY_STORAGE=true` is explicitly set.
+
+The current Tauri desktop client uses `tauri-plugin-store` as a temporary local
+storage mechanism. This is **not equivalent to OS keychain storage**. A future
+hardening step should move private key material to Windows Credential Manager,
+macOS Keychain, Linux Secret Service/KWallet, or Tauri Stronghold.
+
+## Known Alpha Limitations
+
+- Federation is scaffolded but disabled by default and not production-ready.
+- Hybrid voice is experimental and not security-audited.
+- Multi-node deployment is not complete.
+- Observability is useful for alpha testing but not yet a full production SRE setup.
+- Abuse prevention and moderation tooling are basic.
+
+See [THREAT_MODEL.md](THREAT_MODEL.md) for current assumptions and trust boundaries.

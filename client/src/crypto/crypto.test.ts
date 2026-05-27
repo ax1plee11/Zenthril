@@ -1,61 +1,82 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  generateKeyPair,
-  exportPublicKey,
-  importPublicKey,
-  deriveSharedSecret,
-  encrypt,
+  CRYPTO_PROTOCOL_VERSION,
   decrypt,
+  deriveMessageKeyBytes,
+  deriveSharedSecret,
+  encryptedPayloadAAD,
+  encrypt,
+  exportPublicKey,
+  generateKeyPair,
+  importPublicKey,
+  loadPrivateKey,
   rotateSessionKey,
   storePrivateKey,
-  loadPrivateKey,
 } from "./index";
 
-// ─── Генерация ключевой пары ──────────────────────────────────────────────────
+function bytesToBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+}
+
+function flipBase64Byte(value: string): string {
+  const bytes = base64ToBytes(value);
+  bytes[0] = (bytes[0] ?? 0) ^ 1;
+  return bytesToBase64(bytes);
+}
 
 describe("generateKeyPair", () => {
-  it("возвращает пару ключей с secretKey и publicKey", () => {
+  it("returns an X25519 key pair", () => {
     const kp = generateKeyPair();
     expect(kp.secretKey).toBeInstanceOf(Uint8Array);
     expect(kp.publicKey).toBeInstanceOf(Uint8Array);
+    expect(kp.secretKey).toHaveLength(32);
+    expect(kp.publicKey).toHaveLength(32);
   });
 
-  it("приватный ключ — 32 байта, публичный ключ — 32 байта (X25519)", () => {
-    const kp = generateKeyPair();
-    expect(kp.secretKey.length).toBe(32);
-    expect(kp.publicKey.length).toBe(32);
-  });
-
-  it("каждый вызов генерирует уникальную пару", () => {
+  it("generates unique public keys", () => {
     const kp1 = generateKeyPair();
     const kp2 = generateKeyPair();
-    expect(exportPublicKey(kp1.publicKey)).not.toBe(
-      exportPublicKey(kp2.publicKey),
-    );
+    expect(exportPublicKey(kp1.publicKey)).not.toBe(exportPublicKey(kp2.publicKey));
   });
 });
 
-// ─── Экспорт / импорт публичного ключа ───────────────────────────────────────
-
 describe("exportPublicKey / importPublicKey", () => {
-  it("round-trip: экспорт → импорт возвращает эквивалентный ключ", () => {
+  it("round-trips public keys through base64", () => {
     const kp = generateKeyPair();
     const b64 = exportPublicKey(kp.publicKey);
     const imported = importPublicKey(b64);
     expect(exportPublicKey(imported)).toBe(b64);
   });
+});
 
-  it("экспортированный ключ — непустая base64-строка", () => {
-    const kp = generateKeyPair();
-    const b64 = exportPublicKey(kp.publicKey);
-    expect(typeof b64).toBe("string");
-    expect(b64.length).toBeGreaterThan(0);
+describe("HKDF and AAD helpers", () => {
+  it("deriveMessageKeyBytes is deterministic and separates raw ECDH from AES key bytes", () => {
+    const sharedSecret = new Uint8Array(32);
+    sharedSecret[31] = 1;
+
+    const first = deriveMessageKeyBytes(sharedSecret);
+    const second = deriveMessageKeyBytes(sharedSecret);
+
+    expect(Array.from(first)).toEqual(Array.from(second));
+    expect(Array.from(first)).not.toEqual(Array.from(sharedSecret));
+    expect(first).toHaveLength(32);
+  });
+
+  it("AAD changes when protocol version or key id changes", () => {
+    const base = encryptedPayloadAAD(CRYPTO_PROTOCOL_VERSION, "key-1");
+    const differentKey = encryptedPayloadAAD(CRYPTO_PROTOCOL_VERSION, "key-2");
+    const differentVersion = encryptedPayloadAAD(CRYPTO_PROTOCOL_VERSION + 1, "key-1");
+
+    expect(Array.from(base)).not.toEqual(Array.from(differentKey));
+    expect(Array.from(base)).not.toEqual(Array.from(differentVersion));
   });
 });
 
-// ─── Round-trip шифрования ────────────────────────────────────────────────────
-
-describe("encrypt / decrypt — round-trip", () => {
+describe("encrypt / decrypt", () => {
   let sharedKey: CryptoKey;
 
   beforeEach(async () => {
@@ -64,128 +85,133 @@ describe("encrypt / decrypt — round-trip", () => {
     sharedKey = await deriveSharedSecret(alice.secretKey, bob.publicKey);
   });
 
-  it("decrypt(encrypt(text)) === исходный текст", async () => {
-    const original = "Привет, Zenthril!";
+  it("decrypt(encrypt(text)) returns the original text", async () => {
+    const original = "Hello, Zenthril";
     const payload = await encrypt(original, sharedKey);
     const result = await decrypt(payload, sharedKey);
     expect(result).toBe(original);
   });
 
-  it("round-trip для пустой строки", async () => {
-    const payload = await encrypt("", sharedKey);
-    const result = await decrypt(payload, sharedKey);
-    expect(result).toBe("");
+  it("round-trips empty, long, and unicode text", async () => {
+    for (const value of ["", "a".repeat(4000), "secret unicode text"]) {
+      const payload = await encrypt(value, sharedKey);
+      await expect(decrypt(payload, sharedKey)).resolves.toBe(value);
+    }
   });
 
-  it("round-trip для длинного текста (4000 символов)", async () => {
-    const long = "a".repeat(4000);
-    const payload = await encrypt(long, sharedKey);
-    const result = await decrypt(payload, sharedKey);
-    expect(result).toBe(long);
-  });
-
-  it("round-trip для Unicode / emoji", async () => {
-    const text = "🔐 Секрет: Alice";
-    const payload = await encrypt(text, sharedKey);
-    const result = await decrypt(payload, sharedKey);
-    expect(result).toBe(text);
-  });
-
-  it("зашифрованный payload не содержит исходный текст в открытом виде", async () => {
-    const original = "super-secret-message";
-    const payload = await encrypt(original, sharedKey);
-    expect(payload.ciphertext).not.toContain(original);
-    expect(payload.iv).not.toContain(original);
-  });
-
-  it("каждый вызов encrypt генерирует уникальный IV", async () => {
-    const payload1 = await encrypt("test", sharedKey);
-    const payload2 = await encrypt("test", sharedKey);
-    expect(payload1.iv).not.toBe(payload2.iv);
-  });
-
-  it("payload содержит ciphertext, iv, tag, keyId", async () => {
+  it("returns a complete protocol v1 payload", async () => {
     const payload = await encrypt("hello", sharedKey);
     expect(payload.ciphertext).toBeTruthy();
     expect(payload.iv).toBeTruthy();
     expect(payload.tag).toBeTruthy();
     expect(payload.keyId).toBeTruthy();
+    expect(payload.protocolVersion).toBe(CRYPTO_PROTOCOL_VERSION);
   });
 
-  it("дешифрование с неверным ключом выбрасывает ошибку", async () => {
+  it("generates a unique IV for each encryption", async () => {
+    const payload1 = await encrypt("test", sharedKey);
+    const payload2 = await encrypt("test", sharedKey);
+    expect(payload1.iv).not.toBe(payload2.iv);
+  });
+
+  it("rejects the wrong key", async () => {
     const wrongKey = await rotateSessionKey("__test_wrong__");
     const payload = await encrypt("secret", sharedKey);
     await expect(decrypt(payload, wrongKey)).rejects.toThrow();
   });
+
+  it("rejects corrupted ciphertext", async () => {
+    const payload = await encrypt("secret", sharedKey);
+    await expect(
+      decrypt({ ...payload, ciphertext: flipBase64Byte(payload.ciphertext) }, sharedKey),
+    ).rejects.toThrow();
+  });
+
+  it("rejects invalid IV length", async () => {
+    const payload = await encrypt("secret", sharedKey);
+    await expect(
+      decrypt({ ...payload, iv: bytesToBase64(new Uint8Array([1, 2, 3])) }, sharedKey),
+    ).rejects.toThrow("Invalid IV length");
+  });
+
+  it("rejects missing or invalid authentication tag", async () => {
+    const payload = await encrypt("secret", sharedKey);
+    await expect(decrypt({ ...payload, tag: "" }, sharedKey)).rejects.toThrow(
+      "Missing authentication tag",
+    );
+    await expect(
+      decrypt({ ...payload, tag: bytesToBase64(new Uint8Array([1, 2, 3])) }, sharedKey),
+    ).rejects.toThrow("Invalid authentication tag length");
+  });
+
+  it("rejects AAD key id mismatch", async () => {
+    const payload = await encrypt("secret", sharedKey);
+    await expect(
+      decrypt({ ...payload, keyId: `${payload.keyId}-tampered` }, sharedKey),
+    ).rejects.toThrow();
+  });
+
+  it("rejects unsupported protocol versions", async () => {
+    const payload = await encrypt("secret", sharedKey);
+    await expect(
+      decrypt({ ...payload, protocolVersion: CRYPTO_PROTOCOL_VERSION + 1 }, sharedKey),
+    ).rejects.toThrow("Unsupported crypto protocol version");
+  });
 });
 
-// ─── deriveSharedSecret ───────────────────────────────────────────────────────
-
 describe("deriveSharedSecret", () => {
-  it("Alice и Bob получают одинаковый общий секрет (симметрия ECDH)", async () => {
+  it("Alice and Bob derive compatible HKDF-based AES-GCM keys", async () => {
     const alice = generateKeyPair();
     const bob = generateKeyPair();
 
-    const aliceShared = await deriveSharedSecret(
-      alice.secretKey,
-      bob.publicKey,
-    );
+    const aliceShared = await deriveSharedSecret(alice.secretKey, bob.publicKey);
     const bobShared = await deriveSharedSecret(bob.secretKey, alice.publicKey);
 
-    // Шифруем ключом Alice, дешифруем ключом Bob
     const payload = await encrypt("ECDH works", aliceShared);
     const result = await decrypt(payload, bobShared);
     expect(result).toBe("ECDH works");
   });
 });
 
-// ─── rotateSessionKey ─────────────────────────────────────────────────────────
-
 describe("rotateSessionKey", () => {
-  it("возвращает CryptoKey для AES-GCM", async () => {
+  it("returns an AES-GCM CryptoKey", async () => {
     const key = await rotateSessionKey("channel-1");
     expect(key.algorithm.name).toBe("AES-GCM");
   });
 
-  it("повторный вызов заменяет ключ (новый объект)", async () => {
+  it("replaces an existing channel key", async () => {
     const key1 = await rotateSessionKey("channel-2");
     const key2 = await rotateSessionKey("channel-2");
     expect(key1).not.toBe(key2);
   });
 });
 
-// ─── storePrivateKey / loadPrivateKey ─────────────────────────────────────────
-
 describe("storePrivateKey / loadPrivateKey", () => {
   beforeEach(() => {
     localStorage.removeItem("zenthril_private_key");
   });
 
-  it("сохранённый ключ можно загрузить обратно", async () => {
+  it("loads a stored private key in development fallback mode", async () => {
     const kp = generateKeyPair();
     await storePrivateKey(kp.secretKey);
     const loaded = await loadPrivateKey();
     expect(loaded).not.toBeNull();
     expect(loaded).toBeInstanceOf(Uint8Array);
-    expect(loaded!.length).toBe(32);
+    expect(loaded).toHaveLength(32);
   });
 
-  it("loadPrivateKey возвращает null, если ключ не сохранён", async () => {
-    const result = await loadPrivateKey();
-    expect(result).toBeNull();
+  it("returns null when the key is missing", async () => {
+    await expect(loadPrivateKey()).resolves.toBeNull();
   });
 
-  it("загруженный ключ функционально эквивалентен оригиналу", async () => {
+  it("loaded keys remain functional", async () => {
     const alice = generateKeyPair();
     const bob = generateKeyPair();
 
     await storePrivateKey(alice.secretKey);
     const loadedPrivate = (await loadPrivateKey())!;
 
-    const sharedOriginal = await deriveSharedSecret(
-      alice.secretKey,
-      bob.publicKey,
-    );
+    const sharedOriginal = await deriveSharedSecret(alice.secretKey, bob.publicKey);
     const sharedLoaded = await deriveSharedSecret(loadedPrivate, bob.publicKey);
 
     const payload = await encrypt("persistence test", sharedOriginal);

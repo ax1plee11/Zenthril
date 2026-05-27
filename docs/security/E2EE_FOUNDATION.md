@@ -27,6 +27,9 @@ Implemented client primitives:
 - best-effort device registration after login/register;
 - device management UI for active devices and remote device revocation;
 - deterministic safety number generation for pairwise device verification;
+- HKDF-SHA256 derivation before importing X25519 shared secrets as AES-GCM keys;
+- protocol-v1 message envelope with AES-GCM authentication tag persistence;
+- AES-GCM associated data binding `protocol_version` and `key_id`;
 - private device material stays client-side and is not included in backend
   registration requests.
 
@@ -73,5 +76,7 @@ and removes its one-time prekeys so new sessions cannot be established with it.
   evolution and tests. It is not yet a complete message protocol with skipped
   message keys, header encryption, full DH ratchet turns, or production session
   persistence.
+- Alpha messages created before the protocol-v1 envelope may not decrypt from
+  history because the backend did not persist the AES-GCM authentication tag.
 - The protocol must remain marked experimental until reviewed and tested with
   reproducible vectors.

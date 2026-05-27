@@ -1,17 +1,18 @@
-// Типы данных Zenthril (клиент)
+// Zenthril client data types.
 
 export interface EncryptedPayload {
-  ciphertext: string; // base64
-  iv: string;         // base64, 12 байт для GCM
-  tag: string;        // base64, 16 байт auth tag
-  keyId: string;      // идентификатор версии ключа
+  ciphertext: string;
+  iv: string;
+  tag: string;
+  keyId: string;
+  protocolVersion: number;
 }
 
 export interface User {
   id: string;
   username: string;
   publicKey: string;
-  createdAt: string; // ISO 8601
+  createdAt: string;
 }
 
 export interface Guild {
@@ -37,10 +38,10 @@ export interface Message {
   authorId: string;
   authorUsername: string;
   payload: EncryptedPayload;
-  decryptedContent?: string; // заполняется после дешифрования на клиенте
+  decryptedContent?: string;
   edited: boolean;
   deleted: boolean;
-  createdAt: string; // ISO 8601
+  createdAt: string;
 }
 
 export interface Member {
