@@ -18,6 +18,8 @@ Implemented foundation:
 - DNS-over-HTTPS bootstrap can discover alternate server-list URLs.
 - `.onion` server entries are represented as Tor transport targets.
 - Experimental WebSocket JSON padding camouflage can be enabled with `VITE_WS_CAMOUFLAGE=json-padding-v1`.
+- Bridge metadata and self-healing fallback planning are available for primary,
+  mirror, bridge, Tor, and P2P fallback attempts.
 
 ## Server List Format
 
@@ -34,6 +36,9 @@ Implemented foundation:
       "health_path": "/health",
       "transport": "direct",
       "onion": false,
+      "bridges": [
+        "bridge-a.example"
+      ],
       "mirrors": [
         "https://mirror-1.example.net",
         "https://mirror-2.example.org"
@@ -85,6 +90,7 @@ This layer does **not** yet solve:
 - Traffic fingerprinting by an advanced network censor.
 - Full federation or P2P delivery.
 - Built-in Tor transport.
+- Automatic bridge message relay.
 
 ## Three-Month Resilience Roadmap
 
@@ -107,11 +113,11 @@ This layer does **not** yet solve:
 
 ### Month 3: P2P And Federation Foundation
 
-- Add WebRTC direct-message fallback prototype.
-- Define minimal signed server-to-server federation messages.
-- Add bridge nodes and explicit fallback routing metadata.
-- Add signed server lists and trust roots.
-- Add self-healing reconnect logic across primary, mirrors, bridge nodes, and P2P.
+- WebRTC direct-message fallback prototype.
+- Minimal server-to-server federation inbox for encrypted envelopes.
+- Bridge nodes and explicit fallback routing metadata.
+- Signed server lists and trust roots.
+- Self-healing reconnect planning across primary, mirrors, bridge nodes, and P2P.
 
 ## Required Future Hardening
 

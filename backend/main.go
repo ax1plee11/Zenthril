@@ -433,6 +433,7 @@ func main() {
 	r.Route("/federation/v1", func(r chi.Router) {
 		r.Post("/announce", federationAuth(cfg, federationHandler.Announce))
 		r.Get("/peers", federationAuth(cfg, federationHandler.Peers))
+		r.Post("/inbox", federationAuth(cfg, federationHandler.Inbox))
 	})
 
 	server := &http.Server{

@@ -68,6 +68,8 @@ Status: foundation started.
 - Users can switch servers and add custom mirrors.
 - The client caches the server list and falls back across configured servers on network errors.
 - Mirror origins are expanded into normal fallback targets.
+- DNS-over-HTTPS bootstrap and Tor/onion metadata are present.
+- Bridge fallback planning and P2P direct-message scaffolding are present.
 
 Remaining work:
 
@@ -85,6 +87,11 @@ Status: planned; current federation endpoints are not production-ready.
 - Add node identity, signed server-to-server requests, and replay protection.
 - Build compatibility tests between two local Zenthril nodes.
 - Document which data is federated and which data remains local.
+
+Current foundation:
+
+- Federation inbox stores encrypted message envelopes.
+- Federation remains disabled by default and bearer-token protected.
 
 ## Phase 5: Research-Grade Evaluation
 

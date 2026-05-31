@@ -53,6 +53,32 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) Inbox(w http.ResponseWriter, r *http.Request) {
+	// SECURITY: federation inbox accepts encrypted message envelopes only and keeps
+	// a strict body limit while federation remains alpha.
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	var req MessageEnvelope
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	message, err := h.svc.ReceiveMessage(r.Context(), req)
+	if err != nil {
+		if errors.Is(err, ErrInvalidFederationMessage) {
+			writeError(w, http.StatusBadRequest, "invalid_federation_message", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to store federation message")
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"status":  "accepted",
+		"message": message,
+	})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -10,6 +10,9 @@
       "health_path": "/health",
       "transport": "direct",
       "onion": false,
+      "bridges": [
+        "local-bridge"
+      ],
       "mirrors": [
         "http://127.0.0.1:8080"
       ]
@@ -22,6 +25,7 @@
       "health_path": "/health",
       "transport": "tor",
       "onion": true,
+      "bridges": [],
       "mirrors": []
     }
   ]

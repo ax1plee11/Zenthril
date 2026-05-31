@@ -7,6 +7,7 @@ export interface ZenthrilServer {
   mirrors: string[];
   transport: ServerTransport;
   onion?: boolean;
+  bridges: string[];
   custom?: boolean;
 }
 
@@ -21,6 +22,7 @@ interface ServerListFile {
     ws_base?: string;
     health_path?: string;
     mirrors?: string[];
+    bridges?: string[];
     transport?: string;
     onion?: boolean;
   }>;
@@ -40,6 +42,7 @@ export const LOCAL_SERVER: ZenthrilServer = {
   healthPath: DEFAULT_HEALTH_PATH,
   mirrors: [],
   transport: "direct",
+  bridges: [],
 };
 
 export function normalizeApiBase(value: string): string {
@@ -72,6 +75,7 @@ export function serverFromApiBase(name: string, apiBase: string): ZenthrilServer
     mirrors: [],
     transport: isOnionOrigin(normalized) ? "tor" : "direct",
     onion: isOnionOrigin(normalized),
+    bridges: [],
     custom: true,
   };
 }
@@ -193,6 +197,7 @@ function parseServerListFile(file: ServerListFile): ZenthrilServer[] {
         mirrors: server.mirrors ?? [],
         transport: normalizeTransport(server.transport, apiBase),
         onion: server.onion ?? isOnionOrigin(apiBase),
+        bridges: server.bridges ?? [],
       };
       // ANTI-BLOCKING: mirrors are promoted into normal fallback targets so a blocked primary
       // server does not require a separate app update or manual user intervention.
@@ -216,6 +221,7 @@ function serverMirrors(primary: ZenthrilServer): ZenthrilServer[] {
         mirrors: [],
         transport: normalizeTransport(undefined, apiBase),
         onion: isOnionOrigin(apiBase),
+        bridges: primary.bridges,
       }];
     } catch {
       return [];
