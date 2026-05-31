@@ -111,7 +111,7 @@ async function request<T>(
     } catch (err) {
       lastError = err;
       if (!isNetworkLikeError(err)) throw err;
-      // ANTI-BLOCKING: when a server is blocked or unreachable, transparently try the next configured server.
+      // CONNECTIVITY: when a server is unreachable, try the next configured backup endpoint.
       continue;
     }
   }

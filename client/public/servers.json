@@ -9,24 +9,9 @@
       "ws_base": "ws://localhost:8080",
       "health_path": "/health",
       "transport": "direct",
-      "onion": false,
-      "bridges": [
-        "local-bridge"
-      ],
-      "mirrors": [
+      "backup_endpoints": [
         "http://127.0.0.1:8080"
       ]
-    },
-    {
-      "id": "tor-example",
-      "name": "Tor onion example",
-      "api_base": "http://replace-with-your-onion-address.onion",
-      "ws_base": "ws://replace-with-your-onion-address.onion",
-      "health_path": "/health",
-      "transport": "tor",
-      "onion": true,
-      "bridges": [],
-      "mirrors": []
     }
   ]
 }

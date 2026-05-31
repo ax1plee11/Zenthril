@@ -104,21 +104,23 @@ Do **not** use Zenthril for highly sensitive communication at this stage. Treat 
 
 See [`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md), and [`docs/security/E2EE_FOUNDATION.md`](docs/security/E2EE_FOUNDATION.md) for more detail.
 
-## Anti-Censorship / Resilience
+## Connectivity Resilience
 
-Zenthril now includes an alpha multi-server client foundation:
+Zenthril now includes an alpha multi-server client foundation for self-hosted
+outage recovery:
 
 - dynamic `servers.json` server list;
 - local cached server list fallback;
 - custom server entries in the client;
-- mirror entries promoted into fallback servers;
+- administrator-configured backup endpoints promoted into retry targets;
 - automatic retry across configured servers when network errors occur.
 - DNS-over-HTTPS bootstrap for alternate server-list discovery;
-- `.onion` server metadata for external Tor proxy environments.
+- explicit custom server selection.
 
-This is a resilience foundation, not a guarantee that the system is unblockable.
-See [`docs/ANTI_CENSORSHIP.md`](docs/ANTI_CENSORSHIP.md) for the current design,
-limitations, and three-month roadmap.
+This is a connectivity resilience foundation, not a guarantee of invisible or
+indistinguishable traffic. See
+[`docs/CONNECTIVITY_RESILIENCE.md`](docs/CONNECTIVITY_RESILIENCE.md) for the
+current design and limitations.
 
 ## Technical Stack
 
@@ -205,7 +207,7 @@ npm test
 
 Zenthril is provided for lawful software development, education, experimentation, and research.
 
-You may **not** use this project for illegal activity, fraud, spam, harassment, credential theft, malware distribution, unauthorized surveillance, evasion of platform moderation, or any other harmful or abusive purpose. The maintainer does not endorse or authorize such use.
+You may **not** use this project for illegal activity, fraud, spam, harassment, credential theft, malware distribution, unauthorized surveillance, abuse of platform moderation systems, or any other harmful purpose. The maintainer does not endorse or authorize such use.
 
 Students and researchers are welcome to study the code, run experiments, and learn from the architecture. However, if you copy substantial parts of this project into coursework, diploma work, theses, articles, presentations, or derivative repositories, you must clearly cite the original repository and author.
 

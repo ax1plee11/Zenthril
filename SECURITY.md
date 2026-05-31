@@ -77,6 +77,8 @@ macOS Keychain, Linux Secret Service/KWallet, or Tauri Stronghold.
 
 ## Known Alpha Limitations
 
+- Zenthril does not implement network restriction circumvention and does not
+  promise invisible, indistinguishable, or impossible-to-block traffic.
 - Federation is scaffolded but disabled by default and not production-ready.
 - Hybrid voice is experimental and not security-audited.
 - Multi-node deployment is not complete.

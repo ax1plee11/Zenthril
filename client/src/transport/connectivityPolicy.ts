@@ -1,47 +1,42 @@
-export type StealthMode = "off" | "balanced" | "strict";
-export type TransportPreference = "auto" | "websocket" | "webrtc" | "tor" | "bridge";
+export type ConnectivityMode = "off" | "balanced" | "strict";
+export type TransportPreference = "auto" | "websocket" | "webrtc" | "custom";
 
 export interface TransportPolicy {
-  stealthMode: StealthMode;
+  connectivityMode: ConnectivityMode;
   transportPreference: TransportPreference;
-  websocketCamouflage: boolean;
+  websocketPadding: boolean;
   minPaddingBytes: number;
   maxPaddingBytes: number;
   jitterMs: number;
-  allowDomainFronting: boolean;
-  frontingHost?: string;
 }
 
 const POLICY_KEY = "zenthril_transport_policy_v1";
 
 export const DEFAULT_TRANSPORT_POLICY: TransportPolicy = {
-  stealthMode: "off",
+  connectivityMode: "off",
   transportPreference: "auto",
-  websocketCamouflage: false,
+  websocketPadding: false,
   minPaddingBytes: 0,
   maxPaddingBytes: 96,
   jitterMs: 0,
-  allowDomainFronting: false,
 };
 
-export const BALANCED_STEALTH_POLICY: TransportPolicy = {
-  stealthMode: "balanced",
+export const BALANCED_CONNECTIVITY_POLICY: TransportPolicy = {
+  connectivityMode: "balanced",
   transportPreference: "auto",
-  websocketCamouflage: true,
+  websocketPadding: true,
   minPaddingBytes: 24,
   maxPaddingBytes: 256,
   jitterMs: 250,
-  allowDomainFronting: false,
 };
 
-export const STRICT_STEALTH_POLICY: TransportPolicy = {
-  stealthMode: "strict",
+export const STRICT_CONNECTIVITY_POLICY: TransportPolicy = {
+  connectivityMode: "strict",
   transportPreference: "auto",
-  websocketCamouflage: true,
+  websocketPadding: true,
   minPaddingBytes: 96,
   maxPaddingBytes: 768,
   jitterMs: 1200,
-  allowDomainFronting: false,
 };
 
 export function loadTransportPolicy(): TransportPolicy {
@@ -62,14 +57,14 @@ export function saveTransportPolicy(policy: TransportPolicy): void {
   }
 }
 
-export function policyForStealthMode(mode: StealthMode): TransportPolicy {
-  if (mode === "strict") return STRICT_STEALTH_POLICY;
-  if (mode === "balanced") return BALANCED_STEALTH_POLICY;
+export function policyForConnectivityMode(mode: ConnectivityMode): TransportPolicy {
+  if (mode === "strict") return STRICT_CONNECTIVITY_POLICY;
+  if (mode === "balanced") return BALANCED_CONNECTIVITY_POLICY;
   return DEFAULT_TRANSPORT_POLICY;
 }
 
-export function camouflageEnabledByPolicy(): boolean {
-  return loadTransportPolicy().websocketCamouflage;
+export function paddingEnabledByPolicy(): boolean {
+  return loadTransportPolicy().websocketPadding;
 }
 
 export async function applyTransportJitter(): Promise<void> {
@@ -88,26 +83,28 @@ export function paddingBounds(): { min: number; max: number } {
 }
 
 function envPolicy(): TransportPolicy {
-  const envMode = import.meta.env.VITE_STEALTH_MODE as StealthMode | undefined;
-  const base = policyForStealthMode(envMode === "balanced" || envMode === "strict" ? envMode : "off");
-  const envCamouflage = import.meta.env.VITE_WS_CAMOUFLAGE === "json-padding-v1";
+  const envMode = import.meta.env.VITE_CONNECTIVITY_MODE as ConnectivityMode | undefined;
+  const base = policyForConnectivityMode(envMode === "balanced" || envMode === "strict" ? envMode : "off");
+  const envPadding = import.meta.env.VITE_WS_PADDING === "json-padding-v1";
   return normalizePolicy({
     ...base,
-    websocketCamouflage: base.websocketCamouflage || envCamouflage,
-    allowDomainFronting: import.meta.env.VITE_ALLOW_DOMAIN_FRONTING === "true",
-    frontingHost: import.meta.env.VITE_FRONTING_HOST?.trim() || undefined,
+    websocketPadding: base.websocketPadding || envPadding,
   });
 }
 
-function normalizePolicy(policy: TransportPolicy): TransportPolicy {
-  const minPaddingBytes = clamp(Math.floor(policy.minPaddingBytes), 0, 4096);
-  const maxPaddingBytes = clamp(Math.floor(policy.maxPaddingBytes), minPaddingBytes, 8192);
+function normalizePolicy(policy: Partial<TransportPolicy>): TransportPolicy {
+  const mode = policy.connectivityMode === "balanced" || policy.connectivityMode === "strict"
+    ? policy.connectivityMode
+    : "off";
+  const minPaddingBytes = clamp(Math.floor(policy.minPaddingBytes ?? 0), 0, 4096);
+  const maxPaddingBytes = clamp(Math.floor(policy.maxPaddingBytes ?? 96), minPaddingBytes, 8192);
   return {
-    ...policy,
+    connectivityMode: mode,
+    transportPreference: policy.transportPreference ?? "auto",
+    websocketPadding: Boolean(policy.websocketPadding),
     minPaddingBytes,
     maxPaddingBytes,
-    jitterMs: clamp(Math.floor(policy.jitterMs), 0, 5000),
-    allowDomainFronting: Boolean(policy.allowDomainFronting && policy.frontingHost),
+    jitterMs: clamp(Math.floor(policy.jitterMs ?? 0), 0, 5000),
   };
 }
 

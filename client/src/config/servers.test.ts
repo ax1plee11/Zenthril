@@ -20,19 +20,11 @@ describe("server config", () => {
   });
 
   it("creates stable custom server entries", () => {
-    const server = serverFromApiBase("Mirror", "https://mirror.example");
-    expect(server.id).toBe("custom:https://mirror.example");
+    const server = serverFromApiBase("Backup", "https://backup.example");
+    expect(server.id).toBe("custom:https://backup.example");
     expect(server.custom).toBe(true);
     expect(server.healthPath).toBe("/health");
     expect(server.transport).toBe("direct");
-  });
-
-  it("marks onion custom servers as Tor transport", () => {
-    const server = serverFromApiBase("Onion", "http://zenthrilabc123.onion");
-
-    expect(server.transport).toBe("tor");
-    expect(server.onion).toBe(true);
-    expect(server.wsBase).toBe("ws://zenthrilabc123.onion");
   });
 
   it("treats 200 and protected 401 health responses as reachable", async () => {
@@ -45,7 +37,7 @@ describe("server config", () => {
     await expect(checkServerHealth(server)).resolves.toBe(true);
   });
 
-  it("loads mirrors as fallback servers from servers.json", async () => {
+  it("loads administrator-configured backup endpoints from servers.json", async () => {
     localStorage.clear();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
@@ -54,7 +46,7 @@ describe("server config", () => {
           id: "primary",
           name: "Primary",
           api_base: "https://primary.example",
-          mirrors: ["https://mirror-a.example", "https://mirror-b.example"],
+          backup_endpoints: ["https://backup-a.example", "https://backup-b.example"],
         }],
       }),
     }));
@@ -63,8 +55,8 @@ describe("server config", () => {
 
     expect(servers.map(server => server.apiBase)).toEqual([
       "https://primary.example",
-      "https://mirror-a.example",
-      "https://mirror-b.example",
+      "https://backup-a.example",
+      "https://backup-b.example",
     ]);
   });
 

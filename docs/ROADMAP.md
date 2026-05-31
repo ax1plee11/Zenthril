@@ -60,24 +60,24 @@ Status: planned.
 - Add connection draining and graceful shutdown tests.
 - Define delivery semantics: at-least-once delivery with idempotent client-side deduplication.
 
-## Phase 3.5: Anti-Censorship And Resilience
+## Phase 3.5: Connectivity Resilience
 
 Status: foundation started.
 
 - Client loads a dynamic server list from `servers.json`.
-- Users can switch servers and add custom mirrors.
+- Users can switch servers and add custom backup endpoints.
 - The client caches the server list and falls back across configured servers on network errors.
-- Mirror origins are expanded into normal fallback targets.
-- DNS-over-HTTPS bootstrap and Tor/onion metadata are present.
-- Bridge fallback planning and P2P direct-message scaffolding are present.
+- Administrator-configured backup origins are expanded into normal retry targets.
+- DNS-over-HTTPS bootstrap metadata is present for server-list discovery experiments.
+- P2P direct-message scaffolding exists separately and remains explicit opt-in.
 
 Remaining work:
 
 - Sign server lists and pin trust roots in the client.
 - Add DNS-over-HTTPS bootstrap for server-list discovery.
-- Add optional Tor `.onion` entries and external proxy mode.
-- Add bridge-node metadata and P2P fallback routing.
-- Keep all anti-censorship claims explicit about limitations.
+- Add clearer manual proxy documentation for operators who deploy their own network stack.
+- Keep P2P direct messaging separate from automatic outage recovery.
+- Keep all connectivity claims explicit about limitations.
 
 ## Phase 4: Federation
 

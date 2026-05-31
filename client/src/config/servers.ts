@@ -4,14 +4,12 @@ export interface ZenthrilServer {
   apiBase: string;
   wsBase: string;
   healthPath: string;
-  mirrors: string[];
+  backupEndpoints: string[];
   transport: ServerTransport;
-  onion?: boolean;
-  bridges: string[];
   custom?: boolean;
 }
 
-export type ServerTransport = "direct" | "tor" | "bridge";
+export type ServerTransport = "direct";
 
 interface ServerListFile {
   version?: number;
@@ -21,10 +19,8 @@ interface ServerListFile {
     api_base?: string;
     ws_base?: string;
     health_path?: string;
-    mirrors?: string[];
-    bridges?: string[];
+    backup_endpoints?: string[];
     transport?: string;
-    onion?: boolean;
   }>;
 }
 
@@ -40,9 +36,8 @@ export const LOCAL_SERVER: ZenthrilServer = {
   apiBase: "http://localhost:8080",
   wsBase: "ws://localhost:8080",
   healthPath: DEFAULT_HEALTH_PATH,
-  mirrors: [],
+  backupEndpoints: [],
   transport: "direct",
-  bridges: [],
 };
 
 export function normalizeApiBase(value: string): string {
@@ -72,10 +67,8 @@ export function serverFromApiBase(name: string, apiBase: string): ZenthrilServer
     apiBase: normalized,
     wsBase: wsBaseFromApiBase(normalized),
     healthPath: DEFAULT_HEALTH_PATH,
-    mirrors: [],
-    transport: isOnionOrigin(normalized) ? "tor" : "direct",
-    onion: isOnionOrigin(normalized),
-    bridges: [],
+    backupEndpoints: [],
+    transport: "direct",
     custom: true,
   };
 }
@@ -100,13 +93,13 @@ export async function loadServers(): Promise<ZenthrilServer[]> {
 
 export async function resolveDoH(name: string, endpoint = DEFAULT_DOH_ENDPOINT): Promise<string[]> {
   const host = name.trim();
-  if (!host || host.endsWith(".onion")) return [];
+  if (!host) return [];
 
   const url = new URL(endpoint);
   url.searchParams.set("name", host);
   url.searchParams.set("type", "A");
 
-  // ANTI-BLOCKING: DoH is used only as bootstrap metadata, because browsers do
+  // CONNECTIVITY: DoH is used only as bootstrap metadata, because browsers do
   // not allow applications to override DNS resolution for fetch/WebSocket.
   const response = await fetch(url.toString(), {
     headers: { Accept: "application/dns-json" },
@@ -154,7 +147,7 @@ export async function checkServerHealth(server: ZenthrilServer, timeoutMs = 4000
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    // ANTI-BLOCKING: health checks let the client skip blocked or unreachable servers before login.
+    // CONNECTIVITY: health checks let the client skip unreachable servers before login.
     const response = await fetch(`${server.apiBase}${server.healthPath}`, {
       method: "GET",
       signal: controller.signal,
@@ -194,34 +187,30 @@ function parseServerListFile(file: ServerListFile): ZenthrilServer[] {
         apiBase,
         wsBase: server.ws_base?.trim().replace(/\/+$/, "") || wsBaseFromApiBase(apiBase),
         healthPath: server.health_path?.trim() || DEFAULT_HEALTH_PATH,
-        mirrors: server.mirrors ?? [],
-        transport: normalizeTransport(server.transport, apiBase),
-        onion: server.onion ?? isOnionOrigin(apiBase),
-        bridges: server.bridges ?? [],
+        backupEndpoints: server.backup_endpoints ?? [],
+        transport: normalizeTransport(server.transport),
       };
-      // ANTI-BLOCKING: mirrors are promoted into normal fallback targets so a blocked primary
+      // CONNECTIVITY: backup endpoints are promoted into normal retry targets so an unavailable primary
       // server does not require a separate app update or manual user intervention.
-      return [primary, ...serverMirrors(primary)];
+      return [primary, ...serverBackups(primary)];
     } catch {
       return [];
     }
   });
 }
 
-function serverMirrors(primary: ZenthrilServer): ZenthrilServer[] {
-  return primary.mirrors.flatMap((mirror, index) => {
+function serverBackups(primary: ZenthrilServer): ZenthrilServer[] {
+  return primary.backupEndpoints.flatMap((backup, index) => {
     try {
-      const apiBase = normalizeApiBase(mirror);
+      const apiBase = normalizeApiBase(backup);
       return [{
-        id: `${primary.id}:mirror:${index}`,
-        name: `${primary.name} mirror ${index + 1}`,
+        id: `${primary.id}:backup:${index}`,
+        name: `${primary.name} backup ${index + 1}`,
         apiBase,
         wsBase: wsBaseFromApiBase(apiBase),
         healthPath: primary.healthPath,
-        mirrors: [],
-        transport: normalizeTransport(undefined, apiBase),
-        onion: isOnionOrigin(apiBase),
-        bridges: primary.bridges,
+        backupEndpoints: [],
+        transport: "direct" as const,
       }];
     } catch {
       return [];
@@ -253,18 +242,9 @@ async function fetchServerList(): Promise<Response> {
   return fetch("/servers.json", { cache: "no-store" });
 }
 
-function normalizeTransport(value: string | undefined, apiBase: string): ServerTransport {
-  if (isOnionOrigin(apiBase)) return "tor";
-  if (value === "tor" || value === "bridge") return value;
+function normalizeTransport(value: string | undefined): ServerTransport {
+  void value;
   return "direct";
-}
-
-function isOnionOrigin(value: string): boolean {
-  try {
-    return new URL(value).hostname.endsWith(".onion");
-  } catch {
-    return false;
-  }
 }
 
 function loadCachedServers(): ZenthrilServer[] {

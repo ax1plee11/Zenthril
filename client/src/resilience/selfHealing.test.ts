@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildFallbackPlan } from "./selfHealing";
+import { buildRecoveryPlan } from "./selfHealing";
 
-describe("self-healing fallback plan", () => {
-  it("ends with a P2P fallback attempt", async () => {
+describe("self-healing recovery plan", () => {
+  it("uses configured backup endpoints without automatic peer escalation", async () => {
     localStorage.clear();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
@@ -11,14 +11,13 @@ describe("self-healing fallback plan", () => {
           id: "primary",
           name: "Primary",
           api_base: "https://primary.example",
-          mirrors: ["https://mirror.example"],
-          bridges: ["bridge-a"],
+          backup_endpoints: ["https://backup.example"],
         }],
       }),
     }));
 
-    const plan = await buildFallbackPlan();
+    const plan = await buildRecoveryPlan();
 
-    expect(plan.map(item => item.kind)).toEqual(["primary", "bridge", "mirror", "bridge", "p2p"]);
+    expect(plan.map(item => item.kind)).toEqual(["primary", "backup"]);
   });
 });

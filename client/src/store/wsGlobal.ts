@@ -4,11 +4,11 @@
  */
 import { api, getActiveWebSocketUrl, clearActiveServer } from "../api/index";
 import {
-  camouflageEnabled,
-  decodeCamouflageFrame,
-  encodeCamouflageFrame,
-} from "../transport/camouflage";
-import { applyTransportJitter } from "../transport/policy";
+  paddingEnabled,
+  decodePaddedFrame,
+  encodePaddedFrame,
+} from "../transport/padding";
+import { applyTransportJitter } from "../transport/connectivityPolicy";
 
 type Handler = (event: Record<string, unknown>) => void;
 
@@ -31,7 +31,7 @@ export function onWSEvent(type: string, handler: Handler): () => void {
 
 export function sendWSEvent(event: Record<string, unknown>): void {
   if (ws?.readyState === WebSocket.OPEN) {
-    const payload = camouflageEnabled() ? encodeCamouflageFrame(event) : JSON.stringify(event);
+    const payload = paddingEnabled() ? encodePaddedFrame(event) : JSON.stringify(event);
     applyTransportJitter()
       .then(() => {
         if (ws?.readyState === WebSocket.OPEN) ws.send(payload);
@@ -67,7 +67,7 @@ export async function connectGlobalWS(): Promise<void> {
 
     socket.onmessage = (e: MessageEvent) => {
       try {
-        const data = decodeCamouflageFrame(e.data as string);
+        const data = decodePaddedFrame(e.data as string);
         const type = data.type as string;
         // Диспатчим конкретный тип + wildcard "*"
         handlers.get(type)?.forEach(h => h(data));
@@ -84,7 +84,7 @@ export async function connectGlobalWS(): Promise<void> {
 
     socket.onerror = () => {
       connecting = false;
-      // ANTI-BLOCKING: force the next reconnect attempt to re-evaluate the server pool.
+      // CONNECTIVITY: force the next reconnect attempt to re-evaluate the configured server pool.
       clearActiveServer();
       socket.close();
     };

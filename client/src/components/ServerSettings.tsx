@@ -12,10 +12,10 @@ import { reloadServerPool } from "../api/index";
 import { disconnectGlobalWS, connectGlobalWS } from "../store/wsGlobal";
 import {
   loadTransportPolicy,
-  policyForStealthMode,
+  policyForConnectivityMode,
   saveTransportPolicy,
-  type StealthMode,
-} from "../transport/policy";
+  type ConnectivityMode,
+} from "../transport/connectivityPolicy";
 
 interface ServerSettingsProps {
   onClose: () => void;
@@ -30,7 +30,7 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
   const [customName, setCustomName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<Record<string, HealthState>>({});
-  const [stealthMode, setStealthMode] = useState<StealthMode>(() => loadTransportPolicy().stealthMode);
+  const [connectivityMode, setConnectivityMode] = useState<ConnectivityMode>(() => loadTransportPolicy().connectivityMode);
 
   const refresh = useCallback(async () => {
     const loaded = await reloadServerPool();
@@ -46,7 +46,7 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
     setSelectedServer(server.id);
     setSelectedID(server.id);
     disconnectGlobalWS();
-    // ANTI-BLOCKING: switching servers reconnects realtime traffic without requiring app restart.
+    // CONNECTIVITY: switching servers reconnects realtime traffic without requiring app restart.
     await connectGlobalWS().catch(() => {});
   }, []);
 
@@ -70,9 +70,9 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
     setHealth(prev => ({ ...prev, [server.id]: ok ? "online" : "offline" }));
   }, []);
 
-  const changeStealthMode = useCallback((mode: StealthMode) => {
-    setStealthMode(mode);
-    saveTransportPolicy(policyForStealthMode(mode));
+  const changeConnectivityMode = useCallback((mode: ConnectivityMode) => {
+    setConnectivityMode(mode);
+    saveTransportPolicy(policyForConnectivityMode(mode));
   }, []);
 
   return (
@@ -81,7 +81,7 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
         <div style={s.header}>
           <div>
             <div style={s.title}>Servers</div>
-            <div style={s.subtitle}>Change server or add a custom mirror</div>
+            <div style={s.subtitle}>Change server or add a custom backup endpoint</div>
           </div>
           <button style={s.close} onClick={onClose}>x</button>
         </div>
@@ -108,17 +108,17 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
           ))}
         </div>
 
-        <div style={s.stealthPanel}>
+        <div style={s.connectivityPanel}>
           <div>
-            <div style={s.name}>Stealth Mode</div>
-            <div style={s.meta}>Experimental padding and timing camouflage</div>
+            <div style={s.name}>Connectivity Mode</div>
+            <div style={s.meta}>Optional JSON padding and retry timing controls</div>
           </div>
           <div style={s.segmented}>
-            {(["off", "balanced", "strict"] as StealthMode[]).map(mode => (
+            {(["off", "balanced", "strict"] as ConnectivityMode[]).map(mode => (
               <button
                 key={mode}
-                style={s.segment(stealthMode === mode)}
-                onClick={() => changeStealthMode(mode)}
+                style={s.segment(connectivityMode === mode)}
+                onClick={() => changeConnectivityMode(mode)}
               >
                 {mode}
               </button>
@@ -137,7 +137,7 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
             style={s.input}
             value={customURL}
             onChange={e => setCustomURL(e.target.value)}
-            placeholder="https://mirror.example.com"
+            placeholder="https://backup.example.com"
           />
           {error && <div style={s.error}>{error}</div>}
           <button style={s.addButton} onClick={addServer}>Add Custom Server</button>
@@ -186,7 +186,7 @@ const s = {
     cursor: "pointer",
   } as React.CSSProperties,
   list: { display: "flex", flexDirection: "column", gap: 8 } as React.CSSProperties,
-  stealthPanel: {
+  connectivityPanel: {
     marginTop: 14,
     padding: 12,
     borderRadius: 10,
