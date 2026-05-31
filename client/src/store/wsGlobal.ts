@@ -8,6 +8,7 @@ import {
   decodeCamouflageFrame,
   encodeCamouflageFrame,
 } from "../transport/camouflage";
+import { applyTransportJitter } from "../transport/policy";
 
 type Handler = (event: Record<string, unknown>) => void;
 
@@ -30,7 +31,14 @@ export function onWSEvent(type: string, handler: Handler): () => void {
 
 export function sendWSEvent(event: Record<string, unknown>): void {
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(camouflageEnabled() ? encodeCamouflageFrame(event) : JSON.stringify(event));
+    const payload = camouflageEnabled() ? encodeCamouflageFrame(event) : JSON.stringify(event);
+    applyTransportJitter()
+      .then(() => {
+        if (ws?.readyState === WebSocket.OPEN) ws.send(payload);
+      })
+      .catch(() => {
+        if (ws?.readyState === WebSocket.OPEN) ws.send(payload);
+      });
   }
 }
 

@@ -20,6 +20,7 @@ Implemented foundation:
 - Experimental WebSocket JSON padding camouflage can be enabled with `VITE_WS_CAMOUFLAGE=json-padding-v1`.
 - Bridge metadata and self-healing fallback planning are available for primary,
   mirror, bridge, Tor, and P2P fallback attempts.
+- Client Stealth Mode controls WebSocket padding and send jitter.
 
 ## Server List Format
 
@@ -73,6 +74,30 @@ JSON frame. This can reduce the stability of simple payload fingerprints, but
 it does not hide IP addresses, TLS metadata, timing, packet sizes, or server
 names. It is a transport experiment, not a privacy guarantee.
 
+Stealth Mode can also be enabled from the client server settings:
+
+- `off`: normal transport behavior.
+- `balanced`: enables JSON padding with moderate random delay.
+- `strict`: increases padding and timing jitter at a higher latency/battery cost.
+
+## Domain Fronting And Mimicry
+
+Zenthril does not impersonate unrelated services such as YouTube, Google Meet,
+Telegram, or other platforms. Domain fronting, when used, must be limited to
+infrastructure controlled by the operator and allowed by the CDN/provider terms.
+
+`VITE_ALLOW_DOMAIN_FRONTING=true` and `VITE_FRONTING_HOST` are reserved for
+authorized deployments. They are not a bypass guarantee and do not change TLS
+fingerprints from browser or Tauri webview networking stacks.
+
+## DoT, DNSCrypt, QUIC, And I2P
+
+DoT and DNSCrypt are deployment/proxy responsibilities in the current alpha
+client. Browser JavaScript cannot open raw DNS-over-TLS or DNSCrypt sockets.
+
+QUIC and I2P are planned transports, not implemented transports. They require
+separate client runtime support, abuse controls, and compatibility testing.
+
 ## Threat Model
 
 This layer helps when:
@@ -91,6 +116,7 @@ This layer does **not** yet solve:
 - Full federation or P2P delivery.
 - Built-in Tor transport.
 - Automatic bridge message relay.
+- TLS fingerprint randomization from browser/Tauri networking APIs.
 
 ## Three-Month Resilience Roadmap
 

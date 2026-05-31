@@ -10,6 +10,12 @@ import {
 } from "../config/servers";
 import { reloadServerPool } from "../api/index";
 import { disconnectGlobalWS, connectGlobalWS } from "../store/wsGlobal";
+import {
+  loadTransportPolicy,
+  policyForStealthMode,
+  saveTransportPolicy,
+  type StealthMode,
+} from "../transport/policy";
 
 interface ServerSettingsProps {
   onClose: () => void;
@@ -24,6 +30,7 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
   const [customName, setCustomName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<Record<string, HealthState>>({});
+  const [stealthMode, setStealthMode] = useState<StealthMode>(() => loadTransportPolicy().stealthMode);
 
   const refresh = useCallback(async () => {
     const loaded = await reloadServerPool();
@@ -63,6 +70,11 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
     setHealth(prev => ({ ...prev, [server.id]: ok ? "online" : "offline" }));
   }, []);
 
+  const changeStealthMode = useCallback((mode: StealthMode) => {
+    setStealthMode(mode);
+    saveTransportPolicy(policyForStealthMode(mode));
+  }, []);
+
   return (
     <div style={s.backdrop} onMouseDown={onClose}>
       <div style={s.modal} onMouseDown={e => e.stopPropagation()}>
@@ -94,6 +106,24 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
               </div>
             </div>
           ))}
+        </div>
+
+        <div style={s.stealthPanel}>
+          <div>
+            <div style={s.name}>Stealth Mode</div>
+            <div style={s.meta}>Experimental padding and timing camouflage</div>
+          </div>
+          <div style={s.segmented}>
+            {(["off", "balanced", "strict"] as StealthMode[]).map(mode => (
+              <button
+                key={mode}
+                style={s.segment(stealthMode === mode)}
+                onClick={() => changeStealthMode(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div style={s.form}>
@@ -156,6 +186,34 @@ const s = {
     cursor: "pointer",
   } as React.CSSProperties,
   list: { display: "flex", flexDirection: "column", gap: 8 } as React.CSSProperties,
+  stealthPanel: {
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    background: "var(--bg-input)",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+  } as React.CSSProperties,
+  segmented: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 4,
+    minWidth: 210,
+  } as React.CSSProperties,
+  segment: (active: boolean): React.CSSProperties => ({
+    border: "1px solid var(--border)",
+    borderRadius: 7,
+    padding: "7px 8px",
+    background: active ? "var(--accent)" : "transparent",
+    color: active ? "#fff" : "var(--text-secondary)",
+    cursor: "pointer",
+    textTransform: "capitalize",
+    fontSize: 12,
+    fontWeight: 700,
+  }),
   row: (active: boolean): React.CSSProperties => ({
     display: "flex",
     justifyContent: "space-between",

@@ -261,6 +261,7 @@ func main() {
 	deviceHandler := device.NewHandler(deviceSvc)
 
 	guildSvc := guild.NewService(database, cfg.HTTPAddr)
+	guildSvc.SetSuperAdmins(cfg.AdminUserIDs)
 	wsHub := hub.NewHub(guildSvc)
 	go wsHub.Run()
 	guildHandler := guild.NewHandler(guildSvc, wsHub)
@@ -332,11 +333,16 @@ func main() {
 			r.Post("/", guildHandler.CreateGuild)
 			r.Route("/{guildId}", func(r chi.Router) {
 				r.Post("/invites", guildHandler.CreateInvite)
+				r.Get("/roles", guildHandler.ListRoles)
 				r.Post("/roles", guildHandler.CreateRole)
+				r.Patch("/roles/{roleId}", guildHandler.UpdateRole)
+				r.Delete("/roles/{roleId}", guildHandler.DeleteRole)
 				r.Get("/members", guildHandler.GetGuildMembers)
 				r.Route("/members/{userId}", func(r chi.Router) {
 					r.Delete("/", guildHandler.RemoveMember)
 					r.Patch("/role", guildHandler.AssignRole)
+					r.Put("/roles/{roleId}", guildHandler.AddMemberRole)
+					r.Delete("/roles/{roleId}", guildHandler.RemoveMemberRole)
 					r.Post("/mute", guildHandler.MuteMember)
 					r.Post("/ban", guildHandler.BanMember)
 				})

@@ -40,6 +40,7 @@ Zenthril includes several security-oriented controls:
 - Message payload size and envelope validation.
 - PostgreSQL parameterized queries in the current backend.
 - Production config validation for secrets and browser origins.
+- RBAC v2 role escalation protections for guild roles and moderation actions.
 
 ## E2EE Status
 
@@ -81,5 +82,20 @@ macOS Keychain, Linux Secret Service/KWallet, or Tauri Stronghold.
 - Multi-node deployment is not complete.
 - Observability is useful for alpha testing but not yet a full production SRE setup.
 - Abuse prevention and moderation tooling are basic.
+
+## RBAC / Role Security
+
+Guild authorization is moving to RBAC v2:
+
+- Members may have multiple roles through `guild_member_roles`.
+- Effective permissions are calculated as the bitwise OR of all assigned roles.
+- Role `level` is used for hierarchy only, not as a replacement for permissions.
+- Non-owners cannot manage or assign roles at or above their highest role level.
+- Non-owners cannot grant permissions they do not already have.
+- System roles are protected from deletion and dangerous edits.
+- The developer super-admin / "god role" is configuration-only through `ADMIN_USER_IDS` and cannot be granted through guild role APIs.
+- Banned members have no effective permissions.
+
+See [docs/RBAC.md](docs/RBAC.md) for the current model and migration notes.
 
 See [THREAT_MODEL.md](THREAT_MODEL.md) for current assumptions and trust boundaries.

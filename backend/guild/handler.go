@@ -282,6 +282,85 @@ func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, role)
 }
 
+func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	guildID := chi.URLParam(r, "guildId")
+	roles, err := h.svc.ListRoles(r.Context(), guildID, userID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "You are not a member of this guild")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to list roles")
+		return
+	}
+	writeJSON(w, http.StatusOK, roles)
+}
+
+func (h *Handler) UpdateRole(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	guildID := chi.URLParam(r, "guildId")
+	roleID := chi.URLParam(r, "roleId")
+	var req struct {
+		Name        *string `json:"name"`
+		Level       *int    `json:"level"`
+		Permissions *int64  `json:"permissions"`
+		Description *string `json:"description"`
+		Color       *string `json:"color"`
+		Position    *int    `json:"position"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+	role, err := h.svc.UpdateRole(r.Context(), guildID, userID, roleID, req.Name, req.Level, req.Permissions, req.Description, req.Color, req.Position)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Role not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to update role")
+		return
+	}
+	writeJSON(w, http.StatusOK, role)
+}
+
+func (h *Handler) DeleteRole(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	guildID := chi.URLParam(r, "guildId")
+	roleID := chi.URLParam(r, "roleId")
+	err := h.svc.DeleteRole(r.Context(), guildID, userID, roleID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Role not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to delete role")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) AssignRole(w http.ResponseWriter, r *http.Request) {
 	requesterID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -319,6 +398,56 @@ func (h *Handler) AssignRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) AddMemberRole(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	guildID := chi.URLParam(r, "guildId")
+	targetUserID := chi.URLParam(r, "userId")
+	roleID := chi.URLParam(r, "roleId")
+	err := h.svc.AssignRole(r.Context(), guildID, userID, targetUserID, roleID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Member or role not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to assign role")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) RemoveMemberRole(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	guildID := chi.URLParam(r, "guildId")
+	targetUserID := chi.URLParam(r, "userId")
+	roleID := chi.URLParam(r, "roleId")
+	err := h.svc.RemoveRole(r.Context(), guildID, userID, targetUserID, roleID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Member or role not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to remove role")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) MuteMember(w http.ResponseWriter, r *http.Request) {

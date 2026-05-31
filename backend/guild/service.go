@@ -34,10 +34,26 @@ type Service struct {
 	db           *pgxpool.Pool
 	nodeID       string
 	stateChecker GuildStateChecker
+	superAdmins  map[uuid.UUID]struct{}
 }
 
 func NewService(db *pgxpool.Pool, nodeID string) *Service {
-	return &Service{db: db, nodeID: nodeID}
+	return &Service{db: db, nodeID: nodeID, superAdmins: make(map[uuid.UUID]struct{})}
+}
+
+func (s *Service) SetSuperAdmins(userIDs []string) {
+	s.superAdmins = make(map[uuid.UUID]struct{}, len(userIDs))
+	for _, raw := range userIDs {
+		id, err := uuid.Parse(raw)
+		if err == nil {
+			s.superAdmins[id] = struct{}{}
+		}
+	}
+}
+
+func (s *Service) IsSuperAdmin(userID uuid.UUID) bool {
+	_, ok := s.superAdmins[userID]
+	return ok
 }
 
 func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*models.Guild, error) {
@@ -65,18 +81,18 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 
 	var roleID uuid.UUID
 	err = tx.QueryRow(ctx,
-		`INSERT INTO roles (guild_id, name, level, permissions)
-		 VALUES ($1, 'Owner', $2, $3)
+		`INSERT INTO roles (guild_id, name, level, permissions, is_system, position)
+		 VALUES ($1, 'Owner', $2, $3, TRUE, 1000)
 		 RETURNING id`,
-		guild.ID, RoleLevelOwner, int64(^uint64(0)>>1),
+		guild.ID, RoleLevelOwner, AllPermissions,
 	).Scan(&roleID)
 	if err != nil {
 		return nil, fmt.Errorf("insert owner role: %w", err)
 	}
 
 	_, err = tx.Exec(ctx,
-		`INSERT INTO roles (guild_id, name, level, permissions)
-		 VALUES ($1, 'Member', $2, 0)`,
+		`INSERT INTO roles (guild_id, name, level, permissions, is_system, position)
+		 VALUES ($1, 'Member', $2, 0, TRUE, 0)`,
 		guild.ID, RoleLevelMember,
 	)
 	if err != nil {
@@ -90,6 +106,16 @@ func (s *Service) CreateGuild(ctx context.Context, ownerID, name string) (*model
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert guild member: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO guild_member_roles (guild_id, user_id, role_id, assigned_by)
+		 VALUES ($1, $2, $3, $2)
+		 ON CONFLICT DO NOTHING`,
+		guild.ID, ownerUUID, roleID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert owner role assignment: %w", err)
 	}
 
 	_, err = tx.Exec(ctx,
@@ -157,8 +183,8 @@ func (s *Service) CreateInvite(ctx context.Context, guildID, createdBy string, e
 		return nil, fmt.Errorf("invalid creator id: %w", err)
 	}
 
-	if err := s.requireMember(ctx, guildUUID, creatorUUID); err != nil {
-		return nil, err
+	if err := s.RequirePermission(ctx, guildUUID, creatorUUID, PermissionCreateInvite); err != nil {
+		return nil, ErrForbidden
 	}
 
 	code, err := generateInviteCode()
@@ -275,6 +301,15 @@ func (s *Service) JoinByInvite(ctx context.Context, userID, code string) (*model
 		return nil, fmt.Errorf("commit tx: %w", err)
 	}
 
+	if memberRoleID != nil {
+		_, _ = s.db.Exec(ctx,
+			`INSERT INTO guild_member_roles (guild_id, user_id, role_id, assigned_by)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT DO NOTHING`,
+			invite.GuildID, userUUID, *memberRoleID, invite.CreatedBy,
+		)
+	}
+
 	return &guild, nil
 }
 
@@ -299,19 +334,15 @@ func (s *Service) RemoveMember(ctx context.Context, guildID, requesterID, target
 		}
 	}
 
-	requesterLevel, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
-	if err != nil {
-		return ErrForbidden
-	}
-	if requesterLevel < RoleLevelAdmin {
+	if err := s.RequirePermission(ctx, guildUUID, requesterUUID, PermissionKickMembers); err != nil {
 		return ErrForbidden
 	}
 
-	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
+	targetOwner, err := s.IsGuildOwner(ctx, guildUUID, targetUUID)
 	if err != nil {
-		return ErrNotFound
+		return err
 	}
-	if targetLevel >= RoleLevelOwner {
+	if targetOwner {
 		return ErrForbidden
 	}
 
@@ -339,11 +370,7 @@ func (s *Service) CreateChannel(ctx context.Context, guildID, requesterID, name,
 		return nil, fmt.Errorf("invalid requester id: %w", err)
 	}
 
-	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
-	if err != nil {
-		return nil, ErrForbidden
-	}
-	if level < RoleLevelAdmin {
+	if err := s.RequirePermission(ctx, guildUUID, requesterUUID, PermissionManageChannels); err != nil {
 		return nil, ErrForbidden
 	}
 
@@ -468,6 +495,9 @@ func (s *Service) UserHasChannelAccess(ctx context.Context, userID, channelID st
 	if err != nil {
 		return false, fmt.Errorf("invalid channel id: %w", err)
 	}
+	if s.IsSuperAdmin(userUUID) {
+		return true, nil
+	}
 
 	var ok bool
 	err = s.db.QueryRow(ctx,
@@ -486,6 +516,9 @@ func (s *Service) UserHasChannelAccess(ctx context.Context, userID, channelID st
 }
 
 func (s *Service) requireMember(ctx context.Context, guildID, userID uuid.UUID) error {
+	if s.IsSuperAdmin(userID) {
+		return nil
+	}
 	var exists bool
 	err := s.db.QueryRow(ctx,
 		`SELECT EXISTS(
@@ -504,21 +537,7 @@ func (s *Service) requireMember(ctx context.Context, guildID, userID uuid.UUID) 
 }
 
 func (s *Service) getMemberLevel(ctx context.Context, guildID, userID uuid.UUID) (int, error) {
-	var level int
-	err := s.db.QueryRow(ctx,
-		`SELECT COALESCE(r.level, 0)
-		 FROM guild_members gm
-		 LEFT JOIN roles r ON r.id = gm.role_id
-		 WHERE gm.guild_id = $1 AND gm.user_id = $2 AND gm.banned = FALSE`,
-		guildID, userID,
-	).Scan(&level)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, ErrNotFound
-		}
-		return 0, fmt.Errorf("query member level: %w", err)
-	}
-	return level, nil
+	return s.GetHighestRoleLevel(ctx, guildID, userID)
 }
 
 func (s *Service) CreateRole(ctx context.Context, guildID, requesterID, name string, permissions int64) (*models.Role, error) {
@@ -531,26 +550,208 @@ func (s *Service) CreateRole(ctx context.Context, guildID, requesterID, name str
 		return nil, fmt.Errorf("invalid requester id: %w", err)
 	}
 
-	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
+	if err := s.RequirePermission(ctx, guildUUID, requesterUUID, PermissionManageRoles); err != nil {
+		return nil, ErrForbidden
+	}
+	if err := s.CanGrantPermissions(ctx, guildUUID, requesterUUID, permissions); err != nil {
+		return nil, ErrForbidden
+	}
+	level, err := s.GetHighestRoleLevel(ctx, guildUUID, requesterUUID)
 	if err != nil {
 		return nil, ErrForbidden
 	}
-	if level < RoleLevelAdmin {
-		return nil, ErrForbidden
+	newRoleLevel := level - 1
+	if newRoleLevel < RoleLevelMember {
+		newRoleLevel = RoleLevelMember
 	}
 
 	var role models.Role
 	err = s.db.QueryRow(ctx,
-		`INSERT INTO roles (guild_id, name, level, permissions)
-		 VALUES ($1, $2, $3, $4)
-		 RETURNING id, guild_id, name, level, permissions`,
-		guildUUID, name, RoleLevelMember, permissions,
-	).Scan(&role.ID, &role.GuildID, &role.Name, &role.Level, &role.Permissions)
+		`INSERT INTO roles (guild_id, name, level, permissions, is_system, position)
+		 VALUES ($1, $2, $3, $4, FALSE, $3)
+		 RETURNING id, guild_id, name, level, permissions, description, color, position, is_system, created_at, updated_at`,
+		guildUUID, name, newRoleLevel, permissions,
+	).Scan(&role.ID, &role.GuildID, &role.Name, &role.Level, &role.Permissions, &role.Description, &role.Color, &role.Position, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert role: %w", err)
 	}
 
 	return &role, nil
+}
+
+func (s *Service) ListRoles(ctx context.Context, guildID, requesterID string) ([]models.Role, error) {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requester id: %w", err)
+	}
+	if err := s.requireMember(ctx, guildUUID, requesterUUID); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.Query(ctx,
+		`SELECT id, guild_id, name, level, permissions, description, color, position, is_system, created_at, updated_at
+		 FROM roles
+		 WHERE guild_id = $1
+		 ORDER BY position DESC, level DESC, name ASC`,
+		guildUUID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query roles: %w", err)
+	}
+	defer rows.Close()
+
+	roles := []models.Role{}
+	for rows.Next() {
+		var role models.Role
+		if err := rows.Scan(&role.ID, &role.GuildID, &role.Name, &role.Level, &role.Permissions, &role.Description, &role.Color, &role.Position, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan role: %w", err)
+		}
+		roles = append(roles, role)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("roles rows: %w", err)
+	}
+	return roles, nil
+}
+
+func (s *Service) UpdateRole(ctx context.Context, guildID, requesterID, roleID string, name *string, level *int, permissions *int64, description *string, color *string, position *int) (*models.Role, error) {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requester id: %w", err)
+	}
+	roleUUID, err := uuid.Parse(roleID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid role id: %w", err)
+	}
+	if err := s.CanManageRole(ctx, guildUUID, requesterUUID, roleUUID); err != nil {
+		return nil, err
+	}
+
+	var current models.Role
+	err = s.db.QueryRow(ctx,
+		`SELECT id, guild_id, name, level, permissions, description, color, position, is_system, created_at, updated_at
+		 FROM roles WHERE guild_id = $1 AND id = $2`,
+		guildUUID, roleUUID,
+	).Scan(&current.ID, &current.GuildID, &current.Name, &current.Level, &current.Permissions, &current.Description, &current.Color, &current.Position, &current.IsSystem, &current.CreatedAt, &current.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("load role: %w", err)
+	}
+	if current.IsSystem {
+		return nil, ErrForbidden
+	}
+
+	nextName := current.Name
+	nextLevel := current.Level
+	nextPermissions := current.Permissions
+	nextDescription := current.Description
+	nextColor := current.Color
+	nextPosition := current.Position
+	if name != nil {
+		nextName = *name
+	}
+	if level != nil {
+		nextLevel = *level
+	}
+	if permissions != nil {
+		nextPermissions = *permissions
+	}
+	if description != nil {
+		nextDescription = *description
+	}
+	if color != nil {
+		nextColor = *color
+	}
+	if position != nil {
+		nextPosition = *position
+	}
+	if nextLevel < RoleLevelMember || nextLevel >= RoleLevelOwner {
+		return nil, ErrForbidden
+	}
+	requesterLevel, err := s.GetHighestRoleLevel(ctx, guildUUID, requesterUUID)
+	if err != nil {
+		return nil, ErrForbidden
+	}
+	isOwner, err := s.IsGuildOwner(ctx, guildUUID, requesterUUID)
+	if err != nil {
+		return nil, err
+	}
+	if !isOwner && nextLevel >= requesterLevel {
+		return nil, ErrForbidden
+	}
+	if err := s.CanGrantPermissions(ctx, guildUUID, requesterUUID, nextPermissions); err != nil {
+		return nil, ErrForbidden
+	}
+
+	var role models.Role
+	err = s.db.QueryRow(ctx,
+		`UPDATE roles
+		 SET name = $1, level = $2, permissions = $3, description = $4, color = $5, position = $6, updated_at = NOW()
+		 WHERE guild_id = $7 AND id = $8
+		 RETURNING id, guild_id, name, level, permissions, description, color, position, is_system, created_at, updated_at`,
+		nextName, nextLevel, nextPermissions, nextDescription, nextColor, nextPosition, guildUUID, roleUUID,
+	).Scan(&role.ID, &role.GuildID, &role.Name, &role.Level, &role.Permissions, &role.Description, &role.Color, &role.Position, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("update role: %w", err)
+	}
+	_, _ = s.db.Exec(ctx,
+		`INSERT INTO role_audit_log (guild_id, actor_id, role_id, action)
+		 VALUES ($1, $2, $3, 'role_updated')`,
+		guildUUID, requesterUUID, roleUUID,
+	)
+	return &role, nil
+}
+
+func (s *Service) DeleteRole(ctx context.Context, guildID, requesterID, roleID string) error {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return fmt.Errorf("invalid requester id: %w", err)
+	}
+	roleUUID, err := uuid.Parse(roleID)
+	if err != nil {
+		return fmt.Errorf("invalid role id: %w", err)
+	}
+	if err := s.CanManageRole(ctx, guildUUID, requesterUUID, roleUUID); err != nil {
+		return err
+	}
+	var isSystem bool
+	err = s.db.QueryRow(ctx, `SELECT is_system FROM roles WHERE guild_id = $1 AND id = $2`, guildUUID, roleUUID).Scan(&isSystem)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("load role: %w", err)
+	}
+	if isSystem {
+		return ErrForbidden
+	}
+	result, err := s.db.Exec(ctx, `DELETE FROM roles WHERE guild_id = $1 AND id = $2`, guildUUID, roleUUID)
+	if err != nil {
+		return fmt.Errorf("delete role: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	_, _ = s.db.Exec(ctx,
+		`INSERT INTO role_audit_log (guild_id, actor_id, role_id, action)
+		 VALUES ($1, $2, $3, 'role_deleted')`,
+		guildUUID, requesterUUID, roleUUID,
+	)
+	return nil
 }
 
 func (s *Service) AssignRole(ctx context.Context, guildID, requesterID, targetUserID, roleID string) error {
@@ -571,35 +772,94 @@ func (s *Service) AssignRole(ctx context.Context, guildID, requesterID, targetUs
 		return fmt.Errorf("invalid role id: %w", err)
 	}
 
-	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
-	if err != nil {
-		return ErrForbidden
-	}
-	if level < RoleLevelAdmin {
-		return ErrForbidden
-	}
-
-	var exists bool
-	err = s.db.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM roles WHERE id = $1 AND guild_id = $2)`,
-		roleUUID, guildUUID,
-	).Scan(&exists)
-	if err != nil || !exists {
-		return ErrNotFound
+	if err := s.CanAssignRole(ctx, guildUUID, requesterUUID, targetUUID, roleUUID); err != nil {
+		return err
 	}
 
 	result, err := s.db.Exec(ctx,
-		`UPDATE guild_members SET role_id = $1
-		 WHERE guild_id = $2 AND user_id = $3 AND banned = FALSE`,
-		roleUUID, guildUUID, targetUUID,
+		`INSERT INTO guild_member_roles (guild_id, user_id, role_id, assigned_by)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT DO NOTHING`,
+		guildUUID, targetUUID, roleUUID, requesterUUID,
 	)
 	if err != nil {
-		return fmt.Errorf("update member role: %w", err)
+		return fmt.Errorf("assign role: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return nil
+	}
+
+	_, _ = s.db.Exec(ctx,
+		`INSERT INTO role_audit_log (guild_id, actor_id, target_user_id, role_id, action)
+		 VALUES ($1, $2, $3, $4, 'role_assigned')`,
+		guildUUID, requesterUUID, targetUUID, roleUUID,
+	)
+	_, _ = s.db.Exec(ctx,
+		`UPDATE guild_members SET role_id = COALESCE(role_id, $1)
+		 WHERE guild_id = $2 AND user_id = $3`,
+		roleUUID, guildUUID, targetUUID,
+	)
+
+	return nil
+}
+
+func (s *Service) RemoveRole(ctx context.Context, guildID, requesterID, targetUserID, roleID string) error {
+	guildUUID, err := uuid.Parse(guildID)
+	if err != nil {
+		return fmt.Errorf("invalid guild id: %w", err)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return fmt.Errorf("invalid requester id: %w", err)
+	}
+	targetUUID, err := uuid.Parse(targetUserID)
+	if err != nil {
+		return fmt.Errorf("invalid target user id: %w", err)
+	}
+	roleUUID, err := uuid.Parse(roleID)
+	if err != nil {
+		return fmt.Errorf("invalid role id: %w", err)
+	}
+	if err := s.CanManageRole(ctx, guildUUID, requesterUUID, roleUUID); err != nil {
+		return err
+	}
+
+	var roleName string
+	var isSystem bool
+	err = s.db.QueryRow(ctx,
+		`SELECT name, is_system FROM roles WHERE guild_id = $1 AND id = $2`,
+		guildUUID, roleUUID,
+	).Scan(&roleName, &isSystem)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("load role: %w", err)
+	}
+	if isSystem {
+		return ErrForbidden
+	}
+
+	result, err := s.db.Exec(ctx,
+		`DELETE FROM guild_member_roles WHERE guild_id = $1 AND user_id = $2 AND role_id = $3`,
+		guildUUID, targetUUID, roleUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("remove role: %w", err)
 	}
 	if result.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-
+	_, _ = s.db.Exec(ctx,
+		`UPDATE guild_members SET role_id = NULL
+		 WHERE guild_id = $1 AND user_id = $2 AND role_id = $3`,
+		guildUUID, targetUUID, roleUUID,
+	)
+	_, _ = s.db.Exec(ctx,
+		`INSERT INTO role_audit_log (guild_id, actor_id, target_user_id, role_id, action, details)
+		 VALUES ($1, $2, $3, $4, 'role_removed', jsonb_build_object('role_name', $5))`,
+		guildUUID, requesterUUID, targetUUID, roleUUID, roleName,
+	)
 	return nil
 }
 
@@ -617,19 +877,15 @@ func (s *Service) MuteMember(ctx context.Context, guildID, requesterID, targetUs
 		return fmt.Errorf("invalid target user id: %w", err)
 	}
 
-	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
-	if err != nil {
-		return ErrForbidden
-	}
-	if level < RoleLevelAdmin {
+	if err := s.RequirePermission(ctx, guildUUID, requesterUUID, PermissionModerateMembers); err != nil {
 		return ErrForbidden
 	}
 
-	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
+	targetOwner, err := s.IsGuildOwner(ctx, guildUUID, targetUUID)
 	if err != nil {
-		return ErrNotFound
+		return err
 	}
-	if targetLevel >= RoleLevelOwner {
+	if targetOwner {
 		return ErrForbidden
 	}
 
@@ -663,19 +919,15 @@ func (s *Service) BanMember(ctx context.Context, guildID, requesterID, targetUse
 		return fmt.Errorf("invalid target user id: %w", err)
 	}
 
-	level, err := s.getMemberLevel(ctx, guildUUID, requesterUUID)
-	if err != nil {
-		return ErrForbidden
-	}
-	if level < RoleLevelAdmin {
+	if err := s.RequirePermission(ctx, guildUUID, requesterUUID, PermissionBanMembers); err != nil {
 		return ErrForbidden
 	}
 
-	targetLevel, err := s.getMemberLevel(ctx, guildUUID, targetUUID)
+	targetOwner, err := s.IsGuildOwner(ctx, guildUUID, targetUUID)
 	if err != nil {
-		return ErrNotFound
+		return err
 	}
-	if targetLevel >= RoleLevelOwner {
+	if targetOwner {
 		return ErrForbidden
 	}
 

@@ -4,13 +4,15 @@ export interface CamouflageEnvelope {
   mode: "json-padding-v1";
   payload: string;
   padding: string;
+  cover: "browser-json";
 }
 
+import { camouflageEnabledByPolicy, paddingBounds } from "./policy";
+
 const FRAME_VERSION = 1;
-const MAX_PADDING_BYTES = 96;
 
 export function camouflageEnabled(): boolean {
-  return import.meta.env.VITE_WS_CAMOUFLAGE === "json-padding-v1";
+  return camouflageEnabledByPolicy();
 }
 
 export function encodeCamouflageFrame(event: Record<string, unknown>): string {
@@ -23,8 +25,10 @@ export function encodeCamouflageFrame(event: Record<string, unknown>): string {
     mode: "json-padding-v1",
     payload,
     padding: btoa(String.fromCharCode(...paddingBytes)),
+    cover: "browser-json",
   };
-  // ANTI-BLOCKING: this is traffic camouflage only; it is not cryptographic secrecy.
+  // ANTI-DETECTION: this pads application frames to reduce simple payload-size fingerprints.
+  // It is traffic camouflage only; it is not cryptographic secrecy or DPI invisibility.
   return JSON.stringify(envelope);
 }
 
@@ -42,7 +46,9 @@ export function decodeCamouflageFrame(value: string): Record<string, unknown> {
 }
 
 function randomPaddingLength(): number {
-  const byte = new Uint8Array(1);
-  crypto.getRandomValues(byte);
-  return (byte[0] ?? 0) % (MAX_PADDING_BYTES + 1);
+  const { min, max } = paddingBounds();
+  const range = Math.max(1, max - min + 1);
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return min + ((bytes[0] ?? 0) % range);
 }

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<title>Zenthril CSWSH Origin Check</title>
+<body>
+  <h1>CSWSH Origin Check</h1>
+  <p>
+    Open this file from a browser and enter a local Zenthril WebSocket URL with a valid one-time ticket.
+    A hardened server should reject this page because its Origin is not in WS_ALLOWED_ORIGINS.
+  </p>
+  <input id="url" size="90" value="ws://127.0.0.1:8080/ws?ticket=REPLACE_ME" />
+  <button id="run">Run check</button>
+  <pre id="out"></pre>
+  <script>
+    document.getElementById("run").onclick = () => {
+      const out = document.getElementById("out");
+      out.textContent = "Connecting...\n";
+      const ws = new WebSocket(document.getElementById("url").value);
+      ws.onopen = () => {
+        out.textContent += "UNSAFE: WebSocket opened from an untrusted browser origin.\n";
+        ws.close();
+      };
+      ws.onerror = () => {
+        out.textContent += "Expected: connection rejected or failed.\n";
+      };
+      ws.onclose = (event) => {
+        out.textContent += `Closed: code=${event.code} reason=${event.reason || "(none)"}\n`;
+      };
+    };
+  </script>
+</body>
+</html>

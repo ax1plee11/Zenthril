@@ -57,6 +57,7 @@ This repository should be read as an engineering alpha: useful, testable, and ac
 
 - WebSocket-based realtime messaging
 - Guilds, channels, invites, and basic moderation
+- RBAC roles foundation with multiple roles per guild member
 - JWT authentication with refresh token support
 - Device registration and key revocation foundation
 - Basic E2EE building blocks using X25519, HKDF-SHA256, and AES-256-GCM

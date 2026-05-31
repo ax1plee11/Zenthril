@@ -29,6 +29,12 @@ type Role struct {
 	Name        string    `json:"name"`
 	Level       int       `json:"level"`
 	Permissions int64     `json:"permissions"`
+	Description string    `json:"description"`
+	Color       string    `json:"color"`
+	Position    int       `json:"position"`
+	IsSystem    bool      `json:"is_system"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type GuildMember struct {
@@ -38,6 +44,14 @@ type GuildMember struct {
 	JoinedAt   time.Time  `json:"joined_at"`
 	Banned     bool       `json:"banned"`
 	MutedUntil *time.Time `json:"muted_until,omitempty"`
+}
+
+type RoleAssignment struct {
+	GuildID    uuid.UUID  `json:"guild_id"`
+	UserID     uuid.UUID  `json:"user_id"`
+	RoleID     uuid.UUID  `json:"role_id"`
+	AssignedBy *uuid.UUID `json:"assigned_by,omitempty"`
+	AssignedAt time.Time  `json:"assigned_at"`
 }
 
 type Invite struct {
