@@ -21,6 +21,13 @@ export interface SafetyNumber {
   participants: [ParticipantIdentity, ParticipantIdentity];
 }
 
+export interface SafetyNumberQRPayload {
+  type: "zenthril.safety-number";
+  version: number;
+  safetyNumber: string;
+  participants: [ParticipantIdentity, ParticipantIdentity];
+}
+
 export async function createSafetyNumber(
   input: SafetyNumberInput,
 ): Promise<SafetyNumber> {
@@ -67,6 +74,31 @@ export function formatSafetyNumber(digest: Uint8Array): string {
     groups.push(digits.slice(i, i + SAFETY_NUMBER_GROUP_SIZE));
   }
   return groups.join(" ");
+}
+
+export function createSafetyNumberQRPayload(value: SafetyNumber): string {
+  const payload: SafetyNumberQRPayload = {
+    type: "zenthril.safety-number",
+    version: value.version,
+    safetyNumber: value.value,
+    participants: value.participants,
+  };
+  // SECURITY: this payload is for visual verification only; it is not a trust decision by itself.
+  return JSON.stringify(payload);
+}
+
+export function parseSafetyNumberQRPayload(value: string): SafetyNumberQRPayload {
+  const payload = JSON.parse(value) as Partial<SafetyNumberQRPayload>;
+  if (
+    payload.type !== "zenthril.safety-number" ||
+    payload.version !== SAFETY_NUMBER_VERSION ||
+    typeof payload.safetyNumber !== "string" ||
+    !Array.isArray(payload.participants) ||
+    payload.participants.length !== 2
+  ) {
+    throw new Error("Invalid safety number QR payload");
+  }
+  return payload as SafetyNumberQRPayload;
 }
 
 function normalizeParticipants(

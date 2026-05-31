@@ -3,6 +3,12 @@ import type {
   KeyBundleAPI,
   RegisterDeviceRequest,
 } from "../features/e2ee/types";
+import {
+  getSelectedServer,
+  loadServers,
+  setSelectedServer,
+  type ZenthrilServer,
+} from "../config/servers";
 
 /**
  * API клиент — fetch к бэкенду.
@@ -11,6 +17,35 @@ import type {
 
 function trimTrailingSlash(s: string): string {
   return s.replace(/\/+$/, "");
+}
+
+let activeServer: ZenthrilServer | null = null;
+let serverLoadPromise: Promise<ZenthrilServer[]> | null = null;
+
+async function getServerPool(): Promise<ZenthrilServer[]> {
+  if (!serverLoadPromise) {
+    serverLoadPromise = loadServers();
+  }
+  return serverLoadPromise;
+}
+
+export async function reloadServerPool(): Promise<ZenthrilServer[]> {
+  serverLoadPromise = loadServers();
+  const servers = await serverLoadPromise;
+  activeServer = getSelectedServer(servers);
+  return servers;
+}
+
+export async function getActiveServer(): Promise<ZenthrilServer> {
+  const servers = await getServerPool();
+  if (!activeServer) {
+    activeServer = getSelectedServer(servers);
+  }
+  return activeServer;
+}
+
+export function clearActiveServer(): void {
+  activeServer = null;
 }
 
 /**
@@ -44,7 +79,12 @@ export function getWebSocketUrl(path = "/ws"): string {
   return `${proto}//${window.location.hostname}:8080${path}`;
 }
 
-const BASE_URL = getBackendOrigin();
+export async function getActiveWebSocketUrl(path = "/ws"): Promise<string> {
+  const server = await getActiveServer();
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${server.wsBase}${p}`;
+}
+
 const TOKEN_KEY = "zenthril_token";
 
 function getToken(): string | null {
@@ -52,6 +92,35 @@ function getToken(): string | null {
 }
 
 async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  auth = true,
+): Promise<T> {
+  const servers = await getServerPool();
+  const selected = await getActiveServer();
+  const orderedServers = [
+    selected,
+    ...servers.filter(server => server.apiBase !== selected.apiBase),
+  ];
+  let lastError: unknown;
+
+  for (const server of orderedServers) {
+    try {
+      return await requestFromServer<T>(server, method, path, body, auth);
+    } catch (err) {
+      lastError = err;
+      if (!isNetworkLikeError(err)) throw err;
+      // ANTI-BLOCKING: when a server is blocked or unreachable, transparently try the next configured server.
+      continue;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("All configured servers are unavailable");
+}
+
+async function requestFromServer<T>(
+  server: ZenthrilServer,
   method: string,
   path: string,
   body?: unknown,
@@ -76,7 +145,7 @@ async function request<T>(
     init.body = JSON.stringify(body);
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, init);
+  const res = await fetch(`${server.apiBase}${path}`, init);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "unknown" }));
@@ -86,8 +155,17 @@ async function request<T>(
     });
   }
 
+  if (!activeServer || activeServer.apiBase !== server.apiBase) {
+    activeServer = server;
+    setSelectedServer(server.id);
+  }
+
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+function isNetworkLikeError(err: unknown): boolean {
+  return err instanceof TypeError || err instanceof DOMException;
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────

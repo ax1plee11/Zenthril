@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createSafetyNumber,
   createSafetyNumberInput,
+  createSafetyNumberQRPayload,
   formatSafetyNumber,
+  parseSafetyNumberQRPayload,
 } from "./safetyNumber";
 import { createDeviceKeyBundle, toRegisterDeviceRequest } from "./deviceKeys";
 import type { DeviceAPI } from "./types";
@@ -88,6 +90,30 @@ describe("safety number", () => {
         deviceId: remote.device_id,
         identityPublicKey: remote.identity_public_key,
       },
+    });
+  });
+
+  it("round-trips QR verification payloads", async () => {
+    const safetyNumber = await createSafetyNumber({
+      local: {
+        userId: "user-a",
+        deviceId: "device-a",
+        identityPublicKey: "identity-a",
+      },
+      remote: {
+        userId: "user-b",
+        deviceId: "device-b",
+        identityPublicKey: "identity-b",
+      },
+    });
+
+    const payload = createSafetyNumberQRPayload(safetyNumber);
+
+    expect(parseSafetyNumberQRPayload(payload)).toEqual({
+      type: "zenthril.safety-number",
+      version: 1,
+      safetyNumber: safetyNumber.value,
+      participants: safetyNumber.participants,
     });
   });
 });

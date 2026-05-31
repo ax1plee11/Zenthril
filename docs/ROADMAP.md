@@ -60,6 +60,23 @@ Status: planned.
 - Add connection draining and graceful shutdown tests.
 - Define delivery semantics: at-least-once delivery with idempotent client-side deduplication.
 
+## Phase 3.5: Anti-Censorship And Resilience
+
+Status: foundation started.
+
+- Client loads a dynamic server list from `servers.json`.
+- Users can switch servers and add custom mirrors.
+- The client caches the server list and falls back across configured servers on network errors.
+- Mirror origins are expanded into normal fallback targets.
+
+Remaining work:
+
+- Sign server lists and pin trust roots in the client.
+- Add DNS-over-HTTPS bootstrap for server-list discovery.
+- Add optional Tor `.onion` entries and external proxy mode.
+- Add bridge-node metadata and P2P fallback routing.
+- Keep all anti-censorship claims explicit about limitations.
+
 ## Phase 4: Federation
 
 Status: planned; current federation endpoints are not production-ready.

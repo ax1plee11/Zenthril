@@ -2,11 +2,15 @@
  * Единственное WebSocket-соединение для всего приложения.
  * ChatView, уведомления о друзьях, инвайты — всё через один сокет.
  */
-import { api, getWebSocketUrl } from "../api/index";
+import { api, getActiveWebSocketUrl, clearActiveServer } from "../api/index";
+import {
+  camouflageEnabled,
+  decodeCamouflageFrame,
+  encodeCamouflageFrame,
+} from "../transport/camouflage";
 
 type Handler = (event: Record<string, unknown>) => void;
 
-const WS_URL = getWebSocketUrl("/ws");
 const handlers = new Map<string, Set<Handler>>();
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -26,7 +30,7 @@ export function onWSEvent(type: string, handler: Handler): () => void {
 
 export function sendWSEvent(event: Record<string, unknown>): void {
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(event));
+    ws.send(camouflageEnabled() ? encodeCamouflageFrame(event) : JSON.stringify(event));
   }
 }
 
@@ -43,7 +47,8 @@ export async function connectGlobalWS(): Promise<void> {
   connecting = true;
   try {
     const { ticket } = await api.auth.wsTicket();
-    const socket = new WebSocket(`${WS_URL}?ticket=${encodeURIComponent(ticket)}`);
+    const wsUrl = await getActiveWebSocketUrl("/ws");
+    const socket = new WebSocket(`${wsUrl}?ticket=${encodeURIComponent(ticket)}`);
     ws = socket;
 
     socket.onopen = () => {
@@ -54,7 +59,7 @@ export async function connectGlobalWS(): Promise<void> {
 
     socket.onmessage = (e: MessageEvent) => {
       try {
-        const data = JSON.parse(e.data as string) as Record<string, unknown>;
+        const data = decodeCamouflageFrame(e.data as string);
         const type = data.type as string;
         // Диспатчим конкретный тип + wildcard "*"
         handlers.get(type)?.forEach(h => h(data));
@@ -71,10 +76,13 @@ export async function connectGlobalWS(): Promise<void> {
 
     socket.onerror = () => {
       connecting = false;
+      // ANTI-BLOCKING: force the next reconnect attempt to re-evaluate the server pool.
+      clearActiveServer();
       socket.close();
     };
   } catch {
     connecting = false;
+    clearActiveServer();
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(() => connectGlobalWS(), 4000);
   }

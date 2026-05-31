@@ -6,6 +6,7 @@ import { generateKeyPair, exportPublicKey, storePrivateKey } from "../crypto/ind
 import { ensureLocalDeviceRegistered } from "../features/e2ee";
 import { apiErrorFields } from "../util/errors";
 import LanguageSwitcher from "./LanguageSwitcher";
+import ServerSettings from "./ServerSettings";
 
 interface AuthScreenProps { onAuth: () => void; }
 type Tab = "login" | "register";
@@ -17,6 +18,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
+  const [showServers, setShowServers] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
   const checkTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -81,6 +83,9 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
       <div style={s.langSwitcher}>
         <LanguageSwitcher />
       </div>
+      <button style={s.serverButton} onClick={() => setShowServers(true)}>
+        Change Server
+      </button>
 
       {/* Ambient blobs */}
       <div style={s.blob1} />
@@ -207,6 +212,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
           End-to-end encrypted · Open source · No tracking
         </div>
       </div>
+      {showServers && <ServerSettings onClose={() => setShowServers(false)} />}
     </div>
   );
 }
@@ -229,6 +235,20 @@ const s = {
     top: 20,
     right: 20,
     zIndex: 10,
+  } as React.CSSProperties,
+  serverButton: {
+    position: "absolute" as const,
+    top: 20,
+    left: 20,
+    zIndex: 10,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+    color: "var(--text-secondary)",
+    padding: "8px 10px",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 700,
   } as React.CSSProperties,
   blob1: {
     position: "absolute" as const, width: 500, height: 500, borderRadius: "50%",

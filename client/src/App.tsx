@@ -7,6 +7,7 @@ import AuthScreen from "./components/AuthScreen";
 import MainLayout from "./components/MainLayout";
 import { CallManager } from "./features/calls/components/CallManager";
 import { signalingService } from "./features/calls/services/signalingService";
+import { getActiveServer } from "./api/index";
 
 function getAppBackground(theme: Theme): React.CSSProperties {
   const bg = theme.chatBackground;
@@ -58,8 +59,9 @@ export default function App() {
     saveAuth(newToken, newUser);
     setToken(newToken);
     setUser(newUser);
-    const wsBase = (import.meta.env.VITE_API_BASE || 'http://localhost:8080').replace('http', 'ws');
-    signalingService.connect(wsBase, newToken);
+    getActiveServer()
+      .then(server => signalingService.connect(server.wsBase, newToken))
+      .catch(() => signalingService.connect("ws://localhost:8080", newToken));
   }, []);
 
   const logout = useCallback(() => {

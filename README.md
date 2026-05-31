@@ -2,6 +2,29 @@
 
 **Zenthril** is an open-source, self-hosted messaging platform focused on realtime communication, security engineering, and academic research.
 
+> **Security Status: Alpha**
+>
+> Zenthril is an alpha-stage secure messaging research project.
+> Do not use it for sensitive or high-risk communication yet.
+> The current E2EE implementation is experimental and has not been externally audited.
+> It is not equivalent to the Signal Protocol.
+> X3DH, full Double Ratchet, skipped-message-key handling, production-grade device verification, secure recovery, and external audit are still required before production security claims.
+
+## Security Status
+
+| Area | Status |
+| --- | --- |
+| Auth hardening | Partial / Alpha |
+| Refresh token rotation | Implemented |
+| WebSocket tickets | Implemented |
+| E2EE HKDF envelope | Implemented foundation |
+| X3DH | Incomplete / WIP |
+| Double Ratchet | Incomplete / WIP |
+| Device verification | Incomplete |
+| Secure key storage | Incomplete |
+| External audit | Not done |
+| Federation security | Not production-ready |
+
 The project is developed as a practical software engineering project and as a research base for studying WebSocket messaging, E2EE foundations, hybrid voice communication, and backend hardening.
 
 ## Status
@@ -80,6 +103,22 @@ Do **not** use Zenthril for highly sensitive communication at this stage. Treat 
 
 See [`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md), and [`docs/security/E2EE_FOUNDATION.md`](docs/security/E2EE_FOUNDATION.md) for more detail.
 
+## Anti-Censorship / Resilience
+
+Zenthril now includes an alpha multi-server client foundation:
+
+- dynamic `servers.json` server list;
+- local cached server list fallback;
+- custom server entries in the client;
+- mirror entries promoted into fallback servers;
+- automatic retry across configured servers when network errors occur.
+- DNS-over-HTTPS bootstrap for alternate server-list discovery;
+- `.onion` server metadata for external Tor proxy environments.
+
+This is a resilience foundation, not a guarantee that the system is unblockable.
+See [`docs/ANTI_CENSORSHIP.md`](docs/ANTI_CENSORSHIP.md) for the current design,
+limitations, and three-month roadmap.
+
 ## Technical Stack
 
 **Backend**
@@ -106,6 +145,12 @@ See [`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`docs/S
 - Docker Compose deployment files
 - Kubernetes-oriented deployment manifests
 - ADRs and research documentation
+
+## Performance Research
+
+Zenthril includes local benchmark and load-test materials under [`research/`](research/). Any performance numbers published in this repository should be treated as preliminary local benchmark data unless they include hardware, methodology, commit/date, and raw results.
+
+Benchmark results do **not** imply production readiness. Real deployment behavior depends on TLS termination, network conditions, database load, Redis behavior, storage latency, abuse traffic, and multi-node fan-out design.
 
 ## For Developers
 
