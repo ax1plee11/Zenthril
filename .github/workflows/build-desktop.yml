@@ -1,10 +1,13 @@
 name: Build Desktop App
 
 on:
-  workflow_dispatch:  # Ручной запуск
+  workflow_dispatch:
   push:
     tags:
-      - 'v*'  # Запуск при создании тега версии
+      - 'v*'
+
+permissions:
+  contents: read
 
 jobs:
   build-windows:
@@ -47,7 +50,7 @@ jobs:
           path: client/src-tauri/target/release/zenthril.exe
 
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     
     steps:
       - name: Checkout
