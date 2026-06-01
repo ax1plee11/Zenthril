@@ -109,6 +109,10 @@ class SignalingService {
   }
 
   send(type: string, payload: Record<string, unknown>) {
+    if (typeof WebSocket === 'undefined') {
+      return;
+    }
+
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type, ...payload }));
     }
