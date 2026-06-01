@@ -62,6 +62,7 @@ Thumbs.db
 
 # Private - never publish
 .admin_notes.txt
+Zenthril_Architecture_Report.docx
 backend-private-temp/
 MODERATION_GUIDE.md
 backend/moderation/
