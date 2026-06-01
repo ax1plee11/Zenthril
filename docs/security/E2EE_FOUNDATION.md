@@ -29,7 +29,10 @@ Implemented client primitives:
 - deterministic safety number generation for pairwise device verification;
 - HKDF-SHA256 derivation before importing X25519 shared secrets as AES-GCM keys;
 - protocol-v1 message envelope with AES-GCM authentication tag persistence;
-- AES-GCM associated data binding `protocol_version` and `key_id`;
+- protocol-v2 message envelope with AAD context binding channel, sender user,
+  sender device, session, client message id, key id, and cipher suite;
+- AES-GCM associated data binding `protocol_version` and `key_id` for legacy
+  v1 payloads;
 - private device material stays client-side and is not included in backend
   registration requests.
 
@@ -60,7 +63,7 @@ and removes its one-time prekeys so new sessions cannot be established with it.
 2. Add safety number display and manual verification UX.
 3. Replace the temporary X3DH bootstrap placeholder with audited X25519 test vectors.
 4. Persist Double Ratchet session state for direct messages.
-5. Add academic threat model and protocol limitations section.
+5. Add product threat model and protocol limitations section.
 
 ## Security Notes
 
@@ -78,5 +81,7 @@ and removes its one-time prekeys so new sessions cannot be established with it.
   persistence.
 - Alpha messages created before the protocol-v1 envelope may not decrypt from
   history because the backend did not persist the AES-GCM authentication tag.
+- Protocol-v1 payloads remain accepted as a temporary alpha compatibility path;
+  new client sends should use protocol-v2 AAD context.
 - The protocol must remain marked experimental until reviewed and tested with
   reproducible vectors.

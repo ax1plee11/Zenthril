@@ -6,7 +6,11 @@ import (
 	"github.com/google/uuid"
 )
 
-const CryptoProtocolVersion = 1
+const (
+	LegacyCryptoProtocolVersion = 1
+	CryptoProtocolVersion       = 2
+	CipherSuiteV2               = "X25519-HKDF-SHA256-AES-256-GCM"
+)
 
 type EncryptedPayload struct {
 	Ciphertext      string `json:"ciphertext"`
@@ -14,6 +18,12 @@ type EncryptedPayload struct {
 	KeyID           string `json:"key_id"`
 	Tag             string `json:"tag"`
 	ProtocolVersion int    `json:"protocol_version"`
+	ChannelID       string `json:"channel_id,omitempty"`
+	SenderUserID    string `json:"sender_user_id,omitempty"`
+	SenderDeviceID  string `json:"sender_device_id,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	CipherSuite     string `json:"cipher_suite,omitempty"`
 }
 
 type Message struct {

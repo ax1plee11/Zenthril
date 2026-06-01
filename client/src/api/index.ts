@@ -302,6 +302,12 @@ export interface EncryptedPayloadAPI {
   key_id: string;
   tag: string;
   protocol_version: number;
+  channel_id?: string;
+  sender_user_id?: string;
+  sender_device_id?: string;
+  session_id?: string;
+  client_message_id?: string;
+  cipher_suite?: string;
 }
 
 export interface GuildAPI {

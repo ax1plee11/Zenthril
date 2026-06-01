@@ -53,7 +53,10 @@ Current alpha crypto work includes:
 - X25519 key agreement primitives.
 - HKDF-SHA256 derivation before AES-GCM key import.
 - AES-256-GCM message encryption with protocol versioning.
-- AES-GCM associated data binding the payload to `protocol_version` and `key_id`.
+- AES-GCM associated data binding legacy payloads to `protocol_version` and
+  `key_id`.
+- Protocol-v2 E2EE envelope binds ciphertext to channel, sender user, sender
+  device, session, client message id, key id, and cipher suite context.
 - Device key registration and revocation foundations.
 - Safety number foundations.
 
@@ -62,6 +65,8 @@ Known limitations:
 - Full X3DH session setup is not integrated into all real message flows.
 - Full Double Ratchet, skipped-message-key handling, and session healing are not complete.
 - Multi-device recovery and key backup are not production-ready.
+- Protocol-v1 messages remain supported for alpha compatibility, but new
+  message sends should use the stronger protocol-v2 AAD context.
 - Messages created before the protocol-v1 envelope stored an incomplete server-side payload and may not be decryptable from history.
 - No independent cryptographic audit has been completed.
 

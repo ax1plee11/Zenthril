@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  CIPHER_SUITE_V2,
   CRYPTO_PROTOCOL_VERSION,
   decrypt,
   deriveMessageKeyBytes,
@@ -13,6 +14,7 @@ import {
   rotateSessionKey,
   storePrivateKey,
 } from "./index";
+import type { CryptoAADContextInput } from "./index";
 
 function bytesToBase64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
@@ -78,6 +80,13 @@ describe("HKDF and AAD helpers", () => {
 
 describe("encrypt / decrypt", () => {
   let sharedKey: CryptoKey;
+  const aadInput: CryptoAADContextInput = {
+    channelId: "channel-1",
+    senderUserId: "user-1",
+    senderDeviceId: "device-1",
+    sessionId: "session-1",
+    clientMessageId: "client-message-1",
+  };
 
   beforeEach(async () => {
     const alice = generateKeyPair();
@@ -99,13 +108,25 @@ describe("encrypt / decrypt", () => {
     }
   });
 
-  it("returns a complete protocol v1 payload", async () => {
-    const payload = await encrypt("hello", sharedKey);
+  it("returns a complete protocol v2 payload when AAD context is provided", async () => {
+    const payload = await encrypt("hello", sharedKey, aadInput);
     expect(payload.ciphertext).toBeTruthy();
     expect(payload.iv).toBeTruthy();
     expect(payload.tag).toBeTruthy();
     expect(payload.keyId).toBeTruthy();
     expect(payload.protocolVersion).toBe(CRYPTO_PROTOCOL_VERSION);
+    expect(payload.channelId).toBe(aadInput.channelId);
+    expect(payload.senderUserId).toBe(aadInput.senderUserId);
+    expect(payload.senderDeviceId).toBe(aadInput.senderDeviceId);
+    expect(payload.sessionId).toBe(aadInput.sessionId);
+    expect(payload.clientMessageId).toBe(aadInput.clientMessageId);
+    expect(payload.cipherSuite).toBe(CIPHER_SUITE_V2);
+  });
+
+  it("keeps legacy v1 payloads when no AAD context is provided", async () => {
+    const payload = await encrypt("hello", sharedKey);
+    expect(payload.protocolVersion).toBe(1);
+    await expect(decrypt(payload, sharedKey)).resolves.toBe("hello");
   });
 
   it("generates a unique IV for each encryption", async () => {
@@ -156,6 +177,40 @@ describe("encrypt / decrypt", () => {
     await expect(
       decrypt({ ...payload, protocolVersion: CRYPTO_PROTOCOL_VERSION + 1 }, sharedKey),
     ).rejects.toThrow("Unsupported crypto protocol version");
+  });
+
+  it("rejects v2 ciphertext moved to another channel", async () => {
+    const payload = await encrypt("secret", sharedKey, aadInput);
+    await expect(
+      decrypt({ ...payload, channelId: "channel-2" }, sharedKey),
+    ).rejects.toThrow();
+  });
+
+  it("rejects v2 ciphertext moved to another sender user", async () => {
+    const payload = await encrypt("secret", sharedKey, aadInput);
+    await expect(
+      decrypt({ ...payload, senderUserId: "user-2" }, sharedKey),
+    ).rejects.toThrow();
+  });
+
+  it("rejects v2 ciphertext moved to another sender device", async () => {
+    const payload = await encrypt("secret", sharedKey, aadInput);
+    await expect(
+      decrypt({ ...payload, senderDeviceId: "device-2" }, sharedKey),
+    ).rejects.toThrow();
+  });
+
+  it("rejects v2 ciphertext moved to another session or client message", async () => {
+    const payload = await encrypt("secret", sharedKey, aadInput);
+    await expect(decrypt({ ...payload, sessionId: "session-2" }, sharedKey)).rejects.toThrow();
+    await expect(decrypt({ ...payload, clientMessageId: "client-message-2" }, sharedKey)).rejects.toThrow();
+  });
+
+  it("rejects v2 ciphertext with wrong cipher suite", async () => {
+    const payload = await encrypt("secret", sharedKey, aadInput);
+    await expect(
+      decrypt({ ...payload, cipherSuite: "WRONG" }, sharedKey),
+    ).rejects.toThrow("Unsupported cipher suite");
   });
 });
 

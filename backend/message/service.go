@@ -64,18 +64,21 @@ func (s *Service) SendMessage(ctx context.Context, channelID, authorID string, p
 
 	var msg models.Message
 	err = s.db.QueryRow(ctx,
-		`INSERT INTO messages (channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, edited, deleted, created_at, updated_at`,
+		`INSERT INTO messages (channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, sender_device_id, session_id, client_message_id, cipher_suite)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		 RETURNING id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, COALESCE(sender_device_id, ''), COALESCE(session_id, ''), COALESCE(client_message_id, ''), COALESCE(cipher_suite, ''), edited, deleted, created_at, updated_at`,
 		channelUUID, authorUUID, payload.Ciphertext, payload.IV, payload.KeyID, payload.Tag, payload.ProtocolVersion,
+		payload.SenderDeviceID, payload.SessionID, payload.ClientMessageID, payload.CipherSuite,
 	).Scan(
 		&msg.ID, &msg.ChannelID, &msg.AuthorID,
 		&msg.Payload.Ciphertext, &msg.Payload.IV, &msg.Payload.KeyID, &msg.Payload.Tag, &msg.Payload.ProtocolVersion,
+		&msg.Payload.SenderDeviceID, &msg.Payload.SessionID, &msg.Payload.ClientMessageID, &msg.Payload.CipherSuite,
 		&msg.Edited, &msg.Deleted, &msg.CreatedAt, &msg.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert message: %w", err)
 	}
+	attachAADMetadata(&msg)
 
 	s.broadcastEvent(channelID, "message.new", &msg)
 	return &msg, nil
@@ -102,7 +105,7 @@ func (s *Service) GetHistory(ctx context.Context, channelID, userID string, befo
 			return nil, fmt.Errorf("invalid before id: %w", err)
 		}
 		rows, err = s.db.Query(ctx,
-			`SELECT id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, edited, deleted, created_at, updated_at
+			`SELECT id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, COALESCE(sender_device_id, ''), COALESCE(session_id, ''), COALESCE(client_message_id, ''), COALESCE(cipher_suite, ''), edited, deleted, created_at, updated_at
 			 FROM messages
 			 WHERE channel_id = $1 AND created_at < (SELECT created_at FROM messages WHERE id = $2)
 			 ORDER BY created_at DESC
@@ -114,7 +117,7 @@ func (s *Service) GetHistory(ctx context.Context, channelID, userID string, befo
 		}
 	} else {
 		rows, err = s.db.Query(ctx,
-			`SELECT id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, edited, deleted, created_at, updated_at
+			`SELECT id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, COALESCE(sender_device_id, ''), COALESCE(session_id, ''), COALESCE(client_message_id, ''), COALESCE(cipher_suite, ''), edited, deleted, created_at, updated_at
 			 FROM messages
 			 WHERE channel_id = $1
 			 ORDER BY created_at DESC
@@ -133,10 +136,12 @@ func (s *Service) GetHistory(ctx context.Context, channelID, userID string, befo
 		if err := rows.Scan(
 			&m.ID, &m.ChannelID, &m.AuthorID,
 			&m.Payload.Ciphertext, &m.Payload.IV, &m.Payload.KeyID, &m.Payload.Tag, &m.Payload.ProtocolVersion,
+			&m.Payload.SenderDeviceID, &m.Payload.SessionID, &m.Payload.ClientMessageID, &m.Payload.CipherSuite,
 			&m.Edited, &m.Deleted, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan message: %w", err)
 		}
+		attachAADMetadata(&m)
 		messages = append(messages, m)
 	}
 	if err := rows.Err(); err != nil {
@@ -177,14 +182,16 @@ func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, p
 	var msg models.Message
 	err = s.db.QueryRow(ctx,
 		`UPDATE messages
-		 SET ciphertext = $1, iv = $2, key_id = $3, tag = $4, protocol_version = $5, edited = TRUE, updated_at = $6
-		 WHERE id = $7 AND author_id = $8 AND deleted = FALSE
-		 RETURNING id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, edited, deleted, created_at, updated_at`,
-		payload.Ciphertext, payload.IV, payload.KeyID, payload.Tag, payload.ProtocolVersion, time.Now(),
+		 SET ciphertext = $1, iv = $2, key_id = $3, tag = $4, protocol_version = $5, sender_device_id = $6, session_id = $7, client_message_id = $8, cipher_suite = $9, edited = TRUE, updated_at = $10
+		 WHERE id = $11 AND author_id = $12 AND deleted = FALSE
+		 RETURNING id, channel_id, author_id, ciphertext, iv, key_id, tag, protocol_version, COALESCE(sender_device_id, ''), COALESCE(session_id, ''), COALESCE(client_message_id, ''), COALESCE(cipher_suite, ''), edited, deleted, created_at, updated_at`,
+		payload.Ciphertext, payload.IV, payload.KeyID, payload.Tag, payload.ProtocolVersion,
+		payload.SenderDeviceID, payload.SessionID, payload.ClientMessageID, payload.CipherSuite, time.Now(),
 		msgUUID, authorUUID,
 	).Scan(
 		&msg.ID, &msg.ChannelID, &msg.AuthorID,
 		&msg.Payload.Ciphertext, &msg.Payload.IV, &msg.Payload.KeyID, &msg.Payload.Tag, &msg.Payload.ProtocolVersion,
+		&msg.Payload.SenderDeviceID, &msg.Payload.SessionID, &msg.Payload.ClientMessageID, &msg.Payload.CipherSuite,
 		&msg.Edited, &msg.Deleted, &msg.CreatedAt, &msg.UpdatedAt,
 	)
 	if err != nil {
@@ -201,9 +208,18 @@ func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, p
 		}
 		return nil, fmt.Errorf("update message: %w", err)
 	}
+	attachAADMetadata(&msg)
 
 	s.broadcastEvent(msg.ChannelID.String(), "message.edited", &msg)
 	return &msg, nil
+}
+
+func attachAADMetadata(msg *models.Message) {
+	if msg == nil || msg.Payload.ProtocolVersion != models.CryptoProtocolVersion {
+		return
+	}
+	msg.Payload.ChannelID = msg.ChannelID.String()
+	msg.Payload.SenderUserID = msg.AuthorID.String()
 }
 
 func (s *Service) DeleteMessage(ctx context.Context, messageID, authorID string) error {

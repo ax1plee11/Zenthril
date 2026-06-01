@@ -18,6 +18,7 @@ import (
 const (
 	maxCiphertextBytes = 64 << 10
 	maxKeyIDLength     = 128
+	maxAADFieldLength  = 256
 )
 
 type Handler struct {
@@ -43,6 +44,10 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateEncryptedPayload(payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if err := validateEnvelopeClaims(payload, channelID, userID); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
@@ -113,6 +118,10 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
+	if err := validateEnvelopeClaims(payload, "", userID); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
 
 	msg, err := h.svc.EditMessage(r.Context(), messageID, userID, payload)
 	if err != nil {
@@ -133,6 +142,21 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, msg)
+}
+
+func validateEnvelopeClaims(payload models.EncryptedPayload, channelID, userID string) error {
+	if payload.ProtocolVersion != models.CryptoProtocolVersion {
+		return nil
+	}
+	// SECURITY: v2 context fields are authenticated by AES-GCM AAD on the
+	// client and must not contradict the authenticated server route context.
+	if payload.ChannelID != "" && channelID != "" && payload.ChannelID != channelID {
+		return errors.New("payload channel_id does not match route channel")
+	}
+	if payload.SenderUserID != "" && payload.SenderUserID != userID {
+		return errors.New("payload sender_user_id does not match authenticated user")
+	}
+	return nil
 }
 
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
@@ -209,8 +233,8 @@ func validateEncryptedPayload(payload models.EncryptedPayload) error {
 	if len(keyID) > maxKeyIDLength {
 		return fmt.Errorf("key_id must be at most %d characters", maxKeyIDLength)
 	}
-	if payload.ProtocolVersion != models.CryptoProtocolVersion {
-		return fmt.Errorf("protocol_version must be %d", models.CryptoProtocolVersion)
+	if payload.ProtocolVersion != models.LegacyCryptoProtocolVersion && payload.ProtocolVersion != models.CryptoProtocolVersion {
+		return fmt.Errorf("protocol_version must be %d or %d", models.LegacyCryptoProtocolVersion, models.CryptoProtocolVersion)
 	}
 	ciphertextBytes, err := decodeBase64(ciphertext)
 	if err != nil {
@@ -232,6 +256,33 @@ func validateEncryptedPayload(payload models.EncryptedPayload) error {
 	}
 	if len(tagBytes) != 16 {
 		return errors.New("tag must decode to 16 bytes")
+	}
+	if payload.ProtocolVersion == models.CryptoProtocolVersion {
+		if err := validateAADV2Fields(payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateAADV2Fields(payload models.EncryptedPayload) error {
+	required := map[string]string{
+		"sender_device_id":  payload.SenderDeviceID,
+		"session_id":        payload.SessionID,
+		"client_message_id": payload.ClientMessageID,
+		"cipher_suite":      payload.CipherSuite,
+	}
+	for name, value := range required {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return fmt.Errorf("%s is required for protocol_version %d", name, models.CryptoProtocolVersion)
+		}
+		if len(value) > maxAADFieldLength {
+			return fmt.Errorf("%s must be at most %d characters", name, maxAADFieldLength)
+		}
+	}
+	if payload.CipherSuite != models.CipherSuiteV2 {
+		return errors.New("unsupported cipher_suite")
 	}
 	return nil
 }

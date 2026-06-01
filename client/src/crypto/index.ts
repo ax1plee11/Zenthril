@@ -3,7 +3,9 @@ import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import type { EncryptedPayload } from "../types/index";
 
-export const CRYPTO_PROTOCOL_VERSION = 1;
+export const LEGACY_CRYPTO_PROTOCOL_VERSION = 1;
+export const CRYPTO_PROTOCOL_VERSION = 2;
+export const CIPHER_SUITE_V2 = "X25519-HKDF-SHA256-AES-256-GCM";
 
 const PRIVATE_KEY_STORAGE_KEY = "zenthril_private_key";
 const KEY_BYTES = 32;
@@ -18,6 +20,19 @@ export interface X25519KeyPair {
   secretKey: Uint8Array;
   publicKey: Uint8Array;
 }
+
+export type CryptoAADContext = {
+  protocolVersion: number;
+  keyId: string;
+  channelId: string;
+  senderUserId: string;
+  senderDeviceId: string;
+  sessionId: string;
+  clientMessageId: string;
+  cipherSuite: typeof CIPHER_SUITE_V2;
+};
+
+export type CryptoAADContextInput = Omit<CryptoAADContext, "protocolVersion" | "keyId" | "cipherSuite">;
 
 function bufferToBase64(buf: Uint8Array | ArrayBuffer): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -68,6 +83,34 @@ export function encryptedPayloadAAD(protocolVersion: number, keyId: string): Uin
   );
 }
 
+export function buildAAD(context: CryptoAADContext): Uint8Array {
+  if (context.protocolVersion !== CRYPTO_PROTOCOL_VERSION) {
+    throw new Error("AAD context protocolVersion must be 2");
+  }
+  if (context.cipherSuite !== CIPHER_SUITE_V2) {
+    throw new Error("Unsupported cipher suite");
+  }
+  for (const [key, value] of Object.entries(context)) {
+    if (typeof value === "string" && value.trim() === "") {
+      throw new Error(`AAD context ${key} is required`);
+    }
+  }
+
+  // SECURITY: deterministic canonical serialization prevents subtle AAD drift
+  // between encryption/decryption call sites.
+  const canonical = {
+    channelId: context.channelId,
+    cipherSuite: context.cipherSuite,
+    clientMessageId: context.clientMessageId,
+    keyId: context.keyId,
+    protocolVersion: context.protocolVersion,
+    senderDeviceId: context.senderDeviceId,
+    senderUserId: context.senderUserId,
+    sessionId: context.sessionId,
+  };
+  return new TextEncoder().encode(`zenthril.e2ee.aad.v2|${JSON.stringify(canonical)}`);
+}
+
 export function generateKeyPair(): X25519KeyPair {
   return x25519.keygen();
 }
@@ -104,12 +147,25 @@ export async function deriveSharedSecret(
 export async function encrypt(
   plaintext: string,
   key: CryptoKey,
+  aadContext?: CryptoAADContextInput,
 ): Promise<EncryptedPayload> {
   const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
   const encoded = new TextEncoder().encode(plaintext);
   const keyId = generateKeyId();
-  const protocolVersion = CRYPTO_PROTOCOL_VERSION;
-  const aad = encryptedPayloadAAD(protocolVersion, keyId);
+  const protocolVersion = aadContext ? CRYPTO_PROTOCOL_VERSION : LEGACY_CRYPTO_PROTOCOL_VERSION;
+  const fullAADContext: CryptoAADContext | undefined = aadContext
+    ? {
+      protocolVersion,
+      keyId,
+      channelId: aadContext.channelId,
+      senderUserId: aadContext.senderUserId,
+      senderDeviceId: aadContext.senderDeviceId,
+      sessionId: aadContext.sessionId,
+      clientMessageId: aadContext.clientMessageId,
+      cipherSuite: CIPHER_SUITE_V2,
+    }
+    : undefined;
+  const aad = fullAADContext ? buildAAD(fullAADContext) : encryptedPayloadAAD(protocolVersion, keyId);
 
   const ciphertextWithTag = await crypto.subtle.encrypt(
     {
@@ -127,20 +183,30 @@ export async function encrypt(
   const ciphertextBytes = ctBytes.slice(0, tagOffset);
   const tagBytes = ctBytes.slice(tagOffset);
 
-  return {
+  const payload: EncryptedPayload = {
     ciphertext: bufferToBase64(ciphertextBytes),
     iv: bufferToBase64(iv),
     tag: bufferToBase64(tagBytes),
     keyId,
     protocolVersion,
   };
+  if (fullAADContext) {
+    payload.channelId = fullAADContext.channelId;
+    payload.senderUserId = fullAADContext.senderUserId;
+    payload.senderDeviceId = fullAADContext.senderDeviceId;
+    payload.sessionId = fullAADContext.sessionId;
+    payload.clientMessageId = fullAADContext.clientMessageId;
+    payload.cipherSuite = fullAADContext.cipherSuite;
+  }
+  return payload;
 }
 
 export async function decrypt(
   payload: EncryptedPayload,
   key: CryptoKey,
+  aadContext?: CryptoAADContext,
 ): Promise<string> {
-  if (payload.protocolVersion !== CRYPTO_PROTOCOL_VERSION) {
+  if (payload.protocolVersion !== LEGACY_CRYPTO_PROTOCOL_VERSION && payload.protocolVersion !== CRYPTO_PROTOCOL_VERSION) {
     throw new Error("Unsupported crypto protocol version");
   }
   if (!payload.keyId) {
@@ -165,7 +231,18 @@ export async function decrypt(
   combined.set(ciphertextBytes, 0);
   combined.set(tagBytes, ciphertextBytes.length);
 
-  const aad = encryptedPayloadAAD(payload.protocolVersion, payload.keyId);
+  const aad = payload.protocolVersion === CRYPTO_PROTOCOL_VERSION
+    ? buildAAD(aadContext ?? {
+      protocolVersion: CRYPTO_PROTOCOL_VERSION,
+      keyId: payload.keyId,
+      channelId: payload.channelId ?? "",
+      senderUserId: payload.senderUserId ?? "",
+      senderDeviceId: payload.senderDeviceId ?? "",
+      sessionId: payload.sessionId ?? "",
+      clientMessageId: payload.clientMessageId ?? "",
+      cipherSuite: payload.cipherSuite as typeof CIPHER_SUITE_V2,
+    })
+    : encryptedPayloadAAD(payload.protocolVersion, payload.keyId);
   const plainBuffer = await crypto.subtle.decrypt(
     {
       name: "AES-GCM",

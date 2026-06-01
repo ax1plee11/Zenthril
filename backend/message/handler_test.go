@@ -17,6 +17,10 @@ func validPayload() models.EncryptedPayload {
 		KeyID:           "key-1",
 		Tag:             base64.StdEncoding.EncodeToString([]byte("1234567890123456")),
 		ProtocolVersion: models.CryptoProtocolVersion,
+		SenderDeviceID:  "device-1",
+		SessionID:       "channel:channel-1",
+		ClientMessageID: "client-message-1",
+		CipherSuite:     models.CipherSuiteV2,
 	}
 }
 
@@ -73,9 +77,63 @@ func TestValidateEncryptedPayloadRejectsInvalidProtocolVersion(t *testing.T) {
 	t.Parallel()
 
 	payload := validPayload()
-	payload.ProtocolVersion = 2
+	payload.ProtocolVersion = 99
 	if err := validateEncryptedPayload(payload); err == nil {
 		t.Fatal("invalid protocol version was accepted")
+	}
+}
+
+func TestValidateEncryptedPayloadAcceptsLegacyV1(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.ProtocolVersion = models.LegacyCryptoProtocolVersion
+	payload.SenderDeviceID = ""
+	payload.SessionID = ""
+	payload.ClientMessageID = ""
+	payload.CipherSuite = ""
+	if err := validateEncryptedPayload(payload); err != nil {
+		t.Fatalf("legacy payload rejected: %v", err)
+	}
+}
+
+func TestValidateEncryptedPayloadRejectsMissingAADV2Fields(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.SenderDeviceID = ""
+	if err := validateEncryptedPayload(payload); err == nil {
+		t.Fatal("missing v2 aad field was accepted")
+	}
+}
+
+func TestValidateEncryptedPayloadRejectsUnsupportedCipherSuite(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.CipherSuite = "unknown"
+	if err := validateEncryptedPayload(payload); err == nil {
+		t.Fatal("unsupported cipher suite was accepted")
+	}
+}
+
+func TestValidateEnvelopeClaimsRejectsMismatchedChannel(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.ChannelID = "channel-2"
+	if err := validateEnvelopeClaims(payload, "channel-1", "user-1"); err == nil {
+		t.Fatal("mismatched channel claim was accepted")
+	}
+}
+
+func TestValidateEnvelopeClaimsRejectsMismatchedSender(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.SenderUserID = "user-2"
+	if err := validateEnvelopeClaims(payload, "channel-1", "user-1"); err == nil {
+		t.Fatal("mismatched sender claim was accepted")
 	}
 }
 
@@ -89,7 +147,7 @@ func TestDecodeEncryptedPayloadRequestAcceptsWrappedPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wrapped payload rejected: %v", err)
 	}
-	if payload.Tag == "" || payload.ProtocolVersion != models.CryptoProtocolVersion {
+	if payload.Tag == "" || payload.ProtocolVersion != models.LegacyCryptoProtocolVersion {
 		t.Fatalf("decoded payload lost envelope fields: %#v", payload)
 	}
 	if err := validateEncryptedPayload(payload); err != nil {
@@ -107,7 +165,7 @@ func TestDecodeEncryptedPayloadRequestAcceptsBarePayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bare payload rejected: %v", err)
 	}
-	if payload.Tag == "" || payload.ProtocolVersion != models.CryptoProtocolVersion {
+	if payload.Tag == "" || payload.ProtocolVersion != models.LegacyCryptoProtocolVersion {
 		t.Fatalf("decoded payload lost envelope fields: %#v", payload)
 	}
 	if err := validateEncryptedPayload(payload); err != nil {

@@ -6,6 +6,12 @@ export interface EncryptedPayload {
   tag: string;
   keyId: string;
   protocolVersion: number;
+  channelId?: string;
+  senderUserId?: string;
+  senderDeviceId?: string;
+  sessionId?: string;
+  clientMessageId?: string;
+  cipherSuite?: string;
 }
 
 export interface User {

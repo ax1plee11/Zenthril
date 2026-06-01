@@ -15,6 +15,7 @@ import {
   encrypt,
   getOrCreateSessionKey,
 } from "../crypto/index";
+import { loadDeviceKeyBundle } from "../features/e2ee";
 import type { EncryptedPayload } from "../types/index";
 import MessageItem, { canGroup, formatDateDivider } from "./MessageItem";
 import MessageInput from "./MessageInput";
@@ -96,23 +97,52 @@ function enrichMessage(msg: MessageAPI, currentUserId: string, currentUsername: 
 
 /** Конвертируем EncryptedPayload (клиент) → EncryptedPayloadAPI (бэкенд) */
 function toApiPayload(p: EncryptedPayload): EncryptedPayloadAPI {
-  return {
+  const out: EncryptedPayloadAPI = {
     ciphertext: p.ciphertext,
     iv: p.iv,
     key_id: p.keyId,
     tag: p.tag,
     protocol_version: p.protocolVersion,
   };
+  if (p.channelId) out.channel_id = p.channelId;
+  if (p.senderUserId) out.sender_user_id = p.senderUserId;
+  if (p.senderDeviceId) out.sender_device_id = p.senderDeviceId;
+  if (p.sessionId) out.session_id = p.sessionId;
+  if (p.clientMessageId) out.client_message_id = p.clientMessageId;
+  if (p.cipherSuite) out.cipher_suite = p.cipherSuite;
+  return out;
 }
 
 /** Конвертируем EncryptedPayloadAPI (бэкенд) → EncryptedPayload (клиент) */
 function fromApiPayload(p: EncryptedPayloadAPI): EncryptedPayload {
-  return {
+  const out: EncryptedPayload = {
     ciphertext: p.ciphertext,
     iv: p.iv,
     keyId: p.key_id,
     tag: p.tag,
     protocolVersion: p.protocol_version,
+  };
+  if (p.channel_id) out.channelId = p.channel_id;
+  if (p.sender_user_id) out.senderUserId = p.sender_user_id;
+  if (p.sender_device_id) out.senderDeviceId = p.sender_device_id;
+  if (p.session_id) out.sessionId = p.session_id;
+  if (p.client_message_id) out.clientMessageId = p.client_message_id;
+  if (p.cipher_suite) out.cipherSuite = p.cipher_suite;
+  return out;
+}
+
+function randomClientMessageId(): string {
+  return crypto.randomUUID?.() ?? `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+async function buildMessageAADInput(channelId: string, currentUserId: string) {
+  const bundle = await loadDeviceKeyBundle(currentUserId);
+  return {
+    channelId,
+    senderUserId: currentUserId,
+    senderDeviceId: bundle?.deviceId ?? "unregistered-device",
+    sessionId: `channel:${channelId}`,
+    clientMessageId: randomClientMessageId(),
   };
 }
 
@@ -304,7 +334,7 @@ export default function ChatView({
       if (!channelId) return;
 
       const sessionKey = await getOrCreateSessionKey(channelId);
-      const encrypted = await encrypt(text, sessionKey);
+      const encrypted = await encrypt(text, sessionKey, await buildMessageAADInput(channelId, currentUserId));
       const apiPayload = toApiPayload(encrypted);
 
       const msg = await api.messages.send(channelId, apiPayload);
@@ -330,7 +360,7 @@ export default function ChatView({
       if (!channelId) return;
 
       const sessionKey = await getOrCreateSessionKey(channelId);
-      const encrypted = await encrypt(newText, sessionKey);
+      const encrypted = await encrypt(newText, sessionKey, await buildMessageAADInput(channelId, currentUserId));
       const apiPayload = toApiPayload(encrypted);
 
       await api.messages.edit(messageId, apiPayload);
@@ -343,7 +373,7 @@ export default function ChatView({
         ),
       );
     },
-    [channelId],
+    [channelId, currentUserId],
   );
 
   // Удаление сообщения (Требование 3.6)
