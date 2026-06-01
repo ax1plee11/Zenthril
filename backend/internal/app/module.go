@@ -8,6 +8,7 @@ import (
 	"go.uber.org/fx"
 
 	"zenthril-backend/internal/config"
+	"zenthril-backend/internal/cqrs"
 	"zenthril-backend/internal/event"
 	"zenthril-backend/internal/gateway"
 	"zenthril-backend/internal/repository"
@@ -21,6 +22,9 @@ var Module = fx.Options(
 	fx.Provide(
 		loadConfig,
 		newLogger,
+		newCommandBus,
+		newQueryBus,
+		newEventStore,
 		newShardManager,
 		newEventBus,
 		newGatewayRegistry,
@@ -53,6 +57,22 @@ func newEventBus(cfg config.Config, logger *slog.Logger) (event.Bus, error) {
 		return nil, fmt.Errorf("create event bus: %w", err)
 	}
 	return bus, nil
+}
+
+func newCommandBus() *cqrs.CommandBus {
+	// CQRS: write-side modules register commands here through fx providers.
+	return cqrs.NewCommandBus()
+}
+
+func newQueryBus() *cqrs.QueryBus {
+	// CQRS: read-side modules register projection/query handlers here.
+	return cqrs.NewQueryBus()
+}
+
+func newEventStore() cqrs.EventStore {
+	// EVENT-SOURCING: memory store is alpha-only. Durable adapters should be
+	// added before moving event-sourced aggregates to production traffic.
+	return cqrs.NewInMemoryEventStore()
 }
 
 func newGatewayRegistry(cfg config.Config, logger *slog.Logger) *gateway.Registry {
@@ -103,6 +123,9 @@ func startGatewayHandler(lc fx.Lifecycle, handler *gateway.Handler, logger *slog
 func newContainer(
 	cfg config.Config,
 	logger *slog.Logger,
+	commandBus *cqrs.CommandBus,
+	queryBus *cqrs.QueryBus,
+	eventStore cqrs.EventStore,
 	bus event.Bus,
 	shards *repository.ShardManager,
 	registry *gateway.Registry,
@@ -111,6 +134,9 @@ func newContainer(
 	return &Container{
 		Config:          cfg,
 		Logger:          logger,
+		CommandBus:      commandBus,
+		QueryBus:        queryBus,
+		EventStore:      eventStore,
 		EventBus:        bus,
 		ShardManager:    shards,
 		GatewayRegistry: registry,

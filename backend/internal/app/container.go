@@ -9,6 +9,7 @@ import (
 	"go.uber.org/fx"
 
 	"zenthril-backend/internal/config"
+	"zenthril-backend/internal/cqrs"
 	"zenthril-backend/internal/event"
 	"zenthril-backend/internal/gateway"
 	"zenthril-backend/internal/repository"
@@ -17,6 +18,9 @@ import (
 type Container struct {
 	Config          config.Config
 	Logger          *slog.Logger
+	CommandBus      *cqrs.CommandBus
+	QueryBus        *cqrs.QueryBus
+	EventStore      cqrs.EventStore
 	EventBus        event.Bus
 	ShardManager    *repository.ShardManager
 	GatewayRegistry *gateway.Registry
