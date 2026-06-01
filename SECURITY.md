@@ -23,8 +23,8 @@ Include:
 - Expected impact.
 - A suggested fix, if you have one.
 
-The maintainer aims to respond within 48 hours, but this is a student/academic
-project and response times are best effort.
+The maintainer aims to respond within 48 hours, but this is an independent
+open-source project and response times are best effort.
 
 ## Current Security Status
 
@@ -34,6 +34,8 @@ Zenthril includes several security-oriented controls:
 - Short-lived JWT access tokens.
 - Redis-backed refresh token rotation and replay detection.
 - Redis-backed access token blacklist on logout.
+- Privacy-first client startup for saved sessions: no guild/API load or
+  WebSocket connection before explicit Connect by default.
 - Strict CORS and WebSocket Origin allowlists.
 - One-time WebSocket tickets.
 - Basic HTTP security headers.
@@ -74,6 +76,14 @@ The current Tauri desktop client uses `tauri-plugin-store` as a temporary local
 storage mechanism. This is **not equivalent to OS keychain storage**. A future
 hardening step should move private key material to Windows Credential Manager,
 macOS Keychain, Linux Secret Service/KWallet, or Tauri Stronghold.
+
+## Startup Network Activity
+
+Saved client sessions start offline by default. Until the user presses
+**Connect**, the client should not load the remote server list, call application
+APIs, request WebSocket tickets, start federation discovery, or start P2P
+discovery. Users may explicitly enable "Connect automatically on startup";
+that setting trades startup privacy for convenience.
 
 ## Known Alpha Limitations
 

@@ -5,9 +5,11 @@ import { ThemeContext, loadTheme, saveTheme, applyTheme, ANIMATED_BG_PRESETS } f
 import type { Theme } from "./store/theme";
 import AuthScreen from "./components/AuthScreen";
 import MainLayout from "./components/MainLayout";
+import OfflineStartup from "./components/OfflineStartup";
 import { CallManager } from "./features/calls/components/CallManager";
 import { signalingService } from "./features/calls/services/signalingService";
 import { getActiveServer } from "./api/index";
+import { shouldStartOnline } from "./store/startupPrivacy";
 
 function getAppBackground(theme: Theme): React.CSSProperties {
   const bg = theme.chatBackground;
@@ -44,6 +46,7 @@ export default function App() {
   const stored = loadStoredAuth();
   const [token, setToken]      = useState<string | null>(stored.token);
   const [user, setUser]        = useState<AuthUser | null>(stored.user);
+  const [networkEnabled, setNetworkEnabled] = useState(() => shouldStartOnline(Boolean(stored.token && stored.user)));
   const [theme, setThemeState] = useState<Theme>(loadTheme);
 
   // Применяем тему при старте
@@ -59,6 +62,7 @@ export default function App() {
     saveAuth(newToken, newUser);
     setToken(newToken);
     setUser(newUser);
+    setNetworkEnabled(true);
     getActiveServer()
       .then(server => signalingService.connect(server.wsBase, newToken))
       .catch(() => signalingService.connect("ws://localhost:8080", newToken));
@@ -67,6 +71,7 @@ export default function App() {
   const logout = useCallback(() => {
     clearAuth();
     signalingService.disconnect();
+    setNetworkEnabled(false);
     setToken(null);
     setUser(null);
   }, []);
@@ -91,12 +96,18 @@ export default function App() {
           )}
           {/* Контент поверх фона */}
           <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100%" }}>
-            {token && user ? (
+            {token && user && networkEnabled ? (
               <MainLayout />
+            ) : token && user ? (
+              <OfflineStartup
+                username={user.username}
+                onConnect={() => setNetworkEnabled(true)}
+                onLogout={logout}
+              />
             ) : (
               <AuthScreen onAuth={() => {
                 const { token: t, user: u } = loadStoredAuth();
-                if (t && u) { setToken(t); setUser(u); }
+                if (t && u) { setToken(t); setUser(u); setNetworkEnabled(true); }
               }} />
             )}
             <CallManager />

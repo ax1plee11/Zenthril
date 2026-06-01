@@ -100,4 +100,4 @@ Status: active and ongoing.
 - Maintain reproducible benchmark scripts.
 - Record hardware, dataset, and test parameters for every published result.
 - Compare security and scaling tradeoffs with Matrix, Signal-style messaging, and Discord-like realtime systems.
-- Produce graphs and analysis suitable for a diploma or master's thesis.
+- Produce graphs and analysis suitable for public engineering notes and release decisions.

@@ -1,10 +1,10 @@
 # Zenthril
 
-**Zenthril** is an open-source, self-hosted messaging platform focused on realtime communication, security engineering, and academic research.
+**Zenthril** is an open-source, self-hosted messaging platform focused on realtime communication, privacy, and practical security engineering.
 
 > **Security Status: Alpha**
 >
-> Zenthril is an alpha-stage secure messaging research project.
+> Zenthril is an alpha-stage secure messaging project.
 > Do not use it for sensitive or high-risk communication yet.
 > The current E2EE implementation is experimental and has not been externally audited.
 > It is not equivalent to the Signal Protocol.
@@ -25,7 +25,7 @@
 | External audit | Not done |
 | Federation security | Not production-ready |
 
-The project is developed as a practical software engineering project and as a research base for studying WebSocket messaging, E2EE foundations, hybrid voice communication, and backend hardening.
+The project is developed as a practical self-hosted product for small communities while the security and reliability foundations mature.
 
 ## Status
 
@@ -33,7 +33,7 @@ The project is developed as a practical software engineering project and as a re
 >
 > Zenthril is raw, incomplete, and still a work in progress. It is **not production ready** and should not be used for sensitive communication, public deployments, or untrusted environments at this stage.
 
-The current codebase is suitable for local development, controlled self-hosted experiments, demonstrations, and academic research. It is not yet suitable for real organizations, public communities, or users who expect mature reliability, audited cryptography, or production-grade federation.
+The current codebase is suitable for local development, controlled self-hosted experiments, and small trusted testing groups. It is not yet suitable for real organizations, public communities, or users who expect mature reliability, audited cryptography, or production-grade federation.
 
 This repository should be read as an engineering alpha: useful, testable, and actively improving, but still rough in important areas.
 
@@ -48,6 +48,7 @@ This repository should be read as an engineering alpha: useful, testable, and ac
 - **Federation is not ready:** federation endpoints are alpha-level, disabled by default, and should not be described as a finished decentralized protocol.
 - **Scalability is still being validated:** benchmark results are useful research data, not a guarantee of real-world performance under hostile or large-scale workloads.
 - **Desktop key storage needs hardening:** production desktop builds should move private key material to OS keychain or a stronger storage mechanism.
+- **Startup privacy is conservative by default:** saved sessions open offline until the user explicitly connects, unless auto-connect is enabled.
 - **Voice and realtime features are experimental:** hybrid voice and WebSocket gateway work exist, but edge cases and abuse resistance still need more testing.
 - **External security audit has not been completed:** do not treat the project as audited secure software.
 
@@ -66,6 +67,7 @@ This repository should be read as an engineering alpha: useful, testable, and ac
 - Security headers, protected metrics, and production configuration validation
 - PostgreSQL and Redis backed backend services
 - Tauri desktop client with React and TypeScript
+- Privacy-first startup mode: saved sessions do not contact the server until explicit Connect by default
 - Multilingual UI foundation: English, Russian, and Ukrainian
 - Benchmark and research materials under [`research/`](research/)
 
@@ -77,7 +79,7 @@ This repository should be read as an engineering alpha: useful, testable, and ac
 - Multi-instance WebSocket gateway behavior and distributed fan-out
 - Federation protocol design and inter-node trust model
 - Better observability with OpenTelemetry tracing and expanded metrics
-- More complete load testing, security testing, and academic documentation
+- More complete load testing, security testing, and operator documentation
 
 ## Security & E2EE
 
@@ -101,6 +103,11 @@ Security is a major focus of Zenthril, but the current implementation must be tr
 Zenthril currently provides **E2EE foundations**, not a finished, audited, Signal-grade encryption system. The project does not yet provide complete Double Ratchet behavior, robust recovery after compromise, mature multi-device session handling, or independently reviewed cryptographic guarantees.
 
 Do **not** use Zenthril for highly sensitive communication at this stage. Treat the current E2EE layer as a work in progress and as research-oriented engineering, not as a security promise.
+
+Saved sessions use a privacy-first startup mode: by default the client opens
+locally and does not load guilds, request WebSocket tickets, or open realtime
+connections until the user presses **Connect**. Users can explicitly enable
+auto-connect in the offline startup screen.
 
 See [`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md), and [`docs/security/E2EE_FOUNDATION.md`](docs/security/E2EE_FOUNDATION.md) for more detail.
 
