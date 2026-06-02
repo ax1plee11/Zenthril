@@ -1,5 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
-import { AuthContext, loadStoredAuth, saveAuth, clearAuth } from "./store/auth";
+import {
+  AUTH_SESSION_EXPIRED_EVENT,
+  AuthContext,
+  loadStoredAuth,
+  saveAuth,
+  clearAuth,
+} from "./store/auth";
 import type { AuthUser } from "./store/auth";
 import { ThemeContext, loadTheme, saveTheme, applyTheme, ANIMATED_BG_PRESETS } from "./store/theme";
 import type { Theme } from "./store/theme";
@@ -75,6 +81,11 @@ export default function App() {
     setToken(null);
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, logout);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, logout);
+  }, [logout]);
 
   const bgStyle = getAppBackground(theme);
   const hasBgImage = !!(theme.chatBackground && !theme.chatBackground.startsWith("__pattern__"));

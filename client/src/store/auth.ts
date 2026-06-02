@@ -6,6 +6,7 @@ import { createContext, useContext } from "react";
 
 const TOKEN_KEY = "zenthril_token";
 const USER_KEY = "zenthril_user";
+export const AUTH_SESSION_EXPIRED_EVENT = "zenthril:auth-session-expired";
 
 export interface AuthUser {
   id: string;
@@ -46,11 +47,26 @@ export function loadStoredAuth(): { token: string | null; user: AuthUser | null 
 }
 
 export function saveAuth(token: string, user: AuthUser): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  saveAccessToken(token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function loadAccessToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function saveAccessToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+export function notifySessionExpired(): void {
+  clearAuth();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT));
+  }
 }

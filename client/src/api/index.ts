@@ -9,6 +9,11 @@ import {
   setSelectedServer,
   type ZenthrilServer,
 } from "../config/servers";
+import {
+  loadAccessToken,
+  notifySessionExpired,
+  saveAccessToken,
+} from "../store/auth";
 
 /**
  * API клиент — fetch к бэкенду.
@@ -85,11 +90,7 @@ export async function getActiveWebSocketUrl(path = "/ws"): Promise<string> {
   return `${server.wsBase}${p}`;
 }
 
-const TOKEN_KEY = "zenthril_token";
-
-function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
+let refreshInFlight: Promise<string | null> | null = null;
 
 async function request<T>(
   method: string,
@@ -131,7 +132,7 @@ async function requestFromServer<T>(
   };
 
   if (auth) {
-    const token = getToken();
+    const token = loadAccessToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -140,12 +141,22 @@ async function requestFromServer<T>(
   const init: RequestInit = {
     method,
     headers,
+    // SECURITY: send HttpOnly refresh cookies to the selected API origin; the
+    // refresh token itself remains unavailable to JavaScript.
+    credentials: "include",
   };
   if (body !== undefined) {
     init.body = JSON.stringify(body);
   }
 
   const res = await fetch(`${server.apiBase}${path}`, init);
+
+  if (res.status === 401 && auth && path !== "/api/v1/auth/refresh") {
+    const refreshedToken = await refreshAccessToken(server);
+    if (refreshedToken) {
+      return requestFromServer<T>(server, method, path, body, auth);
+    }
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "unknown" }));
@@ -162,6 +173,30 @@ async function requestFromServer<T>(
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+async function refreshAccessToken(server: ZenthrilServer): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = requestFromServer<RefreshResponse>(
+      server,
+      "POST",
+      "/api/v1/auth/refresh",
+      undefined,
+      false,
+    )
+      .then(response => {
+        saveAccessToken(response.access_token ?? response.token);
+        return response.access_token ?? response.token;
+      })
+      .catch(() => {
+        notifySessionExpired();
+        return null;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
 }
 
 function isNetworkLikeError(err: unknown): boolean {
@@ -183,6 +218,13 @@ export interface LoginResponse {
     public_key: string;
     created_at: string;
   };
+}
+
+export interface RefreshResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  token: string;
 }
 
 export const api = {
