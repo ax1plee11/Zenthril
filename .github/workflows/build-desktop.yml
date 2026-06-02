@@ -1,10 +1,9 @@
 name: Build Desktop App
 
 on:
+  # Desktop builds are intentionally manual for alpha releases. They are slow,
+  # platform-sensitive, and should not run every time v0.1.0-alpha is moved.
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: read
