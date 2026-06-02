@@ -97,7 +97,8 @@ verification, secure recovery, and external audit.
 The client includes a local safety-number verification foundation. It can derive
 a stable safety number for a local/remote device pair, remember that local
 verification decision, and warn when the remote identity key changes after that
-verification.
+verification. The device-management UI exposes the local verification state,
+the safety number, and manual mark/clear controls.
 
 This is still an alpha mechanism:
 

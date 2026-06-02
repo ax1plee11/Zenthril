@@ -7,6 +7,7 @@ import {
   Laptop,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -14,11 +15,18 @@ import { api } from "../api";
 import { useAuth } from "../store/auth";
 import {
   ensureLocalDeviceRegistered,
+  clearDeviceVerification,
   getDeviceKeyStorageStatus,
+  getDeviceVerificationStatus,
   loadDeviceKeyBundle,
   storeDeviceKeyBundle,
+  verifyDeviceSafetyNumber,
 } from "../features/e2ee";
-import type { DeviceAPI, StoredDeviceKeyBundle } from "../features/e2ee";
+import type {
+  DeviceAPI,
+  DeviceVerificationStatus,
+  StoredDeviceKeyBundle,
+} from "../features/e2ee";
 
 interface Props {
   onClose: () => void;
@@ -35,6 +43,9 @@ export default function DeviceManagement({ onClose }: Props) {
   const [busyDeviceId, setBusyDeviceId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [verificationByDevice, setVerificationByDevice] = useState<
+    Record<string, DeviceVerificationStatus>
+  >({});
   const storageStatus = useMemo(() => getDeviceKeyStorageStatus(), []);
 
   const currentDevice = useMemo(() => {
@@ -53,6 +64,19 @@ export default function DeviceManagement({ onClose }: Props) {
       ]);
       setLocalBundle(bundle);
       setDevices(response.devices);
+      if (bundle) {
+        const verificationEntries = await Promise.all(
+          response.devices
+            .filter(device => device.device_id !== bundle.deviceId)
+            .map(async device => [
+              device.device_id,
+              await getDeviceVerificationStatus(bundle, device),
+            ] as const),
+        );
+        setVerificationByDevice(Object.fromEntries(verificationEntries));
+      } else {
+        setVerificationByDevice({});
+      }
       setState("ready");
     } catch (err) {
       setState("error");
@@ -111,6 +135,33 @@ export default function DeviceManagement({ onClose }: Props) {
     } finally {
       setSyncing(false);
     }
+  }
+
+  async function handleVerifyDevice(device: DeviceAPI) {
+    if (!localBundle || device.device_id === localBundle.deviceId) return;
+    const status = verificationByDevice[device.device_id];
+    const safetyNumber = status?.safetyNumber.value ?? "unknown";
+    const ok = window.confirm(
+      `Mark this device as verified?\n\nCompare this safety number with the other user first:\n${safetyNumber}`,
+    );
+    if (!ok) return;
+    await verifyDeviceSafetyNumber(localBundle, device);
+    await refreshDeviceVerification(device);
+  }
+
+  async function handleClearVerification(device: DeviceAPI) {
+    if (!localBundle || device.device_id === localBundle.deviceId) return;
+    clearDeviceVerification(localBundle, device);
+    await refreshDeviceVerification(device);
+  }
+
+  async function refreshDeviceVerification(device: DeviceAPI) {
+    if (!localBundle) return;
+    const status = await getDeviceVerificationStatus(localBundle, device);
+    setVerificationByDevice(prev => ({
+      ...prev,
+      [device.device_id]: status,
+    }));
   }
 
   async function copyText(label: string, value: string) {
@@ -206,6 +257,7 @@ export default function DeviceManagement({ onClose }: Props) {
           )}
           {devices.map(device => {
             const isCurrent = device.device_id === localBundle?.deviceId;
+            const verification = verificationByDevice[device.device_id];
             return (
               <article key={device.device_id} style={s.deviceRow}>
                 <div style={s.deviceIcon}>
@@ -239,6 +291,15 @@ export default function DeviceManagement({ onClose }: Props) {
                     onCopy={() => void copyText(`identity:${device.device_id}`, device.identity_public_key)}
                     copied={copied === `identity:${device.device_id}`}
                   />
+                  {!isCurrent && verification && (
+                    <VerificationPanel
+                      status={verification}
+                      onCopy={() => void copyText(`safety:${device.device_id}`, verification.safetyNumber.value)}
+                      copied={copied === `safety:${device.device_id}`}
+                      onVerify={() => void handleVerifyDevice(device)}
+                      onClear={() => void handleClearVerification(device)}
+                    />
+                  )}
                 </div>
                 <div style={s.deviceActions}>
                   {isCurrent ? (
@@ -301,6 +362,71 @@ function KeyLine({
   );
 }
 
+function VerificationPanel({
+  status,
+  onCopy,
+  copied,
+  onVerify,
+  onClear,
+}: {
+  status: DeviceVerificationStatus;
+  onCopy: () => void;
+  copied: boolean;
+  onVerify: () => void;
+  onClear: () => void;
+}) {
+  const isVerified = status.state === "verified";
+  const isChanged = status.state === "identity_changed";
+  return (
+    <div
+      style={{
+        ...s.verificationPanel,
+        ...(isChanged ? s.verificationPanelDanger : {}),
+      }}
+    >
+      <div style={s.verificationHeader}>
+        <span
+          style={{
+            ...s.verificationBadge,
+            ...(isVerified ? s.verificationBadgeOk : {}),
+            ...(isChanged ? s.verificationBadgeDanger : {}),
+          }}
+        >
+          {isVerified ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
+          {verificationLabel(status.state)}
+        </span>
+        {status.record?.verifiedAt && (
+          <span style={s.verificationDate}>
+            Verified {formatDate(status.record.verifiedAt)}
+          </span>
+        )}
+      </div>
+      {isChanged && (
+        <div style={s.verificationWarning}>
+          Identity key changed after local verification. Re-verify before
+          trusting this device.
+        </div>
+      )}
+      <KeyLine
+        label="Safety"
+        value={status.safetyNumber.value}
+        onCopy={onCopy}
+        copied={copied}
+      />
+      <div style={s.verificationActions}>
+        <button type="button" onClick={onVerify} style={s.secondaryButton}>
+          {isVerified ? "Re-verify" : "Mark verified"}
+        </button>
+        {status.record && (
+          <button type="button" onClick={onClear} style={s.secondaryButton}>
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function IconButton({
   children,
   title,
@@ -334,6 +460,12 @@ function IconButton({
 function trustLabel(value: DeviceAPI["trust_state"]): string {
   if (value === "verified") return "Verified";
   if (value === "revoked") return "Revoked";
+  return "Unverified";
+}
+
+function verificationLabel(value: DeviceVerificationStatus["state"]): string {
+  if (value === "verified") return "Locally verified";
+  if (value === "identity_changed") return "Identity changed";
   return "Unverified";
 }
 
@@ -596,6 +728,61 @@ const s = {
     display: "flex",
     alignItems: "center",
     gap: 6,
+  } as React.CSSProperties,
+  verificationPanel: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    border: "1px solid rgba(139,157,255,0.22)",
+    background: "rgba(139,157,255,0.08)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minWidth: 0,
+  } as React.CSSProperties,
+  verificationPanelDanger: {
+    borderColor: "rgba(240,79,94,0.42)",
+    background: "rgba(240,79,94,0.11)",
+  } as React.CSSProperties,
+  verificationHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+  } as React.CSSProperties,
+  verificationBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "3px 7px",
+    borderRadius: 8,
+    background: "rgba(255,190,92,0.13)",
+    color: "#ffc875",
+    fontSize: 11,
+    fontWeight: 800,
+  } as React.CSSProperties,
+  verificationBadgeOk: {
+    background: "rgba(62,207,142,0.13)",
+    color: "#3ecf8e",
+  } as React.CSSProperties,
+  verificationBadgeDanger: {
+    background: "rgba(240,79,94,0.16)",
+    color: "#ff8d98",
+  } as React.CSSProperties,
+  verificationDate: {
+    color: "var(--text-muted)",
+    fontSize: 11,
+  } as React.CSSProperties,
+  verificationWarning: {
+    color: "#ff9aa4",
+    fontSize: 12,
+    lineHeight: 1.35,
+  } as React.CSSProperties,
+  verificationActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
   } as React.CSSProperties,
   primaryButton: {
     padding: "8px 10px",
