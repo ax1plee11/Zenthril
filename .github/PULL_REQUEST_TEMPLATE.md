@@ -20,6 +20,7 @@ npm run lint
 - [ ] Tests pass locally
 - [ ] No new TypeScript errors
 - [ ] No new linter warnings
+- [ ] Documentation updated in `README.md`, `SECURITY.md`, `THREAT_MODEL.md`, or `docs/` when behavior/security/deployment changed
 
 ## Screenshots (if UI change)
 

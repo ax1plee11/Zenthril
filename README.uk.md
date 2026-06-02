@@ -133,3 +133,7 @@ Contributions вітаються. Пріоритетні напрями:
 ## License
 
 MIT License. Див. [`LICENSE`](LICENSE).
+## Documentation Source of Truth
+
+Current documentation is kept in the repository: [`README.md`](README.md), [`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), and [`docs/`](docs/). Do not rely on a separate GitHub Wiki for current project state, because it can drift from the code.
+

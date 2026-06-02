@@ -85,6 +85,18 @@ Want to contribute code? Great!
   - `perf:` - performance improvements
   - `chore:` - maintenance
 
+
+### Documentation Source of Truth
+
+Keep current project documentation inside the repository:
+
+- `README.md`
+- `SECURITY.md`
+- `THREAT_MODEL.md`
+- `docs/`
+
+Do not rely on a separate GitHub Wiki for current architecture, security, or deployment information. Wiki pages can drift from code. If a change affects behavior, security, deployment, or roadmap status, update the relevant Markdown document in the same PR.
+
 ### 🧪 Testing
 
 Before submitting a PR, ensure all tests pass:

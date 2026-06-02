@@ -1,5 +1,12 @@
 # Security Policy
 
+## Documentation Source of Truth
+
+Current security documentation is versioned in this repository:
+[`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), and
+[`docs/`](docs/). Do not rely on a separate GitHub Wiki for current security
+state, because Wiki content can drift from the code.
+
 ## Supported Versions
 
 Zenthril is currently an alpha-stage project. There are no production-supported

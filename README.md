@@ -40,6 +40,14 @@ This repository should be read as an engineering alpha: useful, testable, and ac
 > **Note:** Federation is planned and partially scaffolded but is not production-ready.
 > All federation endpoints are disabled by default (`FEDERATION_ENABLED=false`).
 
+## Documentation Source of Truth
+
+Project documentation lives in this repository: [`README.md`](README.md),
+[`SECURITY.md`](SECURITY.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), and
+[`docs/`](docs/). Do not rely on a separate GitHub Wiki for current project
+state, because it can drift from the code. Documentation changes should be
+committed together with the code or configuration they describe.
+
 ## Known Limitations / Current Issues
 
 - **Not production ready:** deployment, monitoring, incident response, key storage, and operational procedures still require more work.
