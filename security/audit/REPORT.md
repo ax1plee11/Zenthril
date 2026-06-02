@@ -4,7 +4,9 @@ Project: Zenthril alpha secure messenger.
 
 Date: 2026-05-31.
 
-Scope: repository review plus controlled local PoC checks for WebSocket, JWT, CORS, E2EE envelope, auth/session, access-control, client rendering, WebRTC metadata, and supply-chain risk.
+Scope: repository review plus defensive regression coverage for WebSocket, JWT,
+CORS, E2EE envelope, auth/session, access-control, client rendering, WebRTC
+metadata, and supply-chain risk.
 
 ## Executive Summary
 
@@ -52,7 +54,10 @@ The project remains alpha. The largest residual risks are incomplete Signal-grad
 
 ## Verification Strategy
 
-Run local PoCs from `security/audit/pocs/` against a disposable local deployment. A secure result is usually rejection, not successful exploitation.
+The public repository intentionally avoids shipping executable attack PoCs.
+Security checks should be represented as ordinary unit/integration tests and CI
+jobs. A secure result is usually rejection with `401`, `403`, close frames, or
+safe validation errors.
 
 Add these checks to CI gradually:
 
