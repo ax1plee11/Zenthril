@@ -68,6 +68,11 @@ already available on that device.
 
 - No external security audit has been completed.
 - Tauri desktop storage currently uses `tauri-plugin-store`, not OS keychain.
+- Production web builds refuse `localStorage` private-key persistence unless it
+  is explicitly enabled for testing, and locally loaded device key bundles must
+  match the active user id. This reduces accidental cross-account key loading,
+  but it does not protect against a compromised local machine or XSS in an
+  insecure development build.
 - Old alpha messages without stored authentication tags may not decrypt from history.
 - Federation, voice, and multi-node fan-out are not production-ready.
 - Full X3DH and Double Ratchet are roadmap items, not complete guarantees.

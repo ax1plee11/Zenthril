@@ -82,6 +82,12 @@ storage mechanism. This is **not equivalent to OS keychain storage**. A future
 hardening step should move private key material to Windows Credential Manager,
 macOS Keychain, Linux Secret Service/KWallet, or Tauri Stronghold.
 
+The device key store now exposes an explicit storage status to the client UI and
+rejects locally stored bundles when their `userId` does not match the active
+user context. This prevents accidental cross-account key loading, but it does
+not protect against a compromised local machine or XSS in an allowed insecure
+web-development build.
+
 ## Startup Network Activity
 
 Saved client sessions start offline by default. Until the user presses

@@ -14,6 +14,7 @@ import { api } from "../api";
 import { useAuth } from "../store/auth";
 import {
   ensureLocalDeviceRegistered,
+  getDeviceKeyStorageStatus,
   loadDeviceKeyBundle,
   storeDeviceKeyBundle,
 } from "../features/e2ee";
@@ -34,6 +35,7 @@ export default function DeviceManagement({ onClose }: Props) {
   const [busyDeviceId, setBusyDeviceId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const storageStatus = useMemo(() => getDeviceKeyStorageStatus(), []);
 
   const currentDevice = useMemo(() => {
     if (!localBundle) return null;
@@ -148,6 +150,16 @@ export default function DeviceManagement({ onClose }: Props) {
           <div style={s.error}>
             <ShieldAlert size={15} />
             <span>{error}</span>
+          </div>
+        )}
+
+        {storageStatus.warning && (
+          <div style={s.warning}>
+            <ShieldAlert size={16} />
+            <div style={{ flex: 1 }}>
+              <div style={s.warningTitle}>Key storage status: {storageStatus.backend}</div>
+              <div style={s.warningText}>{storageStatus.warning}</div>
+            </div>
           </div>
         )}
 

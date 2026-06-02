@@ -6,8 +6,11 @@ import {
   verifySignedPreKey,
 } from "./deviceKeys";
 import {
+  canUseInsecureLocalKeyStorage,
   deleteDeviceKeyBundle,
+  getDeviceKeyStorageStatus,
   loadDeviceKeyBundle,
+  parseStoredDeviceKeyBundle,
   storeDeviceKeyBundle,
 } from "./deviceKeyStore";
 
@@ -59,5 +62,40 @@ describe("device key storage fallback", () => {
     await storeDeviceKeyBundle(bundle);
     await deleteDeviceKeyBundle("user-1");
     await expect(loadDeviceKeyBundle("user-1")).resolves.toBeNull();
+  });
+
+  it("rejects stored bundles from another user context", () => {
+    const bundle = createDeviceKeyBundle("user-1", "test device", 1);
+    const parsed = parseStoredDeviceKeyBundle(JSON.stringify(bundle), "user-2");
+    expect(parsed).toBeNull();
+  });
+
+  it("rejects malformed stored bundles", () => {
+    const bundle = createDeviceKeyBundle("user-1", "test device", 1);
+    const malformed = {
+      ...bundle,
+      identitySigningKey: { ...bundle.identitySigningKey, secretKey: undefined },
+    };
+    const parsed = parseStoredDeviceKeyBundle(JSON.stringify(malformed), "user-1");
+    expect(parsed).toBeNull();
+  });
+
+  it("documents production web localStorage refusal", () => {
+    expect(canUseInsecureLocalKeyStorage({ PROD: true })).toBe(false);
+    expect(
+      canUseInsecureLocalKeyStorage({
+        PROD: true,
+        VITE_ALLOW_INSECURE_KEY_STORAGE: "true",
+      }),
+    ).toBe(true);
+    expect(canUseInsecureLocalKeyStorage({ PROD: false })).toBe(true);
+  });
+
+  it("reports localStorage fallback as insecure storage", () => {
+    const status = getDeviceKeyStorageStatus();
+    expect(status.backend).toBe("insecure-localstorage");
+    expect(status.available).toBe(true);
+    expect(status.productionSafe).toBe(false);
+    expect(status.warning).toContain("localStorage");
   });
 });
