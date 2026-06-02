@@ -4,7 +4,9 @@ updates:
     directory: "/backend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    # Alpha policy: do not auto-open version bump PRs. Review dependency
+    # updates manually in planned maintenance batches to avoid noisy/red checks.
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
 
@@ -12,7 +14,7 @@ updates:
     directory: "/client"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
 
@@ -20,7 +22,7 @@ updates:
     directory: "/client/src-tauri"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
 
@@ -28,6 +30,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
