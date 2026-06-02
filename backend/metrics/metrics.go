@@ -25,6 +25,10 @@ type Metrics struct {
 	LoginAttempts      int64
 	LoginSuccesses     int64
 	LoginFailures      int64
+	WSRejected         int64
+	WSRateLimitHits    int64
+	WSMalformed        int64
+	ReadinessFailures  int64
 	mu                 sync.RWMutex
 	messageLatencies   []time.Duration
 	queryLatencies     []time.Duration
@@ -114,35 +118,55 @@ func (m *Metrics) RecordLoginAttempt(success bool) {
 	}
 }
 
+func (m *Metrics) IncrementWSRejected() {
+	atomic.AddInt64(&m.WSRejected, 1)
+}
+
+func (m *Metrics) IncrementWSRateLimitHits() {
+	atomic.AddInt64(&m.WSRateLimitHits, 1)
+}
+
+func (m *Metrics) IncrementWSMalformed() {
+	atomic.AddInt64(&m.WSMalformed, 1)
+}
+
+func (m *Metrics) IncrementReadinessFailures() {
+	atomic.AddInt64(&m.ReadinessFailures, 1)
+}
+
 type Snapshot struct {
-	Timestamp          time.Time `json:"timestamp"`
-	ActiveConnections  int64     `json:"active_connections"`
-	TotalConnections   int64     `json:"total_connections"`
-	TotalMessages      int64     `json:"total_messages"`
-	MessagesSent       int64     `json:"messages_sent"`
-	MessagesReceived   int64     `json:"messages_received"`
-	EncryptionOps      int64     `json:"encryption_ops"`
-	DecryptionOps      int64     `json:"decryption_ops"`
-	AvgEncryptionMs    float64   `json:"avg_encryption_ms"`
-	AvgDecryptionMs    float64   `json:"avg_decryption_ms"`
-	DBQueries          int64     `json:"db_queries"`
-	AvgDBQueryMs       float64   `json:"avg_db_query_ms"`
-	DBErrors           int64     `json:"db_errors"`
-	HTTPRequests       int64     `json:"http_requests"`
-	HTTPErrors         int64     `json:"http_errors"`
-	AvgHTTPResponseMs  float64   `json:"avg_http_response_ms"`
-	LoginAttempts      int64     `json:"login_attempts"`
-	LoginSuccesses     int64     `json:"login_successes"`
-	LoginFailures      int64     `json:"login_failures"`
-	MessageLatencyP50  float64   `json:"message_latency_p50_ms"`
-	MessageLatencyP95  float64   `json:"message_latency_p95_ms"`
-	MessageLatencyP99  float64   `json:"message_latency_p99_ms"`
-	DBLatencyP50       float64   `json:"db_latency_p50_ms"`
-	DBLatencyP95       float64   `json:"db_latency_p95_ms"`
-	DBLatencyP99       float64   `json:"db_latency_p99_ms"`
-	HTTPLatencyP50     float64   `json:"http_latency_p50_ms"`
-	HTTPLatencyP95     float64   `json:"http_latency_p95_ms"`
-	HTTPLatencyP99     float64   `json:"http_latency_p99_ms"`
+	Timestamp         time.Time `json:"timestamp"`
+	ActiveConnections int64     `json:"active_connections"`
+	TotalConnections  int64     `json:"total_connections"`
+	TotalMessages     int64     `json:"total_messages"`
+	MessagesSent      int64     `json:"messages_sent"`
+	MessagesReceived  int64     `json:"messages_received"`
+	EncryptionOps     int64     `json:"encryption_ops"`
+	DecryptionOps     int64     `json:"decryption_ops"`
+	AvgEncryptionMs   float64   `json:"avg_encryption_ms"`
+	AvgDecryptionMs   float64   `json:"avg_decryption_ms"`
+	DBQueries         int64     `json:"db_queries"`
+	AvgDBQueryMs      float64   `json:"avg_db_query_ms"`
+	DBErrors          int64     `json:"db_errors"`
+	HTTPRequests      int64     `json:"http_requests"`
+	HTTPErrors        int64     `json:"http_errors"`
+	AvgHTTPResponseMs float64   `json:"avg_http_response_ms"`
+	LoginAttempts     int64     `json:"login_attempts"`
+	LoginSuccesses    int64     `json:"login_successes"`
+	LoginFailures     int64     `json:"login_failures"`
+	WSRejected        int64     `json:"ws_rejected"`
+	WSRateLimitHits   int64     `json:"ws_rate_limit_hits"`
+	WSMalformed       int64     `json:"ws_malformed"`
+	ReadinessFailures int64     `json:"readiness_failures"`
+	MessageLatencyP50 float64   `json:"message_latency_p50_ms"`
+	MessageLatencyP95 float64   `json:"message_latency_p95_ms"`
+	MessageLatencyP99 float64   `json:"message_latency_p99_ms"`
+	DBLatencyP50      float64   `json:"db_latency_p50_ms"`
+	DBLatencyP95      float64   `json:"db_latency_p95_ms"`
+	DBLatencyP99      float64   `json:"db_latency_p99_ms"`
+	HTTPLatencyP50    float64   `json:"http_latency_p50_ms"`
+	HTTPLatencyP95    float64   `json:"http_latency_p95_ms"`
+	HTTPLatencyP99    float64   `json:"http_latency_p99_ms"`
 }
 
 func (m *Metrics) Snapshot() Snapshot {
@@ -165,6 +189,10 @@ func (m *Metrics) Snapshot() Snapshot {
 		LoginAttempts:     atomic.LoadInt64(&m.LoginAttempts),
 		LoginSuccesses:    atomic.LoadInt64(&m.LoginSuccesses),
 		LoginFailures:     atomic.LoadInt64(&m.LoginFailures),
+		WSRejected:        atomic.LoadInt64(&m.WSRejected),
+		WSRateLimitHits:   atomic.LoadInt64(&m.WSRateLimitHits),
+		WSMalformed:       atomic.LoadInt64(&m.WSMalformed),
+		ReadinessFailures: atomic.LoadInt64(&m.ReadinessFailures),
 	}
 
 	if s.EncryptionOps > 0 {
@@ -243,6 +271,10 @@ func (m *Metrics) Reset() {
 	atomic.StoreInt64(&m.LoginAttempts, 0)
 	atomic.StoreInt64(&m.LoginSuccesses, 0)
 	atomic.StoreInt64(&m.LoginFailures, 0)
+	atomic.StoreInt64(&m.WSRejected, 0)
+	atomic.StoreInt64(&m.WSRateLimitHits, 0)
+	atomic.StoreInt64(&m.WSMalformed, 0)
+	atomic.StoreInt64(&m.ReadinessFailures, 0)
 
 	m.mu.Lock()
 	m.messageLatencies = make([]time.Duration, 0, 10000)

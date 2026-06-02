@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"zenthril-backend/auth"
@@ -84,6 +87,63 @@ func TestOperationalTokenAuthProtectsHealthInProduction(t *testing.T) {
 	handler(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("health with token status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
+func TestReadinessHandlerReportsReady(t *testing.T) {
+	t.Parallel()
+
+	handler := readinessHandler("development", readinessDependency{
+		Name: "postgres",
+		Ping: func(context.Context) error { return nil },
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ready status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Body.String(); !strings.Contains(got, `"status":"ready"`) || !strings.Contains(got, `"postgres":"ok"`) {
+		t.Fatalf("ready body = %s", got)
+	}
+}
+
+func TestReadinessHandlerReportsDependencyFailureInDevelopment(t *testing.T) {
+	t.Parallel()
+
+	handler := readinessHandler("development", readinessDependency{
+		Name: "redis",
+		Ping: func(context.Context) error { return errors.New("redis down") },
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("not ready status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if got := rec.Body.String(); !strings.Contains(got, `"status":"not_ready"`) || !strings.Contains(got, `"redis":"down"`) {
+		t.Fatalf("not ready body = %s", got)
+	}
+}
+
+func TestReadinessHandlerHidesDependencyDetailsInProduction(t *testing.T) {
+	t.Parallel()
+
+	handler := readinessHandler("production", readinessDependency{
+		Name: "postgres",
+		Ping: func(context.Context) error { return errors.New("dsn refused") },
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("not ready status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if got := rec.Body.String(); strings.Contains(got, "postgres") || strings.Contains(got, "dsn refused") {
+		t.Fatalf("production readiness leaked details: %s", got)
 	}
 }
 

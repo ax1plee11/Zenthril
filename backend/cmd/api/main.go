@@ -43,9 +43,15 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}))
 	router.Get("/readyz", operationalTokenAuth(container, func(w http.ResponseWriter, r *http.Request) {
+		// RESILIENCE: this next-generation API entrypoint does not own live DB/Redis
+		// clients yet, so readiness reports only the dependencies wired into this container.
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status": "ready",
-			"shards": len(container.ShardManager.Shards()),
+			"checks": map[string]any{
+				"gateway":   "ok",
+				"event_bus": "configured",
+				"shards":    len(container.ShardManager.Shards()),
+			},
 		})
 	}))
 	router.Get("/api/v2/gateway/stats", operationalTokenAuth(container, func(w http.ResponseWriter, r *http.Request) {

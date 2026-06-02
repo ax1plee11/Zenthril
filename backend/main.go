@@ -37,6 +37,7 @@ import (
 )
 
 const maxRequestBodyBytes int64 = 1 << 20
+const readinessTimeout = 2 * time.Second
 
 var allowedCORSMethods = map[string]struct{}{
 	http.MethodGet:     {},
@@ -224,6 +225,56 @@ func federationAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc 
 	}
 }
 
+type readinessDependency struct {
+	Name string
+	Ping func(context.Context) error
+}
+
+func livenessHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func readinessHandler(environment string, deps ...readinessDependency) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), readinessTimeout)
+		defer cancel()
+
+		checks := make(map[string]string, len(deps))
+		ready := true
+		for _, dep := range deps {
+			if dep.Name == "" || dep.Ping == nil {
+				continue
+			}
+			if err := dep.Ping(ctx); err != nil {
+				ready = false
+				checks[dep.Name] = "down"
+				slog.Warn("readiness dependency failed", "dependency", dep.Name, "error", err)
+				continue
+			}
+			checks[dep.Name] = "ok"
+		}
+
+		if !ready {
+			metrics.Global().IncrementReadinessFailures()
+			// SECURITY-HARDENING: production readiness avoids leaking internal dependency details to unauthenticated probes.
+			if environment == "production" {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready"})
+				return
+			}
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"status": "not_ready",
+				"checks": checks,
+			})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status": "ready",
+			"checks": checks,
+		})
+	}
+}
+
 func main() {
 	_ = godotenv.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -293,11 +344,24 @@ func main() {
 	r.Use(secGuard.IPRateLimit)
 	r.Use(requestBodyLimit(maxRequestBodyBytes))
 
-	r.Get("/health", operationalTokenAuth(cfg, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	}))
+	ready := readinessHandler(cfg.Environment,
+		readinessDependency{
+			Name: "postgres",
+			Ping: func(ctx context.Context) error {
+				return database.Ping(ctx)
+			},
+		},
+		readinessDependency{
+			Name: "redis",
+			Ping: func(ctx context.Context) error {
+				return rdb.Ping(ctx).Err()
+			},
+		},
+	)
+	r.Get("/health", operationalTokenAuth(cfg, livenessHandler))
+	r.Get("/healthz", operationalTokenAuth(cfg, livenessHandler))
+	r.Get("/ready", operationalTokenAuth(cfg, ready))
+	r.Get("/readyz", operationalTokenAuth(cfg, ready))
 
 	r.Get("/metrics", metricsAuth(cfg, metrics.Handler()))
 	r.Get("/metrics/prometheus", metricsAuth(cfg, metrics.PrometheusHandler()))
@@ -520,4 +584,12 @@ func bearerToken(r *http.Request) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		http.Error(w, `{"error":"encode_failed"}`, http.StatusInternalServerError)
+	}
 }

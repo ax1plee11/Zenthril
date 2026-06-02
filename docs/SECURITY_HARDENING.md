@@ -18,7 +18,7 @@ Zenthril is currently an alpha project. The backend now defaults to a stricter s
 
 Operational endpoints are protected in production:
 
-- Legacy API: `/health`, `/metrics`, `/metrics/prometheus`
+- Legacy API: `/health`, `/healthz`, `/ready`, `/readyz`, `/metrics`, `/metrics/prometheus`
 - Next-generation API: `/healthz`, `/readyz`, `/api/v2/gateway/stats`
 - Debug and pprof-style `/debug/*` endpoints are explicitly blocked in production.
 
@@ -29,6 +29,22 @@ Authorization: Bearer <OPERATIONAL_TOKEN or METRICS_TOKEN>
 ```
 
 `OPERATIONAL_TOKEN` is used for health/readiness/stat endpoints. `METRICS_TOKEN` is used for metrics scraping. Metrics can also be accessed by configured admins with a valid access token.
+
+`/health` and `/healthz` are liveness probes: they only confirm the process can
+serve HTTP. `/ready` and `/readyz` are readiness probes: in the legacy backend
+they ping PostgreSQL and Redis with a short timeout before reporting ready. In
+production, failed readiness responses intentionally avoid exposing dependency
+names or connection details. The next-generation `cmd/api` entrypoint currently
+reports only the dependencies actually wired into its container (gateway,
+event bus configuration, and shard configuration); DB/Redis readiness there
+will become strict after those clients are moved into the DI container.
+
+Prometheus metrics include WebSocket security counters:
+
+- `zenthril_ws_rejected_total`
+- `zenthril_ws_rate_limit_hits_total`
+- `zenthril_ws_malformed_total`
+- `zenthril_readiness_failures_total`
 
 ## Deployment Requirements
 

@@ -50,11 +50,13 @@ func checkWSOrigin(r *http.Request, allow map[string]struct{}, environment strin
 	// browser WebSocket upgrades from arbitrary sites.
 	if len(allow) == 0 {
 		slog.Warn("security websocket origin rejected", "reason", "missing_origin_config", "origin", origin, "environment", environment)
+		metrics.Global().IncrementWSRejected()
 		return false
 	}
 
 	if origin == "" {
 		slog.Warn("security websocket origin rejected", "reason", "empty_origin", "environment", environment)
+		metrics.Global().IncrementWSRejected()
 		return false
 	}
 
@@ -62,6 +64,7 @@ func checkWSOrigin(r *http.Request, allow map[string]struct{}, environment strin
 		return true
 	}
 	slog.Warn("security websocket origin rejected", "reason", "origin_not_allowed", "origin", origin, "environment", environment)
+	metrics.Global().IncrementWSRejected()
 	return false
 }
 
@@ -441,11 +444,13 @@ func (c *Client) readPump() {
 		// VULNERABILITY FIXED: one busy connection or one authenticated account cannot flood the hub unchecked.
 		if !c.limiter.allow() {
 			slog.Warn("security websocket connection rate limited", "user_id", c.UserID, "conn_id", c.ConnID)
+			metrics.Global().IncrementWSRateLimitHits()
 			c.hub.sendWSError(c, "rate_limited", "too many websocket messages")
 			return
 		}
 		if !c.hub.allowUserMessage(c.UserID) {
 			slog.Warn("security websocket user rate limited", "user_id", c.UserID, "conn_id", c.ConnID)
+			metrics.Global().IncrementWSRateLimitHits()
 			c.hub.sendWSError(c, "rate_limited", "too many websocket messages")
 			return
 		}
@@ -454,6 +459,7 @@ func (c *Client) readPump() {
 		if err := json.Unmarshal(data, &evt); err != nil {
 			malformedMessages++
 			slog.Warn("security malformed websocket message", "user_id", c.UserID, "conn_id", c.ConnID, "count", malformedMessages)
+			metrics.Global().IncrementWSMalformed()
 			c.hub.sendWSError(c, "malformed_message", "invalid websocket message")
 			if malformedMessages >= maxWSMalformedMessages {
 				return
@@ -464,6 +470,7 @@ func (c *Client) readPump() {
 			malformedMessages++
 			// SECURITY-HARDENING: unknown or incomplete commands are counted as malformed to slow flooding.
 			slog.Warn("security invalid websocket command", "user_id", c.UserID, "conn_id", c.ConnID, "type", evt.Type, "count", malformedMessages)
+			metrics.Global().IncrementWSMalformed()
 			c.hub.sendWSError(c, "malformed_message", "invalid websocket command")
 			if malformedMessages >= maxWSMalformedMessages {
 				return
@@ -629,12 +636,14 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 
 	ticket := r.URL.Query().Get("ticket")
 	if ticket == "" {
+		metrics.Global().IncrementWSRejected()
 		http.Error(w, "missing ticket", http.StatusUnauthorized)
 		return
 	}
 
 	userID, err := authSvc.ConsumeWSTicket(r.Context(), ticket)
 	if err != nil {
+		metrics.Global().IncrementWSRejected()
 		http.Error(w, "invalid or expired ticket", http.StatusUnauthorized)
 		return
 	}

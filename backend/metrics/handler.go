@@ -75,6 +75,22 @@ func PrometheusHandler() http.HandlerFunc {
 		w.Write([]byte("# HELP zenthril_message_latency_p99_ms Message latency P99 in milliseconds\n"))
 		w.Write([]byte("# TYPE zenthril_message_latency_p99_ms gauge\n"))
 		w.Write([]byte("zenthril_message_latency_p99_ms " + formatFloat64(snapshot.MessageLatencyP99) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_ws_rejected_total Total rejected WebSocket connections\n"))
+		w.Write([]byte("# TYPE zenthril_ws_rejected_total counter\n"))
+		w.Write([]byte("zenthril_ws_rejected_total " + formatInt64(snapshot.WSRejected) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_ws_rate_limit_hits_total Total WebSocket rate-limit hits\n"))
+		w.Write([]byte("# TYPE zenthril_ws_rate_limit_hits_total counter\n"))
+		w.Write([]byte("zenthril_ws_rate_limit_hits_total " + formatInt64(snapshot.WSRateLimitHits) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_ws_malformed_total Total malformed WebSocket messages\n"))
+		w.Write([]byte("# TYPE zenthril_ws_malformed_total counter\n"))
+		w.Write([]byte("zenthril_ws_malformed_total " + formatInt64(snapshot.WSMalformed) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_readiness_failures_total Total readiness check failures\n"))
+		w.Write([]byte("# TYPE zenthril_readiness_failures_total counter\n"))
+		w.Write([]byte("zenthril_readiness_failures_total " + formatInt64(snapshot.ReadinessFailures) + "\n\n"))
 	}
 }
 
