@@ -13,6 +13,9 @@ import (
 type GuildNotifier interface {
 	BroadcastToUser(userID string, msg []byte)
 	BroadcastToGuild(guildID string, msg []byte)
+	SetUserGuilds(userID string, guildIDs []string)
+	AddUserToGuild(userID, guildID string)
+	RemoveUserFromGuild(userID, guildID string)
 }
 
 type Handler struct {
@@ -70,6 +73,9 @@ func (h *Handler) CreateGuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to create guild")
 		return
 	}
+	if h.notifier != nil {
+		h.notifier.AddUserToGuild(userID, guild.ID.String())
+	}
 
 	writeJSON(w, http.StatusCreated, guild)
 }
@@ -85,6 +91,14 @@ func (h *Handler) GetUserGuilds(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to get guilds")
 		return
+	}
+	if h.notifier != nil {
+		ids := make([]string, 0, len(guilds))
+		for _, guild := range guilds {
+			ids = append(ids, guild.ID.String())
+		}
+		// RESILIENCE: keep active WebSocket guild affinity in sync with HTTP membership reads.
+		h.notifier.SetUserGuilds(userID, ids)
 	}
 
 	writeJSON(w, http.StatusOK, guilds)
@@ -143,6 +157,7 @@ func (h *Handler) JoinByInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.notifier != nil {
+		h.notifier.AddUserToGuild(userID, guild.ID.String())
 		username, _ := h.svc.GetUsername(r.Context(), userID)
 		msg, _ := json.Marshal(map[string]string{
 			"type":     "guild.member_joined",
@@ -182,6 +197,9 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to remove member")
 		return
+	}
+	if h.notifier != nil {
+		h.notifier.RemoveUserFromGuild(targetUserID, guildID)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

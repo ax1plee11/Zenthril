@@ -19,6 +19,9 @@ const (
 	maxWSMessagesPerMinute     = 120
 	maxWSUserMessagesPerMinute = 300
 	maxWSMalformedMessages     = 5
+	wsPongWait                 = 60 * time.Second
+	wsPingPeriod               = 45 * time.Second
+	wsWriteWait                = 10 * time.Second
 )
 
 type ChannelAccessChecker interface {
@@ -111,35 +114,51 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 		case client := <-h.unregister:
-			metrics.Global().DecrementConnections()
-			h.mu.Lock()
-			for channelID, clients := range h.channels {
-				if clients[client] {
-					delete(clients, client)
-					if len(clients) == 0 {
-						delete(h.channels, channelID)
-					}
-				}
+			if h.unregisterClient(client) {
+				metrics.Global().DecrementConnections()
 			}
-			for channelID, users := range h.voiceChannels {
-				if users[client.UserID] {
-					delete(users, client.UserID)
-					if len(users) == 0 {
-						delete(h.voiceChannels, channelID)
-					}
-				}
-			}
-			if clients, ok := h.users[client.UserID]; ok {
-				delete(clients, client)
-				if len(clients) == 0 {
-					delete(h.users, client.UserID)
-					delete(h.userLimiters, client.UserID)
-				}
-			}
-			h.mu.Unlock()
-			close(client.Send)
 		}
 	}
+}
+
+func (h *Hub) unregisterClient(client *Client) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	registered := false
+	for channelID, clients := range h.channels {
+		if clients[client] {
+			registered = true
+			delete(clients, client)
+			if len(clients) == 0 {
+				delete(h.channels, channelID)
+			}
+		}
+	}
+	for channelID, users := range h.voiceChannels {
+		if users[client.UserID] {
+			delete(users, client.UserID)
+			if len(users) == 0 {
+				delete(h.voiceChannels, channelID)
+			}
+		}
+	}
+	if clients, ok := h.users[client.UserID]; ok {
+		if clients[client] {
+			registered = true
+			delete(clients, client)
+		}
+		if len(clients) == 0 {
+			delete(h.users, client.UserID)
+			delete(h.userLimiters, client.UserID)
+		}
+	}
+
+	if registered {
+		// RESILIENCE: close the send queue exactly once during connection cleanup.
+		close(client.Send)
+	}
+	return registered
 }
 
 func (h *Hub) sendWSError(c *Client, code, msg string) {
@@ -249,16 +268,12 @@ func (h *Hub) BroadcastExcept(channelID string, except *Client, msg []byte) {
 
 func (h *Hub) BroadcastToGuild(guildID string, msg []byte) {
 	h.mu.RLock()
-	_ = guildID
 	seen := make(map[*Client]bool)
-	for _, clients := range h.channels {
-		for c := range clients {
-			seen[c] = true
-		}
-	}
 	for _, clients := range h.users {
 		for c := range clients {
-			seen[c] = true
+			if clientInGuild(c, guildID) {
+				seen[c] = true
+			}
 		}
 	}
 	targets := make([]*Client, 0, len(seen))
@@ -274,6 +289,72 @@ func (h *Hub) BroadcastToGuild(guildID string, msg []byte) {
 			h.unregister <- c
 		}
 	}
+}
+
+func (h *Hub) SetUserGuilds(userID string, guildIDs []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for c := range h.users[userID] {
+		c.GuildIDs = dedupeGuildIDs(guildIDs)
+	}
+}
+
+func (h *Hub) AddUserToGuild(userID, guildID string) {
+	if guildID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for c := range h.users[userID] {
+		if !clientInGuild(c, guildID) {
+			c.GuildIDs = append(c.GuildIDs, guildID)
+		}
+	}
+}
+
+func (h *Hub) RemoveUserFromGuild(userID, guildID string) {
+	if guildID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for c := range h.users[userID] {
+		next := c.GuildIDs[:0]
+		for _, id := range c.GuildIDs {
+			if id != guildID {
+				next = append(next, id)
+			}
+		}
+		c.GuildIDs = next
+	}
+}
+
+func dedupeGuildIDs(guildIDs []string) []string {
+	seen := make(map[string]struct{}, len(guildIDs))
+	out := make([]string, 0, len(guildIDs))
+	for _, id := range guildIDs {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func clientInGuild(c *Client, guildID string) bool {
+	if guildID == "" {
+		return false
+	}
+	for _, id := range c.GuildIDs {
+		if id == guildID {
+			return true
+		}
+	}
+	return false
 }
 
 type wsEvent struct {
@@ -307,10 +388,29 @@ func (evt wsEvent) valid() bool {
 }
 
 func (c *Client) writePump() {
-	defer c.conn.Close()
-	for msg := range c.Send {
-		if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			return
+	ticker := time.NewTicker(wsPingPeriod)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		case msg, ok := <-c.Send:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			if !ok {
+				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		case <-ticker.C:
+			// RESILIENCE: ping/pong prevents dead TCP sessions from lingering forever.
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
@@ -322,6 +422,10 @@ func (c *Client) readPump() {
 	}()
 
 	c.conn.SetReadLimit(maxWSMessageBytes)
+	_ = c.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	c.conn.SetPongHandler(func(string) error {
+		return c.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
 	malformedMessages := 0
 
 	for {
@@ -332,6 +436,7 @@ func (c *Client) readPump() {
 			}
 			return
 		}
+		metrics.Global().IncrementMessagesReceived()
 		// SECURITY-HARDENING: enforce both per-connection and per-user limits to reduce flooding blast radius.
 		// VULNERABILITY FIXED: one busy connection or one authenticated account cannot flood the hub unchecked.
 		if !c.limiter.allow() {
