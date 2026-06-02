@@ -54,6 +54,7 @@ export default function App() {
   const [user, setUser]        = useState<AuthUser | null>(stored.user);
   const [networkEnabled, setNetworkEnabled] = useState(() => shouldStartOnline(Boolean(stored.token && stored.user)));
   const [theme, setThemeState] = useState<Theme>(loadTheme);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
 
   // Применяем тему при старте
   useEffect(() => { applyTheme(theme); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -65,6 +66,7 @@ export default function App() {
   }, []);
 
   const login = useCallback((newToken: string, newUser: AuthUser) => {
+    setSessionNotice(null);
     saveAuth(newToken, newUser);
     setToken(newToken);
     setUser(newUser);
@@ -74,17 +76,21 @@ export default function App() {
       .catch(() => signalingService.connect("ws://localhost:8080", newToken));
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((notice?: string) => {
     clearAuth();
     signalingService.disconnect();
     setNetworkEnabled(false);
     setToken(null);
     setUser(null);
+    setSessionNotice(notice ?? null);
   }, []);
 
   useEffect(() => {
-    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, logout);
-    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, logout);
+    const onExpired = () => {
+      logout("Your session expired or was revoked. Please sign in again.");
+    };
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onExpired);
   }, [logout]);
 
   const bgStyle = getAppBackground(theme);
@@ -118,8 +124,13 @@ export default function App() {
             ) : (
               <AuthScreen onAuth={() => {
                 const { token: t, user: u } = loadStoredAuth();
-                if (t && u) { setToken(t); setUser(u); setNetworkEnabled(true); }
-              }} />
+                if (t && u) {
+                  setSessionNotice(null);
+                  setToken(t);
+                  setUser(u);
+                  setNetworkEnabled(true);
+                }
+              }} sessionNotice={sessionNotice} />
             )}
             <CallManager />
           </div>

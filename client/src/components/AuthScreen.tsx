@@ -8,10 +8,13 @@ import { apiErrorFields } from "../util/errors";
 import LanguageSwitcher from "./LanguageSwitcher";
 import ServerSettings from "./ServerSettings";
 
-interface AuthScreenProps { onAuth: () => void; }
+interface AuthScreenProps {
+  onAuth: () => void;
+  sessionNotice?: string | null;
+}
 type Tab = "login" | "register";
 
-export default function AuthScreen({ onAuth }: AuthScreenProps) {
+export default function AuthScreen({ onAuth, sessionNotice }: AuthScreenProps) {
   const { t } = useTranslation();
   const [tab, setTab]           = useState<Tab>("login");
   const [username, setUsername] = useState("");
@@ -202,6 +205,12 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
             </div>
           )}
 
+          {!error && sessionNotice && (
+            <div style={s.notice} className="fade-in">
+              {sessionNotice}
+            </div>
+          )}
+
           <button type="submit" style={s.btn(loading)} disabled={loading}>
             {loading ? <span style={s.spinner} /> : null}
             {loading ? t('common.loading') : tab === "login" ? t('auth.loginButton') : t('auth.registerButton')}
@@ -311,6 +320,15 @@ const s = {
     background: "rgba(240,79,94,0.1)", border: "1px solid rgba(240,79,94,0.3)",
     borderRadius: "var(--radius-sm)", padding: "10px 12px",
     fontSize: 13, color: "#f04f5e",
+  } as React.CSSProperties,
+  notice: {
+    background: "rgba(255,190,92,0.1)",
+    border: "1px solid rgba(255,190,92,0.28)",
+    borderRadius: "var(--radius-sm)",
+    padding: "10px 12px",
+    fontSize: 13,
+    color: "#ffc875",
+    lineHeight: 1.4,
   } as React.CSSProperties,
   btn: (loading: boolean): React.CSSProperties => ({
     padding: "12px 0", marginTop: 4,

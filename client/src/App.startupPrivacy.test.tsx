@@ -14,7 +14,12 @@ vi.mock("./components/MainLayout", () => ({
 }));
 
 vi.mock("./components/AuthScreen", () => ({
-  default: () => <div>Auth screen</div>,
+  default: ({ sessionNotice }: { sessionNotice?: string | null }) => (
+    <div>
+      Auth screen
+      {sessionNotice && <span>{sessionNotice}</span>}
+    </div>
+  ),
 }));
 
 vi.mock("./features/calls/components/CallManager", () => ({
@@ -68,5 +73,30 @@ describe("App privacy-first startup", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(getActiveServerMock).not.toHaveBeenCalled();
     expect(connectMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a clear message when the stored session expires", async () => {
+    localStorage.setItem("zenthril_token", "stored-token");
+    localStorage.setItem("zenthril_user", JSON.stringify({
+      id: "user-1",
+      username: "nurbek",
+      public_key: "public",
+    }));
+
+    const { AUTH_SESSION_EXPIRED_EVENT } = await import("./store/auth");
+    const { default: App } = await import("./App");
+
+    await act(async () => {
+      createRoot(rootEl).render(<App />);
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT));
+    });
+
+    expect(rootEl.textContent).toContain("Auth screen");
+    expect(rootEl.textContent).toContain("Your session expired or was revoked");
+    expect(localStorage.getItem("zenthril_token")).toBeNull();
+    expect(localStorage.getItem("zenthril_user")).toBeNull();
   });
 });
