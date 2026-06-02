@@ -77,16 +77,20 @@ Do not use Zenthril for highly sensitive communication at this stage.
 Production web builds intentionally refuse to store private E2EE material in
 `localStorage` unless `VITE_ALLOW_INSECURE_KEY_STORAGE=true` is explicitly set.
 
-The current Tauri desktop client uses `tauri-plugin-store` as a temporary local
-storage mechanism. This is **not equivalent to OS keychain storage**. A future
-hardening step should move private key material to Windows Credential Manager,
-macOS Keychain, Linux Secret Service/KWallet, or Tauri Stronghold.
+The current Tauri desktop client now prefers OS-backed key storage through the
+Rust `keyring` crate. On supported platforms this maps to Windows Credential
+Manager, macOS Keychain, or Linux Secret Service. The older `tauri-plugin-store`
+path remains only as an alpha migration fallback: when a legacy bundle is found,
+the client command migrates it into the OS key storage path and removes the
+legacy copy.
 
 The device key store now exposes an explicit storage status to the client UI and
 rejects locally stored bundles when their `userId` does not match the active
 user context. This prevents accidental cross-account key loading, but it does
 not protect against a compromised local machine or XSS in an allowed insecure
-web-development build.
+web-development build. OS keychain storage is a major improvement over the
+temporary Tauri Store path, but it is not a substitute for full device
+verification, secure recovery, and external audit.
 
 ## Startup Network Activity
 

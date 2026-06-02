@@ -67,7 +67,8 @@ already available on that device.
 ## Current Limitations
 
 - No external security audit has been completed.
-- Tauri desktop storage currently uses `tauri-plugin-store`, not OS keychain.
+- Tauri desktop storage now prefers OS-backed key storage via Rust `keyring`.
+  The legacy `tauri-plugin-store` path remains only for alpha migration.
 - Production web builds refuse `localStorage` private-key persistence unless it
   is explicitly enabled for testing, and locally loaded device key bundles must
   match the active user id. This reduces accidental cross-account key loading,

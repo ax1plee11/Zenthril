@@ -8,7 +8,7 @@ type EnvLike = {
 };
 
 export type DeviceKeyStorageBackend =
-  | "tauri-store"
+  | "tauri-keychain"
   | "insecure-localstorage"
   | "unavailable";
 
@@ -17,6 +17,25 @@ export interface DeviceKeyStorageStatus {
   available: boolean;
   productionSafe: boolean;
   warning: string | null;
+}
+
+export interface DeviceKeyStorageAdapter {
+  kind: DeviceKeyStorageBackend;
+  productionSafe: boolean;
+  warning: string | null;
+  store(bundle: StoredDeviceKeyBundle): Promise<void>;
+  load(userId: string): Promise<string | null>;
+  delete(userId: string): Promise<void>;
+}
+
+type InvokeFn = <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
+
+let testAdapter: DeviceKeyStorageAdapter | null = null;
+
+export function setDeviceKeyStorageAdapterForTests(
+  adapter: DeviceKeyStorageAdapter | null,
+): void {
+  testAdapter = adapter;
 }
 
 export function isTauriRuntime(): boolean {
@@ -28,24 +47,11 @@ export function canUseInsecureLocalKeyStorage(env: EnvLike = import.meta.env): b
 }
 
 export function getDeviceKeyStorageStatus(): DeviceKeyStorageStatus {
-  if (isTauriRuntime()) {
-    return {
-      backend: "tauri-store",
-      available: true,
-      productionSafe: false,
-      warning:
-        "Tauri Store is temporary desktop storage, not OS keychain or Stronghold.",
-    };
-  }
+  const adapter = resolveStorageAdapter();
+  if (adapter) return adapterStatus(adapter);
 
   if (canUseInsecureLocalKeyStorage()) {
-    return {
-      backend: "insecure-localstorage",
-      available: true,
-      productionSafe: false,
-      warning:
-        "localStorage may expose private E2EE keys to XSS or local profile compromise.",
-    };
+    return adapterStatus(localStorageAdapter());
   }
 
   return {
@@ -61,44 +67,41 @@ export async function storeDeviceKeyBundle(
   bundle: StoredDeviceKeyBundle,
 ): Promise<void> {
   validateBundleForStorage(bundle);
-  const serialized = JSON.stringify(bundle);
-  if (isTauriRuntime()) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("store_device_key_bundle", {
-      userId: bundle.userId,
-      bundleJson: serialized,
-    });
+  const adapter = resolveStorageAdapter();
+  if (adapter) {
+    await adapter.store(bundle);
     return;
   }
   if (!canUseInsecureLocalKeyStorage()) {
     // SECURITY-HARDENING: production web builds must not persist E2EE private material in localStorage.
     throw new Error("Secure device key storage is unavailable");
   }
-  localStorage.setItem(storageKey(bundle.userId), serialized);
+  await localStorageAdapter().store(bundle);
 }
 
 export async function loadDeviceKeyBundle(
   userId: string,
 ): Promise<StoredDeviceKeyBundle | null> {
-  const raw = isTauriRuntime()
-    ? await loadFromTauri(userId)
+  const adapter = resolveStorageAdapter();
+  const raw = adapter
+    ? await adapter.load(userId)
     : canUseInsecureLocalKeyStorage()
-      ? localStorage.getItem(storageKey(userId))
+      ? await localStorageAdapter().load(userId)
       : null;
   if (!raw) return null;
   return parseStoredDeviceKeyBundle(raw, userId);
 }
 
 export async function deleteDeviceKeyBundle(userId: string): Promise<void> {
-  if (isTauriRuntime()) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("delete_device_key_bundle", { userId });
+  const adapter = resolveStorageAdapter();
+  if (adapter) {
+    await adapter.delete(userId);
     return;
   }
   if (!canUseInsecureLocalKeyStorage()) {
     return;
   }
-  localStorage.removeItem(storageKey(userId));
+  await localStorageAdapter().delete(userId);
 }
 
 export function parseStoredDeviceKeyBundle(
@@ -123,9 +126,65 @@ export function parseStoredDeviceKeyBundle(
   }
 }
 
-async function loadFromTauri(userId: string): Promise<string | null> {
+function adapterStatus(adapter: DeviceKeyStorageAdapter): DeviceKeyStorageStatus {
+  return {
+    backend: adapter.kind,
+    available: true,
+    productionSafe: adapter.productionSafe,
+    warning: adapter.warning,
+  };
+}
+
+function resolveStorageAdapter(): DeviceKeyStorageAdapter | null {
+  if (testAdapter) return testAdapter;
+  if (isTauriRuntime()) return tauriKeychainAdapter();
+  return null;
+}
+
+function tauriKeychainAdapter(): DeviceKeyStorageAdapter {
+  return {
+    kind: "tauri-keychain",
+    productionSafe: true,
+    warning: null,
+    async store(bundle) {
+      await invokeTauri("store_device_key_bundle", {
+        userId: bundle.userId,
+        bundleJson: JSON.stringify(bundle),
+      });
+    },
+    async load(userId) {
+      return invokeTauri<string | null>("load_device_key_bundle", { userId });
+    },
+    async delete(userId) {
+      await invokeTauri("delete_device_key_bundle", { userId });
+    },
+  };
+}
+
+function localStorageAdapter(): DeviceKeyStorageAdapter {
+  return {
+    kind: "insecure-localstorage",
+    productionSafe: false,
+    warning:
+      "localStorage may expose private E2EE keys to XSS or local profile compromise.",
+    async store(bundle) {
+      localStorage.setItem(storageKey(bundle.userId), JSON.stringify(bundle));
+    },
+    async load(userId) {
+      return localStorage.getItem(storageKey(userId));
+    },
+    async delete(userId) {
+      localStorage.removeItem(storageKey(userId));
+    },
+  };
+}
+
+async function invokeTauri<T = unknown>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string | null>("load_device_key_bundle", { userId });
+  return (invoke as InvokeFn)<T>(command, args);
 }
 
 function validateBundleForStorage(bundle: StoredDeviceKeyBundle): void {

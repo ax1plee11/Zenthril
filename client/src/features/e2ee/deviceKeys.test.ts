@@ -11,6 +11,7 @@ import {
   getDeviceKeyStorageStatus,
   loadDeviceKeyBundle,
   parseStoredDeviceKeyBundle,
+  setDeviceKeyStorageAdapterForTests,
   storeDeviceKeyBundle,
 } from "./deviceKeyStore";
 
@@ -44,6 +45,7 @@ describe("device key bundle", () => {
 describe("device key storage fallback", () => {
   beforeEach(() => {
     localStorage.clear();
+    setDeviceKeyStorageAdapterForTests(null);
   });
 
   it("stores and loads a local device bundle", async () => {
@@ -97,5 +99,37 @@ describe("device key storage fallback", () => {
     expect(status.available).toBe(true);
     expect(status.productionSafe).toBe(false);
     expect(status.warning).toContain("localStorage");
+  });
+
+  it("uses injected Tauri keychain adapter before localStorage", async () => {
+    const stored = new Map<string, string>();
+    setDeviceKeyStorageAdapterForTests({
+      kind: "tauri-keychain",
+      productionSafe: true,
+      warning: null,
+      async store(bundle) {
+        stored.set(bundle.userId, JSON.stringify(bundle));
+      },
+      async load(userId) {
+        return stored.get(userId) ?? null;
+      },
+      async delete(userId) {
+        stored.delete(userId);
+      },
+    });
+
+    const status = getDeviceKeyStorageStatus();
+    expect(status.backend).toBe("tauri-keychain");
+    expect(status.productionSafe).toBe(true);
+
+    const bundle = createDeviceKeyBundle("user-1", "test device", 1);
+    await storeDeviceKeyBundle(bundle);
+    expect(localStorage.length).toBe(0);
+    await expect(loadDeviceKeyBundle("user-1")).resolves.toMatchObject({
+      userId: "user-1",
+      deviceId: bundle.deviceId,
+    });
+    await deleteDeviceKeyBundle("user-1");
+    await expect(loadDeviceKeyBundle("user-1")).resolves.toBeNull();
   });
 });
