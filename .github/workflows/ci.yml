@@ -45,7 +45,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.26.3'
 
     - name: Cache Go modules
       uses: actions/cache@v4
@@ -58,6 +58,10 @@ jobs:
     - name: Install dependencies
       working-directory: ./backend
       run: go mod download
+
+    - name: Run go vet
+      working-directory: ./backend
+      run: go vet ./...
 
     - name: Run tests
       working-directory: ./backend
@@ -115,6 +119,10 @@ jobs:
     - name: Build
       working-directory: ./client
       run: npm run build
+
+    - name: Audit npm dependencies
+      working-directory: ./client
+      run: npm audit --audit-level=critical
 
   security-scan:
     name: Security Scan
