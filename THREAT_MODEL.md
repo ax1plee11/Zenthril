@@ -74,6 +74,10 @@ already available on that device.
   match the active user id. This reduces accidental cross-account key loading,
   but it does not protect against a compromised local machine or XSS in an
   insecure development build.
+- Safety-number verification records are local client state. They can detect an
+  identity-key change after local verification, but they are not synchronized
+  across devices and are not a substitute for a complete audited verification
+  protocol.
 - Old alpha messages without stored authentication tags may not decrypt from history.
 - Federation, voice, and multi-node fan-out are not production-ready.
 - Full X3DH and Double Ratchet are roadmap items, not complete guarantees.

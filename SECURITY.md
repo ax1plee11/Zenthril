@@ -92,6 +92,21 @@ web-development build. OS keychain storage is a major improvement over the
 temporary Tauri Store path, but it is not a substitute for full device
 verification, secure recovery, and external audit.
 
+## Device Verification Status
+
+The client includes a local safety-number verification foundation. It can derive
+a stable safety number for a local/remote device pair, remember that local
+verification decision, and warn when the remote identity key changes after that
+verification.
+
+This is still an alpha mechanism:
+
+- verification records are local to the current client profile;
+- verification is not yet synchronized across devices;
+- QR scanning UI is not complete;
+- server-side trust state is not treated as authoritative for E2EE trust;
+- a compromised local machine can still tamper with local verification records.
+
 ## Startup Network Activity
 
 Saved client sessions start offline by default. Until the user presses
