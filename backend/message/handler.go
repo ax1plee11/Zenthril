@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	maxCiphertextBytes = 64 << 10
-	maxKeyIDLength     = 128
-	maxAADFieldLength  = 256
+	maxCiphertextBytes           = 64 << 10
+	maxEncryptedPayloadBodyBytes = 96 << 10
+	maxKeyIDLength               = 128
+	maxAADFieldLength            = 256
 )
 
 type Handler struct {
@@ -38,7 +39,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	channelID := chi.URLParam(r, "channelId")
 
-	payload, err := decodeEncryptedPayloadRequest(r)
+	payload, err := decodeEncryptedPayloadRequest(w, r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
@@ -109,7 +110,7 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 
 	messageID := chi.URLParam(r, "messageId")
 
-	payload, err := decodeEncryptedPayloadRequest(r)
+	payload, err := decodeEncryptedPayloadRequest(w, r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
@@ -202,7 +203,11 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	})
 }
 
-func decodeEncryptedPayloadRequest(r *http.Request) (models.EncryptedPayload, error) {
+func decodeEncryptedPayloadRequest(w http.ResponseWriter, r *http.Request) (models.EncryptedPayload, error) {
+	// SECURITY-HARDENING: cap encrypted message request bodies before JSON
+	// decoding so oversized payloads cannot create avoidable memory pressure.
+	r.Body = http.MaxBytesReader(w, r.Body, maxEncryptedPayloadBodyBytes)
+
 	var raw json.RawMessage
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		return models.EncryptedPayload{}, err
@@ -215,6 +220,8 @@ func decodeEncryptedPayloadRequest(r *http.Request) (models.EncryptedPayload, er
 		return *wrapped.Payload, nil
 	}
 
+	// SECURITY-HARDENING: bare payload is a temporary alpha compatibility path
+	// for old clients. New clients should send {"payload": {...}} only.
 	var payload models.EncryptedPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return models.EncryptedPayload{}, err

@@ -164,8 +164,9 @@ func TestDecodeEncryptedPayloadRequestAcceptsWrappedPayload(t *testing.T) {
 
 	body := `{"payload":{"ciphertext":"aGVsbG8=","iv":"MTIzNDU2Nzg5MDEy","key_id":"key-1","tag":"MTIzNDU2Nzg5MDEyMzQ1Ng==","protocol_version":1}}`
 	req := httptest.NewRequest(http.MethodPost, "/messages", strings.NewReader(body))
+	rec := httptest.NewRecorder()
 
-	payload, err := decodeEncryptedPayloadRequest(req)
+	payload, err := decodeEncryptedPayloadRequest(rec, req)
 	if err != nil {
 		t.Fatalf("wrapped payload rejected: %v", err)
 	}
@@ -182,8 +183,9 @@ func TestDecodeEncryptedPayloadRequestAcceptsBarePayload(t *testing.T) {
 
 	body := `{"ciphertext":"aGVsbG8=","iv":"MTIzNDU2Nzg5MDEy","key_id":"key-1","tag":"MTIzNDU2Nzg5MDEyMzQ1Ng==","protocol_version":1}`
 	req := httptest.NewRequest(http.MethodPost, "/messages", strings.NewReader(body))
+	rec := httptest.NewRecorder()
 
-	payload, err := decodeEncryptedPayloadRequest(req)
+	payload, err := decodeEncryptedPayloadRequest(rec, req)
 	if err != nil {
 		t.Fatalf("bare payload rejected: %v", err)
 	}
@@ -192,5 +194,17 @@ func TestDecodeEncryptedPayloadRequestAcceptsBarePayload(t *testing.T) {
 	}
 	if err := validateEncryptedPayload(payload); err != nil {
 		t.Fatalf("decoded bare payload did not validate: %v", err)
+	}
+}
+
+func TestDecodeEncryptedPayloadRequestRejectsOversizedBodyBeforeValidation(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Repeat(" ", maxEncryptedPayloadBodyBytes+1)
+	req := httptest.NewRequest(http.MethodPost, "/messages", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	if _, err := decodeEncryptedPayloadRequest(rec, req); err == nil {
+		t.Fatal("oversized request body was accepted")
 	}
 }
