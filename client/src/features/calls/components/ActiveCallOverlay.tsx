@@ -21,7 +21,7 @@ export function ActiveCallOverlay({ call, onEndCall, onToggleMute }: Props) {
       stopAnalysis();
     }
     return () => stopAnalysis();
-  }, [call.state, call.isMuted]);
+  }, [call.state, call.isMuted, startAnalysis, stopAnalysis]);
 
   const isEnding = ['declined', 'missed', 'failed', 'ended'].includes(call.state);
   const peer = call.isIncoming ? call.caller : call.callee;

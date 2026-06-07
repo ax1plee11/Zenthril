@@ -1,19 +1,35 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export function useMicrophone() {
   const [level, setLevel] = useState(0);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const startAnalysis = async () => {
+  const stopAnalysis = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = 0;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    analyserRef.current = null;
+    audioContextRef.current?.close().catch(() => {});
+    audioContextRef.current = null;
+    setLevel(0);
+  }, []);
+
+  const startAnalysis = useCallback(async () => {
     try {
+      stopAnalysis();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       setHasPermission(true);
 
       const ctx = new AudioContext();
+      audioContextRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
@@ -32,20 +48,13 @@ export function useMicrophone() {
       tick();
     } catch {
       setHasPermission(false);
+      stopAnalysis();
     }
-  };
-
-  const stopAnalysis = () => {
-    cancelAnimationFrame(animFrameRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    analyserRef.current = null;
-    setLevel(0);
-  };
+  }, [stopAnalysis]);
 
   useEffect(() => {
     return () => stopAnalysis();
-  }, []);
+  }, [stopAnalysis]);
 
   return { level, hasPermission, startAnalysis, stopAnalysis };
 }
