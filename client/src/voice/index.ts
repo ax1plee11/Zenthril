@@ -5,13 +5,11 @@
  */
 
 import { TransportLayer, WSEvent } from "../transport";
+import { createWebRTCConfig, DEFAULT_ICE_SERVERS } from "../features/webrtc/icePolicy";
 
 // ─── Конфигурация ICE ─────────────────────────────────────────────────────────
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+const ICE_SERVERS = DEFAULT_ICE_SERVERS;
 
 const STATS_INTERVAL_MS = 5_000;
 const PACKET_LOSS_THRESHOLD = 0.1; // 10%
@@ -198,7 +196,7 @@ export class VoiceClient {
   }
 
   private _createPeerConnection(userId: string): RTCPeerConnection {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection(createWebRTCConfig(ICE_SERVERS));
 
     // Добавляем локальные треки
     this.localStream?.getTracks().forEach((track) => {

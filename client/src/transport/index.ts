@@ -1,3 +1,5 @@
+import { loadAccessToken } from "../store/auth";
+
 /**
  * TransportLayer — WebSocket + REST + автопереключение узлов
  *
@@ -21,7 +23,6 @@ class P2PClient {
 
 // ─── Константы ────────────────────────────────────────────────────────────────
 
-const TOKEN_KEY = "zenthril_token";
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const CONNECT_TIMEOUT_MS = 5_000;
 
@@ -171,7 +172,7 @@ export class TransportLayer {
       throw new Error("No transport node configured");
     }
     const url = `${baseUrl}${path}`;
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = loadAccessToken();
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

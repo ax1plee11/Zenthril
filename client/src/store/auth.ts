@@ -8,6 +8,8 @@ const TOKEN_KEY = "zenthril_token";
 const USER_KEY = "zenthril_user";
 export const AUTH_SESSION_EXPIRED_EVENT = "zenthril:auth-session-expired";
 
+let accessTokenMemory: string | null = null;
+
 export interface AuthUser {
   id: string;
   username: string;
@@ -33,7 +35,14 @@ export function useAuth() {
 }
 
 export function loadStoredAuth(): { token: string | null; user: AuthUser | null } {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const legacyToken = localStorage.getItem(TOKEN_KEY);
+  if (legacyToken) {
+    // SECURITY-HARDENING: migrate legacy localStorage access tokens into memory
+    // and remove the persistent copy. Refresh tokens stay HttpOnly cookie-backed.
+    accessTokenMemory = legacyToken;
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  const token = accessTokenMemory;
   const raw = localStorage.getItem(USER_KEY);
   let user: AuthUser | null = null;
   if (raw) {
@@ -52,14 +61,18 @@ export function saveAuth(token: string, user: AuthUser): void {
 }
 
 export function loadAccessToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return accessTokenMemory;
 }
 
 export function saveAccessToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  // SECURITY-HARDENING: access tokens are intentionally process-memory only.
+  // They are restored through the HttpOnly refresh cookie after a reload.
+  accessTokenMemory = token;
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export function clearAuth(): void {
+  accessTokenMemory = null;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }

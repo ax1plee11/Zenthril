@@ -84,9 +84,20 @@ Caddy health checks in `deployments/Caddyfile` also send `Authorization: Bearer 
 
 Client-side storage still needs more hardening:
 
-- The web fallback stores access tokens in `localStorage`.
+- The web client now keeps access tokens in process memory. Legacy
+  `localStorage` access tokens are migrated into memory and removed on startup;
+  refresh is handled through HttpOnly cookies.
 - E2EE private-key fallback paths use `localStorage` only in development unless `VITE_ALLOW_INSECURE_KEY_STORAGE=true` is set explicitly.
-- Tauri currently uses `tauri-plugin-store`; a production-grade desktop build should move private keys to OS keychain or Stronghold.
+- Tauri desktop now prefers OS key storage through Rust `keyring`; the older
+  `tauri-plugin-store` path remains only as an alpha migration fallback.
+
+WebRTC privacy is still an alpha area:
+
+- Production client builds default to `iceTransportPolicy=relay` unless
+  `VITE_WEBRTC_RELAY_ONLY=false` is explicitly configured.
+- Operators must provide TURN infrastructure for reliable production voice/P2P.
+- Development builds may still use public STUN servers and can expose network
+  IP metadata to peers/STUN infrastructure.
 
 E2EE is still foundational:
 

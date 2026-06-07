@@ -25,7 +25,7 @@ describe("API session refresh", () => {
     const { api } = await import("./index");
     await expect(api.users.search("alice")).resolves.toEqual([]);
 
-    expect(localStorage.getItem("zenthril_token")).toBe("new-access");
+    expect(localStorage.getItem("zenthril_token")).toBeNull();
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       "http://localhost:8080/api/v1/auth/refresh",

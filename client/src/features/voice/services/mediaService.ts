@@ -1,3 +1,5 @@
+import { createWebRTCConfig, DEFAULT_ICE_SERVERS } from '../../webrtc/icePolicy';
+
 const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   audio: {
     echoCancellation: true,
@@ -9,10 +11,7 @@ const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   video: false,
 };
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-];
+const ICE_SERVERS = DEFAULT_ICE_SERVERS;
 
 class MediaService {
   private localStream: MediaStream | null = null;
@@ -27,7 +26,7 @@ class MediaService {
   }
 
   createPeerConnection(): RTCPeerConnection {
-    return new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    return new RTCPeerConnection(createWebRTCConfig(ICE_SERVERS));
   }
 
   addTracksToPC(pc: RTCPeerConnection, stream: MediaStream): void {

@@ -10,7 +10,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// SECURITY-HARDENING: defense-in-depth browser policy for hosted web clients.
 		// VULNERABILITY FIXED: CSP/HSTS/frame/MIME/referrer/capability headers reduce
 		// script injection blast radius, clickjacking, sniffing, downgrade, and privacy leaks.
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests")
 
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 		w.Header().Set("X-Content-Type-Options", "nosniff")

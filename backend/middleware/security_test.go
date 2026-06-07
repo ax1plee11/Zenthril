@@ -30,6 +30,8 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Security-Policy"); got == "" {
 		t.Fatal("Content-Security-Policy header is empty")
+	} else if got != "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" {
+		t.Fatalf("Content-Security-Policy = %q", got)
 	}
 	if got := rec.Header().Get("Permissions-Policy"); got == "" {
 		t.Fatal("Permissions-Policy header is empty")

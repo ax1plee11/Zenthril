@@ -41,6 +41,8 @@ of production readiness or audited security.
 - JWT signing method pinned to HS256.
 - Refresh-token rotation with Redis `GETDEL` and replay detection.
 - Access-token blacklist on logout.
+- Client access tokens are kept in process memory rather than persistent
+  `localStorage`; refresh tokens are expected to use HttpOnly cookies.
 - Argon2id password hashing.
 - Request body and WebSocket message size limits.
 - Message envelope validation for ciphertext, IV, tag, and protocol version.
@@ -80,4 +82,7 @@ already available on that device.
   protocol.
 - Old alpha messages without stored authentication tags may not decrypt from history.
 - Federation, voice, and multi-node fan-out are not production-ready.
+- WebRTC voice/P2P can leak IP metadata in development or direct-ICE modes.
+  Production builds default to relay-only ICE, but this requires TURN
+  infrastructure and is not a complete anonymity guarantee.
 - Full X3DH and Double Ratchet are roadmap items, not complete guarantees.

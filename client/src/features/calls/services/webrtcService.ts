@@ -1,10 +1,8 @@
 import { signalingService } from './signalingService';
 import { useCallStore } from '../store/callStore';
+import { createWebRTCConfig, DEFAULT_ICE_SERVERS } from '../../webrtc/icePolicy';
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-];
+const ICE_SERVERS = DEFAULT_ICE_SERVERS;
 
 class WebRTCService {
   private pc: RTCPeerConnection | null = null;
@@ -65,7 +63,7 @@ class WebRTCService {
   }
 
   private createPeerConnection(): void {
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = new RTCPeerConnection(createWebRTCConfig(ICE_SERVERS));
 
     this.localStream?.getTracks().forEach((track) => {
       this.pc!.addTrack(track, this.localStream!);

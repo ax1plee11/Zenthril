@@ -1,3 +1,5 @@
+import { createWebRTCConfig, DEFAULT_ICE_SERVERS } from "../webrtc/icePolicy";
+
 export type DirectMessageState = "new" | "connecting" | "open" | "closed" | "failed";
 
 export interface DirectMessageEnvelope {
@@ -16,11 +18,6 @@ export interface DirectMessagingOptions {
   onMessage?: (message: DirectMessageEnvelope) => void;
   onIceCandidate?: (candidate: RTCIceCandidateInit) => void;
 }
-
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
 
 export class DirectMessagingPeer {
   private readonly localDeviceId: string;
@@ -101,7 +98,7 @@ export class DirectMessagingPeer {
 
   private createPeerConnection(): RTCPeerConnection {
     this.close();
-    this.pc = new RTCPeerConnection({ iceServers: this.iceServers });
+    this.pc = new RTCPeerConnection(createWebRTCConfig(this.iceServers));
     this.pc.onicecandidate = event => {
       if (event.candidate) this.onIceCandidate?.(event.candidate.toJSON());
     };
