@@ -14,7 +14,7 @@ import MainLayout from "./components/MainLayout";
 import OfflineStartup from "./components/OfflineStartup";
 import { CallManager } from "./features/calls/components/CallManager";
 import { signalingService } from "./features/calls/services/signalingService";
-import { getActiveServer } from "./api/index";
+import { getActiveServer, restoreAccessTokenFromRefreshCookie } from "./api/index";
 import { shouldStartOnline } from "./store/startupPrivacy";
 
 function getAppBackground(theme: Theme): React.CSSProperties {
@@ -52,7 +52,7 @@ export default function App() {
   const stored = loadStoredAuth();
   const [token, setToken]      = useState<string | null>(stored.token);
   const [user, setUser]        = useState<AuthUser | null>(stored.user);
-  const [networkEnabled, setNetworkEnabled] = useState(() => shouldStartOnline(Boolean(stored.token && stored.user)));
+  const [networkEnabled, setNetworkEnabled] = useState(false);
   const [theme, setThemeState] = useState<Theme>(loadTheme);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
 
@@ -76,6 +76,21 @@ export default function App() {
       .catch(() => signalingService.connect("ws://localhost:8080", newToken));
   }, []);
 
+  const connectSession = useCallback(async () => {
+    if (!user) return;
+    let activeToken = token;
+    if (!activeToken) {
+      activeToken = await restoreAccessTokenFromRefreshCookie();
+      if (!activeToken) return;
+      setToken(activeToken);
+    }
+    setSessionNotice(null);
+    setNetworkEnabled(true);
+    getActiveServer()
+      .then(server => signalingService.connect(server.wsBase, activeToken))
+      .catch(() => signalingService.connect("ws://localhost:8080", activeToken));
+  }, [token, user]);
+
   const logout = useCallback((notice?: string) => {
     clearAuth();
     signalingService.disconnect();
@@ -92,6 +107,11 @@ export default function App() {
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onExpired);
   }, [logout]);
+
+  useEffect(() => {
+    if (!user || networkEnabled || !shouldStartOnline(true)) return;
+    void connectSession();
+  }, [connectSession, networkEnabled, user]);
 
   const bgStyle = getAppBackground(theme);
   const hasBgImage = !!(theme.chatBackground && !theme.chatBackground.startsWith("__pattern__"));
@@ -115,10 +135,10 @@ export default function App() {
           <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100%" }}>
             {token && user && networkEnabled ? (
               <MainLayout />
-            ) : token && user ? (
+            ) : user ? (
               <OfflineStartup
                 username={user.username}
-                onConnect={() => setNetworkEnabled(true)}
+                onConnect={connectSession}
                 onLogout={logout}
               />
             ) : (

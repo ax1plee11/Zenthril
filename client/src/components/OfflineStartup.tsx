@@ -7,12 +7,13 @@ import {
 
 interface OfflineStartupProps {
   username: string;
-  onConnect: () => void;
+  onConnect: () => void | Promise<void>;
   onLogout: () => void;
 }
 
 export default function OfflineStartup({ username, onConnect, onLogout }: OfflineStartupProps) {
   const [autoConnect, setAutoConnect] = useState(loadAutoConnectOnStartup);
+  const [connecting, setConnecting] = useState(false);
 
   function toggleAutoConnect(next: boolean): void {
     setAutoConnect(next);
@@ -44,7 +45,16 @@ export default function OfflineStartup({ username, onConnect, onLogout }: Offlin
           <span>Connect automatically on startup</span>
         </label>
         <div style={s.actions}>
-          <button style={s.primary} onClick={onConnect}>Connect</button>
+          <button
+            style={s.primary}
+            disabled={connecting}
+            onClick={() => {
+              setConnecting(true);
+              void Promise.resolve(onConnect()).finally(() => setConnecting(false));
+            }}
+          >
+            {connecting ? "Connecting..." : "Connect"}
+          </button>
           <button style={s.secondary} onClick={onLogout}>Log out</button>
         </div>
       </div>
@@ -126,4 +136,3 @@ const s = {
     cursor: "pointer",
   } as React.CSSProperties,
 };
-

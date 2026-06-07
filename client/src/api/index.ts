@@ -199,6 +199,13 @@ async function refreshAccessToken(server: ZenthrilServer): Promise<string | null
   return refreshInFlight;
 }
 
+export async function restoreAccessTokenFromRefreshCookie(): Promise<string | null> {
+  const server = await getActiveServer();
+  // SECURITY-HARDENING: restore a memory-only access token from the HttpOnly
+  // refresh cookie without exposing refresh-token material to JavaScript.
+  return refreshAccessToken(server);
+}
+
 function isNetworkLikeError(err: unknown): boolean {
   return err instanceof TypeError || err instanceof DOMException;
 }

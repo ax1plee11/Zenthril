@@ -43,6 +43,8 @@ of production readiness or audited security.
 - Access-token blacklist on logout.
 - Client access tokens are kept in process memory rather than persistent
   `localStorage`; refresh tokens are expected to use HttpOnly cookies.
+- Saved sessions stay offline by default after startup and refresh a memory-only
+  access token only on explicit Connect or an explicit auto-connect preference.
 - Argon2id password hashing.
 - Request body and WebSocket message size limits.
 - Message envelope validation for ciphertext, IV, tag, and protocol version.

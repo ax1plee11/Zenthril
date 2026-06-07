@@ -43,6 +43,8 @@ Zenthril includes several security-oriented controls:
 - Redis-backed access token blacklist on logout.
 - Client access tokens are process-memory only; legacy `localStorage` copies
   are migrated and removed.
+- Cookie-backed sessions can restore a memory-only access token after reload
+  without exposing refresh-token material to JavaScript.
 - Privacy-first client startup for saved sessions: no guild/API load or
   WebSocket connection before explicit Connect by default.
 - Strict CORS and WebSocket Origin allowlists.

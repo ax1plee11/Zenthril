@@ -91,6 +91,10 @@ Client-side storage still needs more hardening:
 - The web client now keeps access tokens in process memory. Legacy
   `localStorage` access tokens are migrated into memory and removed on startup;
   refresh is handled through HttpOnly cookies.
+- Saved user profiles can be restored without persisting access tokens: the
+  client stays offline by default and only refreshes a memory-only access token
+  from the HttpOnly refresh cookie when the user explicitly connects or enables
+  auto-connect.
 - E2EE private-key fallback paths use `localStorage` only in development unless `VITE_ALLOW_INSECURE_KEY_STORAGE=true` is set explicitly.
 - Tauri desktop now prefers OS key storage through Rust `keyring`; the older
   `tauri-plugin-store` path remains only as an alpha migration fallback.
