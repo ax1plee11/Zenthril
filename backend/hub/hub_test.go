@@ -214,6 +214,37 @@ func TestAllowUserMessageFailsClosedOnDistributedLimiterError(t *testing.T) {
 	}
 }
 
+func TestCanRelayChannelSignalRequiresBothUsersToHaveAccess(t *testing.T) {
+	t.Parallel()
+
+	checker := &fakeChannelAccessChecker{
+		allowed: map[string]bool{
+			"user-1:channel-1": true,
+			"user-2:channel-1": true,
+		},
+	}
+	h := NewHub(checker)
+
+	if !h.canRelayChannelSignal("user-1", "user-2", "channel-1") {
+		t.Fatal("signal relay was rejected when both users have channel access")
+	}
+}
+
+func TestCanRelayChannelSignalRejectsTargetWithoutAccess(t *testing.T) {
+	t.Parallel()
+
+	checker := &fakeChannelAccessChecker{
+		allowed: map[string]bool{
+			"user-1:channel-1": true,
+		},
+	}
+	h := NewHub(checker)
+
+	if h.canRelayChannelSignal("user-1", "user-2", "channel-1") {
+		t.Fatal("signal relay was accepted for target without channel access")
+	}
+}
+
 type fakeUserMessageLimiter struct {
 	allowed bool
 	err     error
@@ -225,4 +256,16 @@ func (f *fakeUserMessageLimiter) Allow(_ context.Context, userID string, _ int, 
 	f.calls++
 	f.userID = userID
 	return f.allowed, f.err
+}
+
+type fakeChannelAccessChecker struct {
+	allowed map[string]bool
+	err     error
+}
+
+func (f *fakeChannelAccessChecker) UserHasChannelAccess(_ context.Context, userID, channelID string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.allowed[userID+":"+channelID], nil
 }

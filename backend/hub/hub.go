@@ -192,6 +192,16 @@ func (h *Hub) userHasChannelAccess(userID, channelID string) bool {
 	return err == nil && ok
 }
 
+func (h *Hub) canRelayChannelSignal(fromUserID, targetUserID, channelID string) bool {
+	if fromUserID == "" || targetUserID == "" || channelID == "" {
+		return false
+	}
+	// SECURITY-HARDENING: realtime signaling can contain SDP/ICE metadata. Both
+	// peers must be authorized for the channel before relaying it.
+	return h.userHasChannelAccess(fromUserID, channelID) &&
+		h.userHasChannelAccess(targetUserID, channelID)
+}
+
 func (h *Hub) Subscribe(client *Client, channelID string) {
 	if !h.userHasChannelAccess(client.UserID, channelID) {
 		h.sendWSError(client, "forbidden", "no access to this channel")
@@ -528,7 +538,7 @@ func (c *Client) readPump() {
 			}
 		case "voice.signal":
 			if evt.ChannelID != "" && evt.TargetUserID != "" && evt.SDP != nil {
-				if !c.hub.userHasChannelAccess(c.UserID, evt.ChannelID) {
+				if !c.hub.canRelayChannelSignal(c.UserID, evt.TargetUserID, evt.ChannelID) {
 					c.hub.sendWSError(c, "forbidden", "no access to this channel")
 					continue
 				}
@@ -542,7 +552,7 @@ func (c *Client) readPump() {
 			}
 		case "voice.ice":
 			if evt.ChannelID != "" && evt.TargetUserID != "" && evt.Candidate != nil {
-				if !c.hub.userHasChannelAccess(c.UserID, evt.ChannelID) {
+				if !c.hub.canRelayChannelSignal(c.UserID, evt.TargetUserID, evt.ChannelID) {
 					c.hub.sendWSError(c, "forbidden", "no access to this channel")
 					continue
 				}
