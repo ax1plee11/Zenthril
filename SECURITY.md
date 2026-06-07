@@ -132,7 +132,8 @@ that setting trades startup privacy for convenience.
 - Federation is scaffolded but disabled by default and not production-ready.
 - Hybrid voice is experimental and not security-audited.
 - WebRTC voice/P2P defaults to relay-only ICE in production builds to reduce IP
-  leakage, but operators still need trusted TURN infrastructure.
+  leakage. Operators must configure trusted `turn:` / `turns:` servers through
+  `VITE_WEBRTC_ICE_SERVERS`; STUN-only entries are filtered out in relay-only mode.
 - Multi-node deployment is not complete.
 - Observability is useful for alpha testing but not yet a full production SRE setup.
 - Abuse prevention and moderation tooling are basic.

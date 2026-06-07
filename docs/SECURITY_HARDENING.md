@@ -99,7 +99,9 @@ WebRTC privacy is still an alpha area:
 
 - Production client builds default to `iceTransportPolicy=relay` unless
   `VITE_WEBRTC_RELAY_ONLY=false` is explicitly configured.
-- Operators must provide TURN infrastructure for reliable production voice/P2P.
+- Operators must provide TURN infrastructure for reliable production voice/P2P
+  through `VITE_WEBRTC_ICE_SERVERS`. Relay-only mode filters out STUN-only
+  entries and keeps only `turn:` / `turns:` servers.
 - Development builds may still use public STUN servers and can expose network
   IP metadata to peers/STUN infrastructure.
 

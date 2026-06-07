@@ -84,5 +84,6 @@ already available on that device.
 - Federation, voice, and multi-node fan-out are not production-ready.
 - WebRTC voice/P2P can leak IP metadata in development or direct-ICE modes.
   Production builds default to relay-only ICE, but this requires TURN
-  infrastructure and is not a complete anonymity guarantee.
+  infrastructure through `VITE_WEBRTC_ICE_SERVERS` and is not a complete
+  anonymity guarantee.
 - Full X3DH and Double Ratchet are roadmap items, not complete guarantees.
