@@ -72,6 +72,32 @@ describe("API session refresh", () => {
     expect(localStorage.getItem("zenthril_user")).toBeNull();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
   });
+
+  it("calls logout-all with credentials and bearer access token", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(serverListResponse())
+      .mockResolvedValueOnce(jsonResponse(204, undefined));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("./index");
+    const { saveAccessToken } = await import("../store/auth");
+    saveAccessToken("access-token");
+
+    await expect(api.auth.logoutAll()).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8080/api/v1/auth/logout-all",
+      expect.objectContaining({
+        credentials: "include",
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer access-token",
+        }),
+      }),
+    );
+  });
 });
 
 function serverListResponse(): Response {

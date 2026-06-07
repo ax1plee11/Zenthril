@@ -250,6 +250,7 @@ export const api = {
       }, false),
 
     logout: () => request<void>("POST", "/api/v1/auth/logout"),
+    logoutAll: () => request<void>("POST", "/api/v1/auth/logout-all"),
 
     /** Одноразовый билет для WebSocket (не передавать JWT в URL) */
     wsTicket: () =>

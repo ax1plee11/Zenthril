@@ -99,6 +99,11 @@ export default function MainLayout() {
     setSelectedGuildId(g.id);
   }, []);
   const handleLogout = useCallback(() => { api.auth.logout().catch(() => {}); logout(); }, [logout]);
+  const handleLogoutAll = useCallback(() => {
+    const ok = window.confirm("Log out from all devices and revoke all active sessions?");
+    if (!ok) return;
+    api.auth.logoutAll().catch(() => {}).finally(() => logout());
+  }, [logout]);
 
   const selectedGuild   = guilds.find(g => g.id === selectedGuildId) ?? null;
   const selectedChannel = channels.find(c => c.id === selectedChannelId) ?? null;
@@ -305,6 +310,7 @@ export default function MainLayout() {
               <DropItem icon="👤" label="Мой профиль"         onClick={() => { setShowProfileMenu(false); setShowProfile(true); }} />
               <DropItem icon="🔍" label="Найти пользователей" onClick={() => { setShowProfileMenu(false); setShowSearch(true); }} />
               <DropItem icon="🎨" label="Оформление"          onClick={() => { setShowProfileMenu(false); setShowTheme(true); }} />
+              <DropItem icon="🔐" label="Выйти везде"          onClick={() => { setShowProfileMenu(false); handleLogoutAll(); }} danger />
             </div>
             <div style={{ height: 1, background: "var(--border)" }} />
             <div style={{ padding: "6px 0" }}>

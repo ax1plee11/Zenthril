@@ -204,6 +204,27 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) LogoutAll(w http.ResponseWriter, r *http.Request) {
+	if !h.allowCookieBackedRequest(r) {
+		writeError(w, http.StatusForbidden, "origin_required", "Trusted Origin header required")
+		return
+	}
+	userID, ok := UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	accessToken := extractBearerToken(r)
+	if err := h.svc.LogoutAll(r.Context(), userID, accessToken); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Logout all sessions failed")
+		return
+	}
+
+	h.clearTokenCookies(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 const (
 	accessCookieName  = "zenthril_access"
 	refreshCookieName = "zenthril_refresh"

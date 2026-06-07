@@ -74,6 +74,8 @@ Caddy health checks in `deployments/Caddyfile` also send `Authorization: Bearer 
 - Refresh token rotation consumes the Redis record atomically with `GETDEL`.
 - Refresh token replay triggers revocation of the user's active refresh token set.
 - Logged-out access tokens are blacklisted in Redis until natural expiry.
+- Authenticated users can call `/api/v1/auth/logout-all` to blacklist the
+  current access token and revoke every tracked refresh token for their account.
 - JWT validation pins `HS256`, requires `exp`, and rejects `alg:none` / algorithm-confusion attempts.
 - Production refresh/logout requests using auth cookies require an `Origin` header that has already passed the strict global CORS allowlist.
 

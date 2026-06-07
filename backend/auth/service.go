@@ -236,6 +236,21 @@ func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) 
 	return nil
 }
 
+func (s *Service) LogoutAll(ctx context.Context, userID, accessToken string) error {
+	if accessToken != "" {
+		if tokenUserID, err := ValidateToken(accessToken, s.jwtSecret); err == nil && tokenUserID == userID {
+			// SECURITY-HARDENING: logout-all immediately rejects the current
+			// access token and removes every tracked refresh token for the user.
+			key := "token:blacklist:" + hashToken(accessToken)
+			_ = s.redis.Set(ctx, key, "1", s.accessTokenTTL)
+		}
+	}
+	if userID != "" {
+		return s.revokeUserRefreshTokens(ctx, userID)
+	}
+	return nil
+}
+
 func (s *Service) IsTokenBlacklisted(ctx context.Context, token string) (bool, error) {
 	key := "token:blacklist:" + hashToken(token)
 	val, err := s.redis.Exists(ctx, key).Result()

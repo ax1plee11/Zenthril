@@ -378,6 +378,7 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(authSvc.Middleware)
 				r.Post("/ws-ticket", authHandler.WSTicket)
+				r.Post("/logout-all", authHandler.LogoutAll)
 				r.Get("/me", authHandler.GetMe)
 			})
 		})
