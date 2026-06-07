@@ -147,6 +147,23 @@ export async function deriveSharedSecret(
 export async function encrypt(
   plaintext: string,
   key: CryptoKey,
+  aadContext: CryptoAADContextInput,
+): Promise<EncryptedPayload> {
+  return encryptWithContext(plaintext, key, aadContext);
+}
+
+// SECURITY-HARDENING: new client sends must use protocol-v2 AAD context. This
+// helper exists only to decrypt/test alpha protocol-v1 compatibility behavior.
+export async function encryptLegacyForAlphaCompatibility(
+  plaintext: string,
+  key: CryptoKey,
+): Promise<EncryptedPayload> {
+  return encryptWithContext(plaintext, key);
+}
+
+async function encryptWithContext(
+  plaintext: string,
+  key: CryptoKey,
   aadContext?: CryptoAADContextInput,
 ): Promise<EncryptedPayload> {
   const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));

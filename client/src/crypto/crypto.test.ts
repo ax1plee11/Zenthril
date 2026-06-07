@@ -7,6 +7,7 @@ import {
   deriveSharedSecret,
   encryptedPayloadAAD,
   encrypt,
+  encryptLegacyForAlphaCompatibility,
   exportPublicKey,
   generateKeyPair,
   importPublicKey,
@@ -28,6 +29,16 @@ function flipBase64Byte(value: string): string {
   const bytes = base64ToBytes(value);
   bytes[0] = (bytes[0] ?? 0) ^ 1;
   return bytesToBase64(bytes);
+}
+
+function testAAD(clientMessageId = "client-message-1"): CryptoAADContextInput {
+  return {
+    channelId: "channel-1",
+    senderUserId: "user-1",
+    senderDeviceId: "device-1",
+    sessionId: "session-1",
+    clientMessageId,
+  };
 }
 
 describe("generateKeyPair", () => {
@@ -80,13 +91,7 @@ describe("HKDF and AAD helpers", () => {
 
 describe("encrypt / decrypt", () => {
   let sharedKey: CryptoKey;
-  const aadInput: CryptoAADContextInput = {
-    channelId: "channel-1",
-    senderUserId: "user-1",
-    senderDeviceId: "device-1",
-    sessionId: "session-1",
-    clientMessageId: "client-message-1",
-  };
+  const aadInput = testAAD();
 
   beforeEach(async () => {
     const alice = generateKeyPair();
@@ -96,14 +101,17 @@ describe("encrypt / decrypt", () => {
 
   it("decrypt(encrypt(text)) returns the original text", async () => {
     const original = "Hello, Zenthril";
-    const payload = await encrypt(original, sharedKey);
+    const payload = await encrypt(original, sharedKey, aadInput);
     const result = await decrypt(payload, sharedKey);
     expect(result).toBe(original);
   });
 
   it("round-trips empty, long, and unicode text", async () => {
     for (const value of ["", "a".repeat(4000), "secret unicode text"]) {
-      const payload = await encrypt(value, sharedKey);
+      const payload = await encrypt(value, sharedKey, {
+        ...aadInput,
+        clientMessageId: `client-message-${value.length}`,
+      });
       await expect(decrypt(payload, sharedKey)).resolves.toBe(value);
     }
   });
@@ -124,39 +132,39 @@ describe("encrypt / decrypt", () => {
   });
 
   it("keeps legacy v1 payloads when no AAD context is provided", async () => {
-    const payload = await encrypt("hello", sharedKey);
+    const payload = await encryptLegacyForAlphaCompatibility("hello", sharedKey);
     expect(payload.protocolVersion).toBe(1);
     await expect(decrypt(payload, sharedKey)).resolves.toBe("hello");
   });
 
   it("generates a unique IV for each encryption", async () => {
-    const payload1 = await encrypt("test", sharedKey);
-    const payload2 = await encrypt("test", sharedKey);
+    const payload1 = await encrypt("test", sharedKey, { ...aadInput, clientMessageId: "client-message-iv-1" });
+    const payload2 = await encrypt("test", sharedKey, { ...aadInput, clientMessageId: "client-message-iv-2" });
     expect(payload1.iv).not.toBe(payload2.iv);
   });
 
   it("rejects the wrong key", async () => {
     const wrongKey = await rotateSessionKey("__test_wrong__");
-    const payload = await encrypt("secret", sharedKey);
+    const payload = await encrypt("secret", sharedKey, aadInput);
     await expect(decrypt(payload, wrongKey)).rejects.toThrow();
   });
 
   it("rejects corrupted ciphertext", async () => {
-    const payload = await encrypt("secret", sharedKey);
+    const payload = await encrypt("secret", sharedKey, aadInput);
     await expect(
       decrypt({ ...payload, ciphertext: flipBase64Byte(payload.ciphertext) }, sharedKey),
     ).rejects.toThrow();
   });
 
   it("rejects invalid IV length", async () => {
-    const payload = await encrypt("secret", sharedKey);
+    const payload = await encrypt("secret", sharedKey, aadInput);
     await expect(
       decrypt({ ...payload, iv: bytesToBase64(new Uint8Array([1, 2, 3])) }, sharedKey),
     ).rejects.toThrow("Invalid IV length");
   });
 
   it("rejects missing or invalid authentication tag", async () => {
-    const payload = await encrypt("secret", sharedKey);
+    const payload = await encrypt("secret", sharedKey, aadInput);
     await expect(decrypt({ ...payload, tag: "" }, sharedKey)).rejects.toThrow(
       "Missing authentication tag",
     );
@@ -166,14 +174,14 @@ describe("encrypt / decrypt", () => {
   });
 
   it("rejects AAD key id mismatch", async () => {
-    const payload = await encrypt("secret", sharedKey);
+    const payload = await encrypt("secret", sharedKey, aadInput);
     await expect(
       decrypt({ ...payload, keyId: `${payload.keyId}-tampered` }, sharedKey),
     ).rejects.toThrow();
   });
 
   it("rejects unsupported protocol versions", async () => {
-    const payload = await encrypt("secret", sharedKey);
+    const payload = await encrypt("secret", sharedKey, aadInput);
     await expect(
       decrypt({ ...payload, protocolVersion: CRYPTO_PROTOCOL_VERSION + 1 }, sharedKey),
     ).rejects.toThrow("Unsupported crypto protocol version");
@@ -222,7 +230,7 @@ describe("deriveSharedSecret", () => {
     const aliceShared = await deriveSharedSecret(alice.secretKey, bob.publicKey);
     const bobShared = await deriveSharedSecret(bob.secretKey, alice.publicKey);
 
-    const payload = await encrypt("ECDH works", aliceShared);
+    const payload = await encrypt("ECDH works", aliceShared, testAAD("client-message-ecdh"));
     const result = await decrypt(payload, bobShared);
     expect(result).toBe("ECDH works");
   });
@@ -269,7 +277,7 @@ describe("storePrivateKey / loadPrivateKey", () => {
     const sharedOriginal = await deriveSharedSecret(alice.secretKey, bob.publicKey);
     const sharedLoaded = await deriveSharedSecret(loadedPrivate, bob.publicKey);
 
-    const payload = await encrypt("persistence test", sharedOriginal);
+    const payload = await encrypt("persistence test", sharedOriginal, testAAD("client-message-persistence"));
     const result = await decrypt(payload, sharedLoaded);
     expect(result).toBe("persistence test");
   });

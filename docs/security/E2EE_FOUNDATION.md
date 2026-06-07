@@ -85,6 +85,6 @@ and removes its one-time prekeys so new sessions cannot be established with it.
 - Alpha messages created before the protocol-v1 envelope may not decrypt from
   history because the backend did not persist the AES-GCM authentication tag.
 - Protocol-v1 payloads remain accepted as a temporary alpha compatibility path;
-  new client sends should use protocol-v2 AAD context.
+  the client `encrypt()` API now requires protocol-v2 AAD context for new sends.
 - The protocol must remain marked experimental until reviewed and tested with
   reproducible vectors.

@@ -78,8 +78,8 @@ Known limitations:
 - Full X3DH session setup is not integrated into all real message flows.
 - Full Double Ratchet, skipped-message-key handling, and session healing are not complete.
 - Multi-device recovery and key backup are not production-ready.
-- Protocol-v1 messages remain supported for alpha compatibility, but new
-  message sends should use the stronger protocol-v2 AAD context.
+- Protocol-v1 messages remain supported for alpha compatibility, but the client
+  `encrypt()` API now requires protocol-v2 AAD context for new message sends.
 - Messages created before the protocol-v1 envelope stored an incomplete server-side payload and may not be decryptable from history.
 - No independent cryptographic audit has been completed.
 
