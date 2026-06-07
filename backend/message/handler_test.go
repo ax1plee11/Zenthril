@@ -17,6 +17,8 @@ func validPayload() models.EncryptedPayload {
 		KeyID:           "key-1",
 		Tag:             base64.StdEncoding.EncodeToString([]byte("1234567890123456")),
 		ProtocolVersion: models.CryptoProtocolVersion,
+		ChannelID:       "channel-1",
+		SenderUserID:    "user-1",
 		SenderDeviceID:  "device-1",
 		SessionID:       "channel:channel-1",
 		ClientMessageID: "client-message-1",
@@ -104,6 +106,26 @@ func TestValidateEncryptedPayloadRejectsMissingAADV2Fields(t *testing.T) {
 	payload.SenderDeviceID = ""
 	if err := validateEncryptedPayload(payload); err == nil {
 		t.Fatal("missing v2 aad field was accepted")
+	}
+}
+
+func TestValidateEncryptedPayloadRejectsMissingChannelAADV2Field(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.ChannelID = ""
+	if err := validateEncryptedPayload(payload); err == nil {
+		t.Fatal("missing v2 channel aad field was accepted")
+	}
+}
+
+func TestValidateEncryptedPayloadRejectsMissingSenderAADV2Field(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.SenderUserID = ""
+	if err := validateEncryptedPayload(payload); err == nil {
+		t.Fatal("missing v2 sender aad field was accepted")
 	}
 }
 

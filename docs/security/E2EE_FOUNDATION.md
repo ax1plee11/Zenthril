@@ -31,6 +31,9 @@ Implemented client primitives:
 - protocol-v1 message envelope with AES-GCM authentication tag persistence;
 - protocol-v2 message envelope with AAD context binding channel, sender user,
   sender device, session, client message id, key id, and cipher suite;
+- backend protocol-v2 validation now requires the full AAD context, including
+  `channel_id` and `sender_user_id`, so new ciphertext cannot omit route/user
+  binding fields;
 - AES-GCM associated data binding `protocol_version` and `key_id` for legacy
   v1 payloads;
 - private device material stays client-side and is not included in backend

@@ -68,6 +68,8 @@ Current alpha crypto work includes:
   `key_id`.
 - Protocol-v2 E2EE envelope binds ciphertext to channel, sender user, sender
   device, session, client message id, key id, and cipher suite context.
+- Backend validation requires the full protocol-v2 AAD context for new message
+  sends and rejects missing route/user binding fields.
 - Device key registration and revocation foundations.
 - Safety number foundations.
 

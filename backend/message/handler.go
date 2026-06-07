@@ -267,6 +267,8 @@ func validateEncryptedPayload(payload models.EncryptedPayload) error {
 
 func validateAADV2Fields(payload models.EncryptedPayload) error {
 	required := map[string]string{
+		"channel_id":        payload.ChannelID,
+		"sender_user_id":    payload.SenderUserID,
 		"sender_device_id":  payload.SenderDeviceID,
 		"session_id":        payload.SessionID,
 		"client_message_id": payload.ClientMessageID,
