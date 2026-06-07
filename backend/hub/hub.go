@@ -79,25 +79,31 @@ type Client struct {
 }
 
 type Hub struct {
-	channels      map[string]map[*Client]bool
-	users         map[string]map[*Client]bool
-	userLimiters  map[string]*wsRateLimiter
-	voiceChannels map[string]map[string]bool
-	guild         ChannelAccessChecker
-	mu            sync.RWMutex
-	register      chan *Client
-	unregister    chan *Client
+	channels           map[string]map[*Client]bool
+	users              map[string]map[*Client]bool
+	userLimiters       map[string]*wsRateLimiter
+	voiceChannels      map[string]map[string]bool
+	guild              ChannelAccessChecker
+	userMessageLimiter UserMessageLimiter
+	mu                 sync.RWMutex
+	register           chan *Client
+	unregister         chan *Client
 }
 
 func NewHub(g ChannelAccessChecker) *Hub {
+	return NewHubWithUserMessageLimiter(g, nil)
+}
+
+func NewHubWithUserMessageLimiter(g ChannelAccessChecker, limiter UserMessageLimiter) *Hub {
 	return &Hub{
-		channels:      make(map[string]map[*Client]bool),
-		users:         make(map[string]map[*Client]bool),
-		userLimiters:  make(map[string]*wsRateLimiter),
-		voiceChannels: make(map[string]map[string]bool),
-		guild:         g,
-		register:      make(chan *Client, 64),
-		unregister:    make(chan *Client, 64),
+		channels:           make(map[string]map[*Client]bool),
+		users:              make(map[string]map[*Client]bool),
+		userLimiters:       make(map[string]*wsRateLimiter),
+		voiceChannels:      make(map[string]map[string]bool),
+		guild:              g,
+		userMessageLimiter: limiter,
+		register:           make(chan *Client, 64),
+		unregister:         make(chan *Client, 64),
 	}
 }
 
@@ -576,6 +582,19 @@ func (l *wsRateLimiter) allow() bool {
 }
 
 func (h *Hub) allowUserMessage(userID string) bool {
+	if h.userMessageLimiter != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		defer cancel()
+		// SECURITY-HARDENING: when Redis-backed limiting is wired, per-user WS
+		// limits are enforced across backend instances instead of only locally.
+		allowed, err := h.userMessageLimiter.Allow(ctx, userID, maxWSUserMessagesPerMinute, time.Minute)
+		if err != nil {
+			slog.Warn("security websocket distributed user limiter failed", "user_id", userID, "error", err)
+			return false
+		}
+		return allowed
+	}
+
 	h.mu.Lock()
 	limiter := h.userLimiters[userID]
 	if limiter == nil {

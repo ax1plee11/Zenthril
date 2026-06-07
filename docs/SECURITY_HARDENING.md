@@ -12,6 +12,10 @@ Zenthril is currently an alpha project. The backend now defaults to a stricter s
 - Legacy WebSocket tickets are not consumed until the request origin is accepted.
 - The next-generation gateway rejects untrusted origins before authentication and does not accept long-lived credentials from query strings.
 - WebSocket messages have size limits, per-connection limits, per-user limits, and malformed command limits.
+- The legacy backend now wires the per-user WebSocket message limit through Redis
+  so a single authenticated account cannot bypass the user-level budget by
+  spreading traffic across multiple API nodes. The in-memory limiter remains as
+  the test/local fallback when no distributed limiter is configured.
 - CORS preflight requests must ask only for allowed methods and headers.
 
 ## Operational Endpoints

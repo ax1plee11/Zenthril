@@ -313,7 +313,7 @@ func main() {
 
 	guildSvc := guild.NewService(database, cfg.HTTPAddr)
 	guildSvc.SetSuperAdmins(cfg.AdminUserIDs)
-	wsHub := hub.NewHub(guildSvc)
+	wsHub := hub.NewHubWithUserMessageLimiter(guildSvc, hub.NewRedisFixedWindowLimiter(rdb, "zenthril"))
 	go wsHub.Run()
 	guildHandler := guild.NewHandler(guildSvc, wsHub)
 

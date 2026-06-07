@@ -1,6 +1,8 @@
 package hub
 
 import (
+	"context"
+	"errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -173,4 +175,54 @@ func TestUserGuildAffinityUpdatesConnectedClients(t *testing.T) {
 	if clientInGuild(client, "guild-1") {
 		t.Fatalf("guild-1 was not removed: %#v", client.GuildIDs)
 	}
+}
+
+func TestAllowUserMessageUsesDistributedLimiter(t *testing.T) {
+	t.Parallel()
+
+	limiter := &fakeUserMessageLimiter{allowed: true}
+	h := NewHubWithUserMessageLimiter(nil, limiter)
+
+	if !h.allowUserMessage("user-1") {
+		t.Fatal("distributed limiter allowed request but hub rejected it")
+	}
+	if limiter.calls != 1 {
+		t.Fatalf("limiter calls = %d, want 1", limiter.calls)
+	}
+	if limiter.userID != "user-1" {
+		t.Fatalf("limiter user id = %q", limiter.userID)
+	}
+}
+
+func TestAllowUserMessageRejectsDistributedLimitExceeded(t *testing.T) {
+	t.Parallel()
+
+	h := NewHubWithUserMessageLimiter(nil, &fakeUserMessageLimiter{allowed: false})
+
+	if h.allowUserMessage("user-1") {
+		t.Fatal("distributed limiter denied request but hub allowed it")
+	}
+}
+
+func TestAllowUserMessageFailsClosedOnDistributedLimiterError(t *testing.T) {
+	t.Parallel()
+
+	h := NewHubWithUserMessageLimiter(nil, &fakeUserMessageLimiter{err: errors.New("redis down")})
+
+	if h.allowUserMessage("user-1") {
+		t.Fatal("distributed limiter error should fail closed")
+	}
+}
+
+type fakeUserMessageLimiter struct {
+	allowed bool
+	err     error
+	calls   int
+	userID  string
+}
+
+func (f *fakeUserMessageLimiter) Allow(_ context.Context, userID string, _ int, _ time.Duration) (bool, error) {
+	f.calls++
+	f.userID = userID
+	return f.allowed, f.err
 }
