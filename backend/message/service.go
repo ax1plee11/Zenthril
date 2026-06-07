@@ -20,6 +20,7 @@ var (
 	ErrNotFound         = errors.New("not_found")
 	ErrForbidden        = errors.New("forbidden")
 	ErrNotChannelMember = errors.New("not_channel_member")
+	ErrInvalidEnvelope  = errors.New("invalid_envelope")
 )
 
 const maxLimit = 50
@@ -175,6 +176,9 @@ func (s *Service) EditMessage(ctx context.Context, messageID, authorID string, p
 	if err != nil {
 		return nil, fmt.Errorf("load message channel: %w", err)
 	}
+	if err := validateStoredEnvelopeClaims(payload, chID.String(), authorID); err != nil {
+		return nil, err
+	}
 	if err := s.requireChannelAccess(ctx, authorID, chID.String()); err != nil {
 		return nil, err
 	}
@@ -220,6 +224,21 @@ func attachAADMetadata(msg *models.Message) {
 	}
 	msg.Payload.ChannelID = msg.ChannelID.String()
 	msg.Payload.SenderUserID = msg.AuthorID.String()
+}
+
+func validateStoredEnvelopeClaims(payload models.EncryptedPayload, channelID, authorID string) error {
+	if payload.ProtocolVersion != models.CryptoProtocolVersion {
+		return nil
+	}
+	// SECURITY-HARDENING: edit routes do not carry channel_id, so the service
+	// must bind protocol-v2 AAD claims to the stored message context.
+	if payload.ChannelID != "" && payload.ChannelID != channelID {
+		return ErrInvalidEnvelope
+	}
+	if payload.SenderUserID != "" && payload.SenderUserID != authorID {
+		return ErrInvalidEnvelope
+	}
+	return nil
 }
 
 func (s *Service) DeleteMessage(ctx context.Context, messageID, authorID string) error {

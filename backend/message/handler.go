@@ -138,6 +138,10 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "not_found", "Message not found")
 			return
 		}
+		if errors.Is(err, ErrInvalidEnvelope) {
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid encrypted message envelope")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to edit message")
 		return
 	}

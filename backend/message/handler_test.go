@@ -159,6 +159,35 @@ func TestValidateEnvelopeClaimsRejectsMismatchedSender(t *testing.T) {
 	}
 }
 
+func TestValidateStoredEnvelopeClaimsAcceptsMatchingEditContext(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	if err := validateStoredEnvelopeClaims(payload, "channel-1", "user-1"); err != nil {
+		t.Fatalf("matching stored envelope rejected: %v", err)
+	}
+}
+
+func TestValidateStoredEnvelopeClaimsRejectsMismatchedEditChannel(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.ChannelID = "channel-2"
+	if err := validateStoredEnvelopeClaims(payload, "channel-1", "user-1"); err == nil {
+		t.Fatal("mismatched edit channel claim was accepted")
+	}
+}
+
+func TestValidateStoredEnvelopeClaimsRejectsMismatchedEditSender(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	payload.SenderUserID = "user-2"
+	if err := validateStoredEnvelopeClaims(payload, "channel-1", "user-1"); err == nil {
+		t.Fatal("mismatched edit sender claim was accepted")
+	}
+}
+
 func TestDecodeEncryptedPayloadRequestAcceptsWrappedPayload(t *testing.T) {
 	t.Parallel()
 
