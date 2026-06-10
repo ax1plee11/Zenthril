@@ -91,6 +91,22 @@ func PrometheusHandler() http.HandlerFunc {
 		w.Write([]byte("# HELP zenthril_readiness_failures_total Total readiness check failures\n"))
 		w.Write([]byte("# TYPE zenthril_readiness_failures_total counter\n"))
 		w.Write([]byte("zenthril_readiness_failures_total " + formatInt64(snapshot.ReadinessFailures) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_device_registrations_total Total E2EE device registrations\n"))
+		w.Write([]byte("# TYPE zenthril_device_registrations_total counter\n"))
+		w.Write([]byte("zenthril_device_registrations_total " + formatInt64(snapshot.DeviceRegistrations) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_device_revocations_total Total E2EE device revocations\n"))
+		w.Write([]byte("# TYPE zenthril_device_revocations_total counter\n"))
+		w.Write([]byte("zenthril_device_revocations_total " + formatInt64(snapshot.DeviceRevocations) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_key_bundle_claims_total Total E2EE key bundle claims\n"))
+		w.Write([]byte("# TYPE zenthril_key_bundle_claims_total counter\n"))
+		w.Write([]byte("zenthril_key_bundle_claims_total " + formatInt64(snapshot.KeyBundleClaims) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_prekey_depleted_total Total key-bundle claims where no one-time prekey was available\n"))
+		w.Write([]byte("# TYPE zenthril_prekey_depleted_total counter\n"))
+		w.Write([]byte("zenthril_prekey_depleted_total " + formatInt64(snapshot.PreKeyDepleted) + "\n\n"))
 	}
 }
 

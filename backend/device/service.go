@@ -8,12 +8,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"zenthril-backend/metrics"
 )
 
 const signedPreKeyContext = "Zenthril signed prekey v1"
@@ -155,6 +158,14 @@ func (s *Service) RegisterDevice(ctx context.Context, userID string, req Registe
 		return nil, err
 	}
 	out.OneTimePreKeyCount = count
+	metrics.Global().IncrementDeviceRegistrations()
+	slog.Info(
+		"security e2ee device registered",
+		"user_id", out.UserID,
+		"device_id", out.ID,
+		"fingerprint_prefix", fingerprintPrefix(out.Fingerprint),
+		"one_time_prekey_count", out.OneTimePreKeyCount,
+	)
 	return &out, nil
 }
 
@@ -267,11 +278,30 @@ func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, devic
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("claim one-time prekey: %w", err)
 		}
+		if bundle.OneTimePreKey == nil {
+			metrics.Global().IncrementPreKeyDepleted()
+			slog.Warn(
+				"security e2ee one-time prekey depleted",
+				"requester_id", requesterUUID.String(),
+				"user_id", userUUID.String(),
+				"device_id", deviceUUID.String(),
+				"fingerprint_prefix", fingerprintPrefix(bundle.Fingerprint),
+			)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit claim key bundle: %w", err)
 	}
+	metrics.Global().IncrementKeyBundleClaims()
+	slog.Info(
+		"security e2ee key bundle claimed",
+		"requester_id", requesterUUID.String(),
+		"user_id", bundle.UserID,
+		"device_id", bundle.DeviceID,
+		"one_time_prekey_included", bundle.OneTimePreKey != nil,
+		"fingerprint_prefix", fingerprintPrefix(bundle.Fingerprint),
+	)
 	return &bundle, nil
 }
 
@@ -323,6 +353,12 @@ func (s *Service) RevokeDevice(ctx context.Context, userID, deviceID string) err
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit revoke device: %w", err)
 	}
+	metrics.Global().IncrementDeviceRevocations()
+	slog.Info(
+		"security e2ee device revoked",
+		"user_id", userUUID.String(),
+		"device_id", deviceUUID.String(),
+	)
 	return nil
 }
 
@@ -342,6 +378,13 @@ func (s *Service) CountAvailablePreKeys(ctx context.Context, deviceID string) (i
 func DeviceFingerprint(userID, deviceID, identityPublicKey string) string {
 	sum := sha256.Sum256([]byte(userID + ":" + deviceID + ":" + identityPublicKey))
 	return hex.EncodeToString(sum[:])
+}
+
+func fingerprintPrefix(fingerprint string) string {
+	if len(fingerprint) <= 12 {
+		return fingerprint
+	}
+	return fingerprint[:12]
 }
 
 func validateRegisterDeviceRequest(req RegisterDeviceRequest) error {
