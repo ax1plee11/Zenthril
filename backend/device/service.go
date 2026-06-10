@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -14,6 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const signedPreKeyContext = "Zenthril signed prekey v1"
 
 var (
 	ErrInvalidDeviceKey = errors.New("invalid_device_key")
@@ -344,6 +347,9 @@ func validateRegisterDeviceRequest(req RegisterDeviceRequest) error {
 	if err := validateBase64Key(req.SignedPreKeySignature, 64, "signed_pre_key_signature"); err != nil {
 		return err
 	}
+	if err := validateSignedPreKeySignature(req); err != nil {
+		return err
+	}
 	if len(req.OneTimePreKeys) > 100 {
 		return fmt.Errorf("%w: too many one_time_prekeys", ErrInvalidDeviceKey)
 	}
@@ -363,11 +369,55 @@ func validateRegisterDeviceRequest(req RegisterDeviceRequest) error {
 	return nil
 }
 
+func validateSignedPreKeySignature(req RegisterDeviceRequest) error {
+	identityPublicKey, err := decodeBase64Key(req.IdentityPublicKey)
+	if err != nil {
+		return fmt.Errorf("%w: identity_public_key must be base64", ErrInvalidDeviceKey)
+	}
+	signedPreKey, err := decodeBase64Key(req.SignedPreKey)
+	if err != nil {
+		return fmt.Errorf("%w: signed_pre_key must be base64", ErrInvalidDeviceKey)
+	}
+	signature, err := decodeBase64Key(req.SignedPreKeySignature)
+	if err != nil {
+		return fmt.Errorf("%w: signed_pre_key_signature must be base64", ErrInvalidDeviceKey)
+	}
+	if len(identityPublicKey) != ed25519.PublicKeySize || len(signedPreKey) != 32 || len(signature) != ed25519.SignatureSize {
+		return fmt.Errorf("%w: invalid signed prekey signature input length", ErrInvalidDeviceKey)
+	}
+	// SECURITY: X3DH-style device registration must prove that the signed
+	// prekey belongs to the identity key before the backend publishes it.
+	if !ed25519.Verify(ed25519.PublicKey(identityPublicKey), signedPreKeyMessage(signedPreKey), signature) {
+		return fmt.Errorf("%w: signed_pre_key_signature verification failed", ErrInvalidDeviceKey)
+	}
+	return nil
+}
+
+func signedPreKeyMessage(publicKey []byte) []byte {
+	context := []byte(signedPreKeyContext)
+	out := make([]byte, 0, len(context)+len(publicKey))
+	out = append(out, context...)
+	out = append(out, publicKey...)
+	return out
+}
+
 func validateBase64Key(value string, wantLen int, field string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return fmt.Errorf("%w: %s is required", ErrInvalidDeviceKey, field)
 	}
+	decoded, err := decodeBase64Key(value)
+	if err != nil {
+		return fmt.Errorf("%w: %s must be base64", ErrInvalidDeviceKey, field)
+	}
+	if len(decoded) != wantLen {
+		return fmt.Errorf("%w: %s must decode to %d bytes", ErrInvalidDeviceKey, field, wantLen)
+	}
+	return nil
+}
+
+func decodeBase64Key(value string) ([]byte, error) {
+	value = strings.TrimSpace(value)
 	decoded, err := base64.StdEncoding.DecodeString(value)
 	if err != nil {
 		decoded, err = base64.RawStdEncoding.DecodeString(value)
@@ -379,12 +429,9 @@ func validateBase64Key(value string, wantLen int, field string) error {
 		decoded, err = base64.URLEncoding.DecodeString(value)
 	}
 	if err != nil {
-		return fmt.Errorf("%w: %s must be base64", ErrInvalidDeviceKey, field)
+		return nil, err
 	}
-	if len(decoded) != wantLen {
-		return fmt.Errorf("%w: %s must decode to %d bytes", ErrInvalidDeviceKey, field, wantLen)
-	}
-	return nil
+	return decoded, nil
 }
 
 type rowScanner interface {

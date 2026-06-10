@@ -1,38 +1,40 @@
 package device
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
 )
 
-func TestValidateRegisterDeviceRequest(t *testing.T) {
+func TestValidateRegisterDeviceRequestVerifiesSignedPreKeySignature(t *testing.T) {
 	t.Parallel()
-	req := RegisterDeviceRequest{
-		Name:                  "desktop",
-		IdentityPublicKey:     testKey(32),
-		SignedPreKeyID:        1,
-		SignedPreKey:          testKey(32),
-		SignedPreKeySignature: testKey(64),
-		OneTimePreKeys: []OneTimePreKey{
-			{KeyID: 1, PublicKey: testKey(32)},
-			{KeyID: 2, PublicKey: testKey(32)},
-		},
-	}
+
+	req := validRegisterDeviceRequest(t)
 	if err := validateRegisterDeviceRequest(req); err != nil {
-		t.Fatalf("validateRegisterDeviceRequest: %v", err)
+		t.Fatalf("valid signed prekey rejected: %v", err)
+	}
+}
+
+func TestValidateRegisterDeviceRequestRejectsInvalidSignedPreKeySignature(t *testing.T) {
+	t.Parallel()
+
+	req := validRegisterDeviceRequest(t)
+	req.SignedPreKeySignature = base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize))
+
+	if err := validateRegisterDeviceRequest(req); err == nil {
+		t.Fatal("invalid signed prekey signature was accepted")
 	}
 }
 
 func TestValidateRegisterDeviceRequestRejectsBadKey(t *testing.T) {
 	t.Parallel()
-	req := RegisterDeviceRequest{
-		IdentityPublicKey:     "not-base64",
-		SignedPreKeyID:        1,
-		SignedPreKey:          testKey(32),
-		SignedPreKeySignature: testKey(64),
-	}
+
+	req := validRegisterDeviceRequest(t)
+	req.IdentityPublicKey = "not-base64"
+
 	err := validateRegisterDeviceRequest(req)
 	if !errors.Is(err, ErrInvalidDeviceKey) {
 		t.Fatalf("err = %v, want ErrInvalidDeviceKey", err)
@@ -41,16 +43,13 @@ func TestValidateRegisterDeviceRequestRejectsBadKey(t *testing.T) {
 
 func TestValidateRegisterDeviceRequestRejectsDuplicateOneTimePreKeys(t *testing.T) {
 	t.Parallel()
-	req := RegisterDeviceRequest{
-		IdentityPublicKey:     testKey(32),
-		SignedPreKeyID:        1,
-		SignedPreKey:          testKey(32),
-		SignedPreKeySignature: testKey(64),
-		OneTimePreKeys: []OneTimePreKey{
-			{KeyID: 1, PublicKey: testKey(32)},
-			{KeyID: 1, PublicKey: testKey(32)},
-		},
-	}
+
+	req := validRegisterDeviceRequest(t)
+	req.OneTimePreKeys = append(req.OneTimePreKeys, OneTimePreKey{
+		KeyID:     req.OneTimePreKeys[0].KeyID,
+		PublicKey: base64.StdEncoding.EncodeToString(randomBytes(t, 32)),
+	})
+
 	err := validateRegisterDeviceRequest(req)
 	if !errors.Is(err, ErrInvalidDeviceKey) {
 		t.Fatalf("err = %v, want ErrInvalidDeviceKey", err)
@@ -59,15 +58,8 @@ func TestValidateRegisterDeviceRequestRejectsDuplicateOneTimePreKeys(t *testing.
 
 func TestValidateRegisterDeviceRequestAcceptsBase64URLKeys(t *testing.T) {
 	t.Parallel()
-	req := RegisterDeviceRequest{
-		IdentityPublicKey:     testURLKey(32),
-		SignedPreKeyID:        1,
-		SignedPreKey:          testURLKey(32),
-		SignedPreKeySignature: testURLKey(64),
-		OneTimePreKeys: []OneTimePreKey{
-			{KeyID: 1, PublicKey: testURLKey(32)},
-		},
-	}
+
+	req := validRegisterDeviceRequestWithEncoder(t, base64.RawURLEncoding)
 	if err := validateRegisterDeviceRequest(req); err != nil {
 		t.Fatalf("validateRegisterDeviceRequest: %v", err)
 	}
@@ -75,8 +67,10 @@ func TestValidateRegisterDeviceRequestAcceptsBase64URLKeys(t *testing.T) {
 
 func TestDeviceFingerprintStable(t *testing.T) {
 	t.Parallel()
-	first := DeviceFingerprint("user-1", "device-1", testKey(32))
-	second := DeviceFingerprint("user-1", "device-1", testKey(32))
+
+	key := base64.StdEncoding.EncodeToString(randomBytes(t, 32))
+	first := DeviceFingerprint("user-1", "device-1", key)
+	second := DeviceFingerprint("user-1", "device-1", key)
 	if first != second {
 		t.Fatal("fingerprint is not stable")
 	}
@@ -85,10 +79,43 @@ func TestDeviceFingerprintStable(t *testing.T) {
 	}
 }
 
-func testKey(size int) string {
-	return base64.StdEncoding.EncodeToString(make([]byte, size))
+func validRegisterDeviceRequest(t *testing.T) RegisterDeviceRequest {
+	t.Helper()
+
+	return validRegisterDeviceRequestWithEncoder(t, base64.StdEncoding)
 }
 
-func testURLKey(size int) string {
-	return base64.RawURLEncoding.EncodeToString(make([]byte, size))
+func validRegisterDeviceRequestWithEncoder(t *testing.T, encoding *base64.Encoding) RegisterDeviceRequest {
+	t.Helper()
+
+	identityPublic, identityPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate identity key: %v", err)
+	}
+	signedPreKey := randomBytes(t, 32)
+	signature := ed25519.Sign(identityPrivate, signedPreKeyMessage(signedPreKey))
+
+	return RegisterDeviceRequest{
+		DeviceID:              "11111111-1111-4111-8111-111111111111",
+		Name:                  "test device",
+		IdentityPublicKey:     encoding.EncodeToString(identityPublic),
+		SignedPreKeyID:        1,
+		SignedPreKey:          encoding.EncodeToString(signedPreKey),
+		SignedPreKeySignature: encoding.EncodeToString(signature),
+		OneTimePreKeys: []OneTimePreKey{
+			{
+				KeyID:     1,
+				PublicKey: encoding.EncodeToString(randomBytes(t, 32)),
+			},
+		},
+	}
+}
+
+func randomBytes(t *testing.T, n int) []byte {
+	t.Helper()
+	out := make([]byte, n)
+	if _, err := rand.Read(out); err != nil {
+		t.Fatalf("read random bytes: %v", err)
+	}
+	return out
 }
