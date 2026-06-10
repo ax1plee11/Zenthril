@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestValidateRegisterDeviceRequestVerifiesSignedPreKeySignature(t *testing.T) {
@@ -76,6 +78,20 @@ func TestDeviceFingerprintStable(t *testing.T) {
 	}
 	if len(first) != 64 || strings.Contains(first, " ") {
 		t.Fatalf("unexpected fingerprint shape: %q", first)
+	}
+}
+
+func TestShouldConsumeOneTimePreKeyOnlyForCrossUserClaims(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	otherID := uuid.New()
+
+	if shouldConsumeOneTimePreKey(ownerID, ownerID) {
+		t.Fatal("same-user key bundle claim should not consume one-time prekeys")
+	}
+	if !shouldConsumeOneTimePreKey(otherID, ownerID) {
+		t.Fatal("cross-user key bundle claim should consume one-time prekeys")
 	}
 }
 

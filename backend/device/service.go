@@ -238,35 +238,48 @@ func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, devic
 		return nil, fmt.Errorf("get device key bundle: %w", err)
 	}
 
-	var preKey OneTimePreKey
-	err = tx.QueryRow(ctx,
-		`SELECT key_id, public_key
-		 FROM device_one_time_prekeys
-		 WHERE device_id = $1 AND consumed_at IS NULL
-		 ORDER BY key_id ASC
-		 LIMIT 1
-		 FOR UPDATE SKIP LOCKED`,
-		deviceUUID,
-	).Scan(&preKey.KeyID, &preKey.PublicKey)
-	if err == nil {
-		_, err = tx.Exec(ctx,
-			`UPDATE device_one_time_prekeys
-			 SET consumed_at = NOW(), consumed_by = $1
-			 WHERE device_id = $2 AND key_id = $3`,
-			requesterUUID, deviceUUID, preKey.KeyID,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("consume one-time prekey: %w", err)
+	if shouldConsumeOneTimePreKey(requesterUUID, userUUID) {
+		var preKey OneTimePreKey
+		err = tx.QueryRow(ctx,
+			`SELECT key_id, public_key
+			 FROM device_one_time_prekeys
+			 WHERE device_id = $1 AND consumed_at IS NULL
+			 ORDER BY key_id ASC
+			 LIMIT 1
+			 FOR UPDATE SKIP LOCKED`,
+			deviceUUID,
+		).Scan(&preKey.KeyID, &preKey.PublicKey)
+		if err == nil {
+			result, err := tx.Exec(ctx,
+				`UPDATE device_one_time_prekeys
+				 SET consumed_at = NOW(), consumed_by = $1
+				 WHERE device_id = $2 AND key_id = $3 AND consumed_at IS NULL`,
+				requesterUUID, deviceUUID, preKey.KeyID,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("consume one-time prekey: %w", err)
+			}
+			// WEAKNESS FIXED: one-time prekey consumption is checked at UPDATE time
+			// as a defensive guard against future query changes or unusual races.
+			if result.RowsAffected() == 1 {
+				bundle.OneTimePreKey = &preKey
+			}
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("claim one-time prekey: %w", err)
 		}
-		bundle.OneTimePreKey = &preKey
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("claim one-time prekey: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit claim key bundle: %w", err)
 	}
 	return &bundle, nil
+}
+
+func shouldConsumeOneTimePreKey(requesterID, ownerID uuid.UUID) bool {
+	// SECURITY: same-account bundle lookups are useful for multi-device UI, but
+	// they should not deplete the owner's one-time prekey pool. Cross-user
+	// session bootstrap may consume exactly one available prekey.
+	return requesterID != ownerID
 }
 
 func (s *Service) RevokeDevice(ctx context.Context, userID, deviceID string) error {
