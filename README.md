@@ -235,6 +235,9 @@ https://github.com/ax1plee11/Zenthril
 
 This section is project guidance and attribution policy. The legal license terms are defined in [`LICENSE`](LICENSE).
 
+For the full attribution and acceptable-use policy, see [`NOTICE`](NOTICE) and
+[`docs/USAGE_POLICY.md`](docs/USAGE_POLICY.md).
+
 ## Contributing
 
 Contributions are welcome, especially in areas where the project is currently raw and incomplete:
@@ -251,4 +254,5 @@ Please open an Issue before making large architectural or security-sensitive cha
 
 ## License
 
-MIT License. See [`LICENSE`](LICENSE) for details.
+See [`LICENSE`](LICENSE) for legal terms and [`NOTICE`](NOTICE) for attribution
+and project provenance.

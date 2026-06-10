@@ -1,0 +1,39 @@
+Zenthril Notice
+================
+
+Project: Zenthril
+Original repository: https://github.com/ax1plee11/Zenthril
+Primary author and maintainer: ax1plee11
+Copyright (c) 2026 ax1plee11.
+
+Zenthril includes original source code, architecture notes, security
+documentation, research materials, frontend/client code, backend services, and
+deployment documentation created for the Zenthril project unless a file states
+otherwise.
+
+Attribution requirement
+-----------------------
+
+Forks, distributions, academic use, publications, substantial copied portions,
+and derivative works must preserve clear attribution to the original Zenthril
+project and repository:
+
+  Based on Zenthril by ax1plee11:
+  https://github.com/ax1plee11/Zenthril
+
+Do not present the original Zenthril codebase, documentation, architecture, or
+research materials as your own original work without attribution.
+
+Private materials
+-----------------
+
+Private local files, unpublished architecture reports, administrator notes,
+environment files, credentials, keys, and local exports are not part of the
+public project unless they are explicitly committed to the repository by the
+maintainer.
+
+License
+-------
+
+The legal license terms are defined in the LICENSE file. This NOTICE file is
+intended to preserve attribution and project provenance.
