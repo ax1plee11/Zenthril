@@ -15,7 +15,7 @@ import {
   encrypt,
   getOrCreateSessionKey,
 } from "../crypto/index";
-import { loadDeviceKeyBundle } from "../features/e2ee";
+import { buildMessageAADInput, MissingDeviceKeyBundleError } from "../features/e2ee";
 import type { EncryptedPayload } from "../types/index";
 import MessageItem, { canGroup, formatDateDivider } from "./MessageItem";
 import MessageInput from "./MessageInput";
@@ -129,21 +129,6 @@ function fromApiPayload(p: EncryptedPayloadAPI): EncryptedPayload {
   if (p.client_message_id) out.clientMessageId = p.client_message_id;
   if (p.cipher_suite) out.cipherSuite = p.cipher_suite;
   return out;
-}
-
-function randomClientMessageId(): string {
-  return crypto.randomUUID?.() ?? `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-async function buildMessageAADInput(channelId: string, currentUserId: string) {
-  const bundle = await loadDeviceKeyBundle(currentUserId);
-  return {
-    channelId,
-    senderUserId: currentUserId,
-    senderDeviceId: bundle?.deviceId ?? "unregistered-device",
-    sessionId: `channel:${channelId}`,
-    clientMessageId: randomClientMessageId(),
-  };
 }
 
 export default function ChatView({
@@ -333,23 +318,34 @@ export default function ChatView({
     async (text: string) => {
       if (!channelId) return;
 
-      const sessionKey = await getOrCreateSessionKey(channelId);
-      const encrypted = await encrypt(text, sessionKey, await buildMessageAADInput(channelId, currentUserId));
-      const apiPayload = toApiPayload(encrypted);
+      try {
+        const sessionKey = await getOrCreateSessionKey(channelId);
+        const encrypted = await encrypt(text, sessionKey, await buildMessageAADInput(channelId, currentUserId));
+        const apiPayload = toApiPayload(encrypted);
 
-      const msg = await api.messages.send(channelId, apiPayload);
-      trackMessage();
-      const enriched = enrichMessage(
-        { ...msg, decryptedContent: text },
-        currentUserId,
-        currentUsername,
-      );
+        const msg = await api.messages.send(channelId, apiPayload);
+        trackMessage();
+        const enriched = enrichMessage(
+          { ...msg, decryptedContent: text },
+          currentUserId,
+          currentUsername,
+        );
 
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === enriched.id)) return prev;
-        return [...prev, enriched];
-      });
-      setTimeout(scrollToBottom, 50);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === enriched.id)) return prev;
+          return [...prev, enriched];
+        });
+        setTimeout(scrollToBottom, 50);
+      } catch (err) {
+        if (err instanceof MissingDeviceKeyBundleError) {
+          showNotification(
+            "Security setup required",
+            "Register this device before sending encrypted messages.",
+          ).catch(() => {});
+          return;
+        }
+        throw err;
+      }
     },
     [channelId, currentUserId, currentUsername, scrollToBottom],
   );
@@ -359,19 +355,30 @@ export default function ChatView({
     async (messageId: string, newText: string) => {
       if (!channelId) return;
 
-      const sessionKey = await getOrCreateSessionKey(channelId);
-      const encrypted = await encrypt(newText, sessionKey, await buildMessageAADInput(channelId, currentUserId));
-      const apiPayload = toApiPayload(encrypted);
+      try {
+        const sessionKey = await getOrCreateSessionKey(channelId);
+        const encrypted = await encrypt(newText, sessionKey, await buildMessageAADInput(channelId, currentUserId));
+        const apiPayload = toApiPayload(encrypted);
 
-      await api.messages.edit(messageId, apiPayload);
+        await api.messages.edit(messageId, apiPayload);
 
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === messageId
-            ? { ...m, decryptedContent: newText, edited: true, payload: apiPayload }
-            : m,
-        ),
-      );
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? { ...m, decryptedContent: newText, edited: true, payload: apiPayload }
+              : m,
+          ),
+        );
+      } catch (err) {
+        if (err instanceof MissingDeviceKeyBundleError) {
+          showNotification(
+            "Security setup required",
+            "Register this device before editing encrypted messages.",
+          ).catch(() => {});
+          return;
+        }
+        throw err;
+      }
     },
     [channelId, currentUserId],
   );
