@@ -28,6 +28,8 @@ type Metrics struct {
 	WSRejected          int64
 	WSRateLimitHits     int64
 	WSMalformed         int64
+	WSForbidden         int64
+	WSMalformedClosed   int64
 	ReadinessFailures   int64
 	DeviceRegistrations int64
 	DeviceRevocations   int64
@@ -134,6 +136,14 @@ func (m *Metrics) IncrementWSMalformed() {
 	atomic.AddInt64(&m.WSMalformed, 1)
 }
 
+func (m *Metrics) IncrementWSForbidden() {
+	atomic.AddInt64(&m.WSForbidden, 1)
+}
+
+func (m *Metrics) IncrementWSMalformedClosed() {
+	atomic.AddInt64(&m.WSMalformedClosed, 1)
+}
+
 func (m *Metrics) IncrementReadinessFailures() {
 	atomic.AddInt64(&m.ReadinessFailures, 1)
 }
@@ -177,6 +187,8 @@ type Snapshot struct {
 	WSRejected          int64     `json:"ws_rejected"`
 	WSRateLimitHits     int64     `json:"ws_rate_limit_hits"`
 	WSMalformed         int64     `json:"ws_malformed"`
+	WSForbidden         int64     `json:"ws_forbidden"`
+	WSMalformedClosed   int64     `json:"ws_malformed_closed"`
 	ReadinessFailures   int64     `json:"readiness_failures"`
 	DeviceRegistrations int64     `json:"device_registrations"`
 	DeviceRevocations   int64     `json:"device_revocations"`
@@ -216,6 +228,8 @@ func (m *Metrics) Snapshot() Snapshot {
 		WSRejected:          atomic.LoadInt64(&m.WSRejected),
 		WSRateLimitHits:     atomic.LoadInt64(&m.WSRateLimitHits),
 		WSMalformed:         atomic.LoadInt64(&m.WSMalformed),
+		WSForbidden:         atomic.LoadInt64(&m.WSForbidden),
+		WSMalformedClosed:   atomic.LoadInt64(&m.WSMalformedClosed),
 		ReadinessFailures:   atomic.LoadInt64(&m.ReadinessFailures),
 		DeviceRegistrations: atomic.LoadInt64(&m.DeviceRegistrations),
 		DeviceRevocations:   atomic.LoadInt64(&m.DeviceRevocations),
@@ -302,6 +316,8 @@ func (m *Metrics) Reset() {
 	atomic.StoreInt64(&m.WSRejected, 0)
 	atomic.StoreInt64(&m.WSRateLimitHits, 0)
 	atomic.StoreInt64(&m.WSMalformed, 0)
+	atomic.StoreInt64(&m.WSForbidden, 0)
+	atomic.StoreInt64(&m.WSMalformedClosed, 0)
 	atomic.StoreInt64(&m.ReadinessFailures, 0)
 	atomic.StoreInt64(&m.DeviceRegistrations, 0)
 	atomic.StoreInt64(&m.DeviceRevocations, 0)

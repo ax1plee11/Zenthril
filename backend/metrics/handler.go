@@ -88,6 +88,14 @@ func PrometheusHandler() http.HandlerFunc {
 		w.Write([]byte("# TYPE zenthril_ws_malformed_total counter\n"))
 		w.Write([]byte("zenthril_ws_malformed_total " + formatInt64(snapshot.WSMalformed) + "\n\n"))
 
+		w.Write([]byte("# HELP zenthril_ws_forbidden_total Total forbidden WebSocket channel or voice actions\n"))
+		w.Write([]byte("# TYPE zenthril_ws_forbidden_total counter\n"))
+		w.Write([]byte("zenthril_ws_forbidden_total " + formatInt64(snapshot.WSForbidden) + "\n\n"))
+
+		w.Write([]byte("# HELP zenthril_ws_malformed_closed_total Total WebSocket connections closed after malformed-message threshold\n"))
+		w.Write([]byte("# TYPE zenthril_ws_malformed_closed_total counter\n"))
+		w.Write([]byte("zenthril_ws_malformed_closed_total " + formatInt64(snapshot.WSMalformedClosed) + "\n\n"))
+
 		w.Write([]byte("# HELP zenthril_readiness_failures_total Total readiness check failures\n"))
 		w.Write([]byte("# TYPE zenthril_readiness_failures_total counter\n"))
 		w.Write([]byte("zenthril_readiness_failures_total " + formatInt64(snapshot.ReadinessFailures) + "\n\n"))

@@ -14,6 +14,8 @@ func TestPrometheusHandlerIncludesSecurityAndReadinessMetrics(t *testing.T) {
 	Global().IncrementWSRejected()
 	Global().IncrementWSRateLimitHits()
 	Global().IncrementWSMalformed()
+	Global().IncrementWSForbidden()
+	Global().IncrementWSMalformedClosed()
 	Global().IncrementReadinessFailures()
 	Global().IncrementDeviceRegistrations()
 	Global().IncrementDeviceRevocations()
@@ -29,6 +31,8 @@ func TestPrometheusHandlerIncludesSecurityAndReadinessMetrics(t *testing.T) {
 		"zenthril_ws_rejected_total 1",
 		"zenthril_ws_rate_limit_hits_total 1",
 		"zenthril_ws_malformed_total 1",
+		"zenthril_ws_forbidden_total 1",
+		"zenthril_ws_malformed_closed_total 1",
 		"zenthril_readiness_failures_total 1",
 		"zenthril_device_registrations_total 1",
 		"zenthril_device_revocations_total 1",

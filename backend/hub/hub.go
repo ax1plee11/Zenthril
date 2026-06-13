@@ -204,6 +204,8 @@ func (h *Hub) canRelayChannelSignal(fromUserID, targetUserID, channelID string) 
 
 func (h *Hub) Subscribe(client *Client, channelID string) {
 	if !h.userHasChannelAccess(client.UserID, channelID) {
+		metrics.Global().IncrementWSForbidden()
+		slog.Warn("security websocket subscribe forbidden", "user_id", client.UserID, "conn_id", client.ConnID, "channel_id", channelID)
 		h.sendWSError(client, "forbidden", "no access to this channel")
 		return
 	}
@@ -478,6 +480,8 @@ func (c *Client) readPump() {
 			metrics.Global().IncrementWSMalformed()
 			c.hub.sendWSError(c, "malformed_message", "invalid websocket message")
 			if malformedMessages >= maxWSMalformedMessages {
+				metrics.Global().IncrementWSMalformedClosed()
+				slog.Warn("security websocket closed after malformed threshold", "user_id", c.UserID, "conn_id", c.ConnID, "count", malformedMessages)
 				return
 			}
 			continue
@@ -489,6 +493,8 @@ func (c *Client) readPump() {
 			metrics.Global().IncrementWSMalformed()
 			c.hub.sendWSError(c, "malformed_message", "invalid websocket command")
 			if malformedMessages >= maxWSMalformedMessages {
+				metrics.Global().IncrementWSMalformedClosed()
+				slog.Warn("security websocket closed after invalid command threshold", "user_id", c.UserID, "conn_id", c.ConnID, "type", evt.Type, "count", malformedMessages)
 				return
 			}
 			continue
@@ -539,6 +545,8 @@ func (c *Client) readPump() {
 		case "voice.signal":
 			if evt.ChannelID != "" && evt.TargetUserID != "" && evt.SDP != nil {
 				if !c.hub.canRelayChannelSignal(c.UserID, evt.TargetUserID, evt.ChannelID) {
+					metrics.Global().IncrementWSForbidden()
+					slog.Warn("security websocket voice signal forbidden", "user_id", c.UserID, "target_user_id", evt.TargetUserID, "channel_id", evt.ChannelID)
 					c.hub.sendWSError(c, "forbidden", "no access to this channel")
 					continue
 				}
@@ -553,6 +561,8 @@ func (c *Client) readPump() {
 		case "voice.ice":
 			if evt.ChannelID != "" && evt.TargetUserID != "" && evt.Candidate != nil {
 				if !c.hub.canRelayChannelSignal(c.UserID, evt.TargetUserID, evt.ChannelID) {
+					metrics.Global().IncrementWSForbidden()
+					slog.Warn("security websocket voice ice forbidden", "user_id", c.UserID, "target_user_id", evt.TargetUserID, "channel_id", evt.ChannelID)
 					c.hub.sendWSError(c, "forbidden", "no access to this channel")
 					continue
 				}
@@ -617,6 +627,8 @@ func (h *Hub) allowUserMessage(userID string) bool {
 
 func (h *Hub) voiceJoin(c *Client, channelID string) {
 	if !h.userHasChannelAccess(c.UserID, channelID) {
+		metrics.Global().IncrementWSForbidden()
+		slog.Warn("security websocket voice join forbidden", "user_id", c.UserID, "conn_id", c.ConnID, "channel_id", channelID)
 		h.sendWSError(c, "forbidden", "no access to this voice channel")
 		return
 	}

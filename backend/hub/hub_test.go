@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"zenthril-backend/metrics"
 )
 
 func TestNewUpgraderRejectsCrossSiteOrigins(t *testing.T) {
@@ -52,6 +55,32 @@ func TestNewUpgraderRejectsMissingOrigin(t *testing.T) {
 
 	if upgrader.CheckOrigin(req) {
 		t.Fatal("websocket request without Origin was accepted")
+	}
+}
+
+func TestSubscribeForbiddenIncrementsMetric(t *testing.T) {
+	t.Parallel()
+
+	metrics.Global().Reset()
+	h := NewHub(&fakeChannelAccessChecker{allowed: map[string]bool{}})
+	client := &Client{
+		UserID: "user-1",
+		ConnID: "conn-1",
+		Send:   make(chan []byte, 1),
+	}
+
+	h.Subscribe(client, "channel-1")
+
+	if got := metrics.Global().Snapshot().WSForbidden; got != 1 {
+		t.Fatalf("WSForbidden = %d, want 1", got)
+	}
+	select {
+	case msg := <-client.Send:
+		if !strings.Contains(string(msg), `"code":"forbidden"`) {
+			t.Fatalf("error message = %s", msg)
+		}
+	default:
+		t.Fatal("forbidden error was not sent to client")
 	}
 }
 
