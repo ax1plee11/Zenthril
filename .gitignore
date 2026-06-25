@@ -69,3 +69,6 @@ backend/moderation/
 backend/migrations/004_admin_audit_log.sql
 backend/migrations/005_ip_tracking_and_guild_bans.sql
 backend/auth/audit.go
+
+# Local/private audit worktrees. Keep sanitized reports under security/audit/.
+zenthril-audit/

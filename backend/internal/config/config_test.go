@@ -106,3 +106,28 @@ func TestRejectsGatewayWildcardOutsideProduction(t *testing.T) {
 		t.Fatal("expected gateway wildcard validation error")
 	}
 }
+
+func TestRejectsInvalidGatewayRole(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
+	t.Setenv("JWT_SECRET", "dev-secret")
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("GATEWAY_ROLE", "maybe")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected invalid gateway role validation error")
+	}
+}
+
+func TestGatewayRoleDefaultsToPrimary(t *testing.T) {
+	t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/zenthril")
+	t.Setenv("JWT_SECRET", "dev-secret")
+	t.Setenv("APP_ENV", "development")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Gateway.Role != "primary" {
+		t.Fatalf("gateway role = %q, want primary", cfg.Gateway.Role)
+	}
+}

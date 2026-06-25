@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: Dockerfile
       args:
-        TARGET: ./cmd/api
+        TARGET: .
     environment:
       APP_ENV: production
       SERVICE_NAME: zenthril-api

@@ -29,6 +29,7 @@ type Config struct {
 
 type GatewayConfig struct {
 	NodeID         string
+	Role           string
 	PublicAddr     string
 	AllowedOrigins []string
 	MaxConnections int
@@ -101,6 +102,7 @@ func Load() (Config, error) {
 		PublicBaseURL: env("PUBLIC_BASE_URL", "http://localhost:8080"),
 		Gateway: GatewayConfig{
 			NodeID:         nodeID,
+			Role:           strings.ToLower(env("GATEWAY_ROLE", "primary")),
 			PublicAddr:     env("GATEWAY_PUBLIC_ADDR", httpAddr),
 			AllowedOrigins: firstNonEmptyList(splitCommaList(os.Getenv("WS_ALLOWED_ORIGINS")), splitCommaList(os.Getenv("CORS_ALLOWED_ORIGINS"))),
 			MaxConnections: envInt("GATEWAY_MAX_CONNECTIONS", 50000),
@@ -157,6 +159,9 @@ func (c Config) Validate() error {
 	}
 	if c.Gateway.NodeID == "" {
 		return errors.New("NODE_ID is required")
+	}
+	if c.Gateway.Role != "primary" && c.Gateway.Role != "edge" {
+		return errors.New("GATEWAY_ROLE must be primary or edge")
 	}
 	if c.Gateway.MaxConnections <= 0 {
 		return errors.New("GATEWAY_MAX_CONNECTIONS must be positive")

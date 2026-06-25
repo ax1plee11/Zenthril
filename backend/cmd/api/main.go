@@ -16,6 +16,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"zenthril-backend/internal/app"
+	"zenthril-backend/middleware"
 )
 
 func main() {
@@ -38,7 +39,14 @@ func main() {
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
 	router.Use(chimiddleware.Recoverer)
+	// SECURITY: defense-in-depth headers for operational and WebSocket upgrade endpoints.
+	router.Use(middleware.SecurityHeaders)
 
+	router.Get("/livez", func(w http.ResponseWriter, r *http.Request) {
+		// SECURITY: public liveness is intentionally minimal and does not expose
+		// dependency state, node metadata, versions, or operational internals.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 	router.Get("/healthz", operationalTokenAuth(container, func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}))
@@ -63,6 +71,9 @@ func main() {
 		Addr:              container.Config.HTTPAddr,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	errCh := make(chan error, 1)

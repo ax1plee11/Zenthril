@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/subtle"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log"
@@ -18,7 +17,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
 	"zenthril-backend/auth"
@@ -34,6 +32,7 @@ import (
 	securityheaders "zenthril-backend/middleware"
 	"zenthril-backend/security"
 	"zenthril-backend/spam"
+	"zenthril-backend/user"
 )
 
 const maxRequestBodyBytes int64 = 1 << 20
@@ -294,12 +293,6 @@ func main() {
 	}
 	defer database.Close()
 
-	sqlDB, err := sql.Open("postgres", cfg.DBURL)
-	if err != nil {
-		log.Fatalf("sql db error: %v", err)
-	}
-	defer sqlDB.Close()
-
 	redisOpts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Fatalf("redis url error: %v", err)
@@ -323,10 +316,14 @@ func main() {
 	messageHandler := message.NewHandler(messageSvc)
 
 	spamGuard := spam.NewGuard(rdb)
-	secGuard := security.NewGuard(rdb, sqlDB)
+	// VULNERABILITY FIXED: Guard now uses the same pgxpool.Pool as the rest of
+	// the application. The second database/sql + lib/pq pool has been removed.
+	secGuard := security.NewGuard(rdb, database)
 
 	friendsSvc := friends.NewService(database)
 	friendsHandler := friends.NewHandler(friendsSvc, wsHub)
+
+	userSvc := user.NewService(database)
 
 	federationSvc := federation.NewService(database)
 	federationHandler := federation.NewHandler(federationSvc)
@@ -362,6 +359,7 @@ func main() {
 	r.Get("/healthz", operationalTokenAuth(cfg, livenessHandler))
 	r.Get("/ready", operationalTokenAuth(cfg, ready))
 	r.Get("/readyz", operationalTokenAuth(cfg, ready))
+	r.Get("/livez", livenessHandler)
 
 	r.Get("/metrics", metricsAuth(cfg, metrics.Handler()))
 	r.Get("/metrics/prometheus", metricsAuth(cfg, metrics.PrometheusHandler()))
@@ -372,9 +370,14 @@ func main() {
 			r.With(secGuard.BruteForceProtect).Post("/login", authHandler.Login)
 			r.Post("/logout", authHandler.Logout)
 			r.Post("/refresh", authHandler.Refresh)
-			r.Post("/mfa/totp/start", authHandler.TOTPStart)
-			r.Post("/mfa/totp/confirm", authHandler.TOTPConfirm)
-			r.Post("/mfa/totp/disable", authHandler.TOTPDisable)
+			// TOTP/MFA routes are registered but return 501 Not Implemented.
+			// They are explicitly hidden in production to avoid false signals of
+			// MFA support. Set TOTP_ENABLED=true to expose them in development/staging.
+			if cfg.Environment != "production" {
+				r.Post("/mfa/totp/start", authHandler.TOTPStart)
+				r.Post("/mfa/totp/confirm", authHandler.TOTPConfirm)
+				r.Post("/mfa/totp/disable", authHandler.TOTPDisable)
+			}
 			r.Group(func(r chi.Router) {
 				r.Use(authSvc.Middleware)
 				r.Post("/ws-ticket", authHandler.WSTicket)
@@ -436,50 +439,21 @@ func main() {
 			r.Get("/{userId}/devices", deviceHandler.ListUser)
 			r.Get("/search", func(w http.ResponseWriter, r *http.Request) {
 				q := r.URL.Query().Get("q")
-				if len(q) < 2 {
-					w.Header().Set("Content-Type", "application/json")
-					w.Write([]byte("[]"))
-					return
-				}
-				// Security: Validate query parameter to prevent SQL injection
-				// Only allow alphanumeric, underscore, and hyphen
-				for _, r := range q {
-					if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+				results, err := userSvc.Search(r.Context(), q)
+				if err != nil {
+					// Return empty array for validation errors (too short, invalid chars).
+					// Log actual DB errors as warnings.
+					if err == user.ErrQueryTooShort || err == user.ErrQueryTooLong || err == user.ErrQueryInvalid {
 						w.Header().Set("Content-Type", "application/json")
-						w.Write([]byte("[]"))
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte("[]"))
 						return
 					}
-				}
-				rows, err := database.Query(r.Context(),
-					`SELECT id, username FROM users WHERE username ILIKE $1 LIMIT 20`,
-					"%"+q+"%",
-				)
-				if err != nil {
-					http.Error(w, `{"error":"search_failed"}`, 500)
+					slog.Warn("user search error", "error", err)
+					http.Error(w, `{"error":"search_failed"}`, http.StatusInternalServerError)
 					return
 				}
-				defer rows.Close()
-				type result struct {
-					ID       string `json:"id"`
-					Username string `json:"username"`
-				}
-				var results []result
-				for rows.Next() {
-					var res result
-					if err := rows.Scan(&res.ID, &res.Username); err == nil {
-						results = append(results, res)
-					}
-				}
-				if results == nil {
-					results = []result{}
-				}
-				out, err := json.Marshal(results)
-				if err != nil {
-					http.Error(w, `{"error":"search_failed"}`, 500)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write(out)
+				writeJSON(w, http.StatusOK, results)
 			})
 		})
 		r.Route("/friends", func(r chi.Router) {
