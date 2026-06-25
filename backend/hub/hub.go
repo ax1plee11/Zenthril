@@ -78,6 +78,20 @@ type Client struct {
 	limiter  *wsRateLimiter
 }
 
+// InviteAuthorizer checks whether an invite can be sent from one user to another.
+// Implementations may verify that the invite code exists, the sender has permission
+// to share it, and the recipient has not blocked the sender.
+//
+// A nil InviteAuthorizer is treated as "allow all" so that legacy deployments
+// without an authorizer implementation do not break. New deployments SHOULD wire
+// a real implementation.
+type InviteAuthorizer interface {
+	// CanSendInvite returns nil when the sender is allowed to forward the given
+	// invite code to the target user. It returns an error with a human-readable
+	// reason otherwise.
+	CanSendInvite(ctx context.Context, senderID, targetUserID, inviteCode string) error
+}
+
 type Hub struct {
 	channels           map[string]map[*Client]bool
 	users              map[string]map[*Client]bool
@@ -85,6 +99,7 @@ type Hub struct {
 	voiceChannels      map[string]map[string]bool
 	guild              ChannelAccessChecker
 	userMessageLimiter UserMessageLimiter
+	inviteAuthorizer   InviteAuthorizer
 	mu                 sync.RWMutex
 	register           chan *Client
 	unregister         chan *Client
@@ -95,6 +110,12 @@ func NewHub(g ChannelAccessChecker) *Hub {
 }
 
 func NewHubWithUserMessageLimiter(g ChannelAccessChecker, limiter UserMessageLimiter) *Hub {
+	return NewHubFull(g, limiter, nil)
+}
+
+// NewHubFull creates a Hub with all optional components. Prefer NewHub or
+// NewHubWithUserMessageLimiter for most use-cases.
+func NewHubFull(g ChannelAccessChecker, limiter UserMessageLimiter, inviteAuth InviteAuthorizer) *Hub {
 	return &Hub{
 		channels:           make(map[string]map[*Client]bool),
 		users:              make(map[string]map[*Client]bool),
@@ -102,6 +123,7 @@ func NewHubWithUserMessageLimiter(g ChannelAccessChecker, limiter UserMessageLim
 		voiceChannels:      make(map[string]map[string]bool),
 		guild:              g,
 		userMessageLimiter: limiter,
+		inviteAuthorizer:   inviteAuth,
 		register:           make(chan *Client, 64),
 		unregister:         make(chan *Client, 64),
 	}
@@ -527,6 +549,26 @@ func (c *Client) readPump() {
 			}
 		case "invite.send":
 			if evt.TargetUserID != "" && evt.InviteCode != "" {
+				// SECURITY-HARDENING: validate the invite before relaying it.
+				// Previously any authenticated user could relay arbitrary invite codes
+				// to any userID without any server-side checks, turning the WS hub
+				// into an open relay.
+				// VULNERABILITY FIXED: invite relay is now subject to authorization.
+				if c.hub.inviteAuthorizer != nil {
+					authCtx, authCancel := context.WithTimeout(context.Background(), 3*time.Second)
+					err := c.hub.inviteAuthorizer.CanSendInvite(authCtx, c.UserID, evt.TargetUserID, evt.InviteCode)
+					authCancel()
+					if err != nil {
+						metrics.Global().IncrementWSForbidden()
+						slog.Warn("security websocket invite.send rejected",
+							"user_id", c.UserID,
+							"target_user_id", evt.TargetUserID,
+							"reason", err.Error(),
+						)
+						c.hub.sendWSError(c, "forbidden", "invite not allowed")
+						continue
+					}
+				}
 				msg, _ := json.Marshal(map[string]interface{}{
 					"type":         "invite.received",
 					"from_user_id": c.UserID,
@@ -686,6 +728,20 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 	if err != nil {
 		metrics.Global().IncrementWSRejected()
 		http.Error(w, "invalid or expired ticket", http.StatusUnauthorized)
+		return
+	}
+
+	// SECURITY: globally banned accounts must not retain realtime access via consumed tickets.
+	banned, err := authSvc.IsGloballyBanned(r.Context(), userID)
+	if err != nil {
+		metrics.Global().IncrementWSRejected()
+		http.Error(w, "authorization failed", http.StatusInternalServerError)
+		return
+	}
+	if banned {
+		metrics.Global().IncrementWSRejected()
+		slog.Warn("security websocket connect rejected", "reason", "global_ban", "user_id", userID)
+		http.Error(w, "account banned", http.StatusForbidden)
 		return
 	}
 

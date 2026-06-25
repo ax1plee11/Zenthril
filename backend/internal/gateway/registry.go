@@ -10,21 +10,32 @@ import (
 )
 
 var (
-	ErrDraining          = errors.New("gateway is draining")
-	ErrConnectionMissing = errors.New("connection missing")
-	ErrConnectionLimit   = errors.New("connection limit reached")
+	ErrDraining              = errors.New("gateway is draining")
+	ErrConnectionMissing     = errors.New("connection missing")
+	ErrConnectionLimit       = errors.New("connection limit reached")
+	ErrUserConnectionLimit   = errors.New("user connection limit reached")
+	ErrIPConnectionLimit     = errors.New("ip connection limit reached")
+	ErrChannelAccessDenied   = errors.New("channel access denied")
 )
 
 type RegistryOptions struct {
-	NodeID         string
-	MaxConnections int
-	Logger         *slog.Logger
+	NodeID                string
+	MaxConnections        int
+	MaxConnectionsPerUser int
+	Logger                *slog.Logger
+	ChannelAccess         ChannelAccessChecker
+	ConnectionGuard       *ConnectionGuard
+	DistributedLimiter    DistributedRateLimiter
 }
 
 type Registry struct {
-	nodeID         string
-	maxConnections int
-	logger         *slog.Logger
+	nodeID                string
+	maxConnections        int
+	maxConnectionsPerUser int
+	logger                *slog.Logger
+	channelAccess         ChannelAccessChecker
+	connectionGuard       *ConnectionGuard
+	distributedLimiter    DistributedRateLimiter
 
 	draining   atomic.Bool
 	mu         sync.RWMutex
@@ -32,6 +43,7 @@ type Registry struct {
 	byUser     map[string]map[string]*Connection
 	byUserRate map[string]*rateLimiter
 	byChannel  map[string]map[string]*Connection
+	byIP       map[string]int
 }
 
 type Connection struct {
@@ -39,6 +51,7 @@ type Connection struct {
 	UserID   string
 	DeviceID string
 	NodeID   string
+	ClientIP string
 
 	send          chan []byte
 	done          chan struct{}
@@ -61,18 +74,29 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	if opts.MaxConnections <= 0 {
 		opts.MaxConnections = 50000
 	}
+	if opts.MaxConnectionsPerUser <= 0 {
+		opts.MaxConnectionsPerUser = 5
+	}
+	if opts.ConnectionGuard == nil {
+		opts.ConnectionGuard = NewConnectionGuard(20, opts.MaxConnectionsPerUser)
+	}
 	return &Registry{
-		nodeID:         opts.NodeID,
-		maxConnections: opts.MaxConnections,
-		logger:         opts.Logger,
-		byID:           make(map[string]*Connection),
-		byUser:         make(map[string]map[string]*Connection),
-		byUserRate:     make(map[string]*rateLimiter),
-		byChannel:      make(map[string]map[string]*Connection),
+		nodeID:                opts.NodeID,
+		maxConnections:        opts.MaxConnections,
+		maxConnectionsPerUser: opts.MaxConnectionsPerUser,
+		logger:                opts.Logger,
+		channelAccess:         opts.ChannelAccess,
+		connectionGuard:       opts.ConnectionGuard,
+		distributedLimiter:    opts.DistributedLimiter,
+		byID:                  make(map[string]*Connection),
+		byUser:                make(map[string]map[string]*Connection),
+		byUserRate:            make(map[string]*rateLimiter),
+		byChannel:             make(map[string]map[string]*Connection),
+		byIP:                  make(map[string]int),
 	}
 }
 
-func NewConnection(id, userID, deviceID, nodeID string, queueSize int) *Connection {
+func NewConnection(id, userID, deviceID, nodeID, clientIP string, queueSize int) *Connection {
 	if queueSize <= 0 {
 		queueSize = 256
 	}
@@ -81,6 +105,7 @@ func NewConnection(id, userID, deviceID, nodeID string, queueSize int) *Connecti
 		UserID:        userID,
 		DeviceID:      deviceID,
 		NodeID:        nodeID,
+		ClientIP:      clientIP,
 		send:          make(chan []byte, queueSize),
 		done:          make(chan struct{}),
 		subscriptions: make(map[string]struct{}),
@@ -98,6 +123,18 @@ func (r *Registry) Register(conn *Connection) error {
 		return ErrConnectionLimit
 	}
 
+	ipCount := r.byIP[conn.ClientIP]
+	if !r.connectionGuard.AllowIP(conn.ClientIP, ipCount) {
+		r.logger.Warn("security gateway ip connection limit", "ip", conn.ClientIP, "count", ipCount)
+		return ErrIPConnectionLimit
+	}
+
+	userCount := len(r.byUser[conn.UserID])
+	if !r.connectionGuard.AllowUser(conn.UserID, userCount) {
+		r.logger.Warn("security gateway user connection limit", "user_id", conn.UserID, "count", userCount)
+		return ErrUserConnectionLimit
+	}
+
 	r.byID[conn.ID] = conn
 	if r.byUser[conn.UserID] == nil {
 		r.byUser[conn.UserID] = make(map[string]*Connection)
@@ -106,6 +143,9 @@ func (r *Registry) Register(conn *Connection) error {
 		r.byUserRate[conn.UserID] = newRateLimiter(gatewayUserMessagesPerMinute)
 	}
 	r.byUser[conn.UserID][conn.ID] = conn
+	if conn.ClientIP != "" {
+		r.byIP[conn.ClientIP]++
+	}
 	return nil
 }
 
@@ -125,6 +165,13 @@ func (r *Registry) Unregister(connectionID string) {
 			delete(r.byUserRate, conn.UserID)
 		}
 	}
+	if conn.ClientIP != "" {
+		if count := r.byIP[conn.ClientIP]; count <= 1 {
+			delete(r.byIP, conn.ClientIP)
+		} else {
+			r.byIP[conn.ClientIP]--
+		}
+	}
 	for channelID := range conn.subscriptions {
 		if channelConnections := r.byChannel[channelID]; channelConnections != nil {
 			delete(channelConnections, connectionID)
@@ -136,7 +183,16 @@ func (r *Registry) Unregister(connectionID string) {
 	conn.close()
 }
 
-func (r *Registry) AllowUserMessage(userID string) bool {
+func (r *Registry) AllowUserMessage(ctx context.Context, userID string) bool {
+	if r.distributedLimiter != nil {
+		allowed, err := r.distributedLimiter.Allow(ctx, userID, gatewayUserMessagesPerMinute, userRateLimitWindow)
+		if err != nil {
+			r.logger.Warn("security gateway distributed rate limiter failed", "user_id", userID, "error", err)
+		} else if !allowed {
+			return false
+		}
+	}
+
 	r.mu.Lock()
 	limiter := r.byUserRate[userID]
 	if limiter == nil {
@@ -147,7 +203,20 @@ func (r *Registry) AllowUserMessage(userID string) bool {
 	return limiter.Allow()
 }
 
-func (r *Registry) Subscribe(connectionID, channelID string) error {
+func (r *Registry) Subscribe(ctx context.Context, connectionID, channelID, userID string) error {
+	if r.channelAccess != nil {
+		ok, err := r.channelAccess.UserHasChannelAccess(ctx, userID, channelID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			// SECURITY: channel subscriptions require the same ACL as legacy hub.Subscribe.
+			// WEAKNESS FIXED: unauthenticated channel eavesdropping via subscribe is blocked.
+			r.logger.Warn("security gateway subscribe forbidden", "user_id", userID, "connection_id", connectionID, "channel_id", channelID)
+			return ErrChannelAccessDenied
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

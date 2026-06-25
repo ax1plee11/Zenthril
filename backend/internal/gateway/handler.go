@@ -157,7 +157,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer socket.Close()
 
 	connectionID := uuid.NewString()
-	conn := NewConnection(connectionID, claims.UserID, claims.DeviceID, h.nodeID, 256)
+	clientIP := clientIPFromRequest(r)
+	conn := NewConnection(connectionID, claims.UserID, claims.DeviceID, h.nodeID, clientIP, 256)
 	if err := h.registry.Register(conn); err != nil {
 		_ = socket.WriteJSON(ErrorEnvelope("gateway_unavailable", err.Error()))
 		return
@@ -208,7 +209,7 @@ func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Co
 			h.sendError(conn, "rate_limited", "too many websocket commands")
 			return nil
 		}
-		if !h.registry.AllowUserMessage(conn.UserID) {
+		if !h.registry.AllowUserMessage(ctx, conn.UserID) {
 			h.logger.Warn("security gateway user rate limited", "connection_id", conn.ID, "user_id", conn.UserID)
 			h.sendError(conn, "rate_limited", "too many websocket commands")
 			return nil
@@ -232,7 +233,11 @@ func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Co
 				continue
 			}
 			malformedMessages = 0
-			if err := h.registry.Subscribe(conn.ID, command.ChannelID); err != nil {
+			if err := h.registry.Subscribe(ctx, conn.ID, command.ChannelID, conn.UserID); err != nil {
+				if errors.Is(err, ErrChannelAccessDenied) {
+					h.sendError(conn, "forbidden", "no access to this channel")
+					continue
+				}
 				h.sendError(conn, "subscribe_failed", err.Error())
 			}
 		case CommandUnsubscribeChannel:
@@ -309,14 +314,37 @@ func (h *Handler) sendEnvelope(conn *Connection, env Envelope) {
 }
 
 func extractToken(r *http.Request) string {
-	// SECURITY-HARDENING: next-gen gateway accepts credentials only from Authorization.
+	// SECURITY: next-gen gateway accepts credentials only from Authorization header.
 	// Query-string credentials are avoided because URLs are commonly logged by
 	// proxies, browsers, and observability tools. Legacy `/ws` uses one-time
 	// tickets in its own handler and consumes them after Origin validation.
-	// VULNERABILITY FIXED: long-lived bearer credentials are no longer accepted from URLs.
+	// WEAKNESS FIXED: long-lived bearer credentials are no longer accepted from URLs.
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(header), "bearer ") {
 		return strings.TrimSpace(header[7:])
 	}
 	return ""
+}
+
+func clientIPFromRequest(r *http.Request) string {
+	// SECURITY-HARDENING: X-Forwarded-For is only trusted when the connection
+	// arrives from a known reverse proxy (TrustedProxies config or middleware.RealIP).
+	// Accepting the header unconditionally lets any client spoof their IP address,
+	// bypassing per-IP connection limits and rate limiting.
+	//
+	// This function intentionally ignores X-Forwarded-For and X-Real-IP headers
+	// because the gateway does not know how many trusted proxy hops sit in front
+	// of it. IP extraction from those headers is the responsibility of a dedicated
+	// reverse-proxy middleware (e.g. chi middleware.RealIP configured with a known
+	// proxy CIDR) that runs before this handler and writes the resolved IP into
+	// r.RemoteAddr. If that middleware is deployed, RemoteAddr already contains
+	// the correct client IP and no further processing is needed here.
+	//
+	// VULNERABILITY FIXED: clients can no longer set X-Forwarded-For: 127.0.0.1
+	// to bypass the per-IP connection limit in the gateway Registry.
+	host := r.RemoteAddr
+	if idx := strings.LastIndex(host, ":"); idx > 0 {
+		return host[:idx]
+	}
+	return host
 }

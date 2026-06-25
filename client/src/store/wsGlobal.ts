@@ -16,6 +16,23 @@ const handlers = new Map<string, Set<Handler>>();
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connecting = false;
+let reconnectAttempt = 0;
+let intentionalDisconnect = false;
+
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+
+function scheduleReconnect(): void {
+  if (intentionalDisconnect) return;
+  const expDelay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS);
+  const jitter = Math.random() * 0.3 * expDelay;
+  reconnectAttempt++;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  // SECURITY: exponential backoff + jitter prevents reconnect storms against ws-ticket and /ws.
+  reconnectTimer = setTimeout(() => {
+    void connectGlobalWS();
+  }, expDelay + jitter);
+}
 
 // ─── Подписка на события ─────────────────────────────────────────────────────
 
@@ -54,6 +71,7 @@ export async function connectGlobalWS(): Promise<void> {
 
   connecting = true;
   try {
+    // WEAKNESS FIXED: fetch a fresh one-time ticket on every connect/reconnect attempt.
     const { ticket } = await api.auth.wsTicket();
     const wsUrl = await getActiveWebSocketUrl("/ws");
     const socket = new WebSocket(`${wsUrl}?ticket=${encodeURIComponent(ticket)}`);
@@ -61,7 +79,7 @@ export async function connectGlobalWS(): Promise<void> {
 
     socket.onopen = () => {
       connecting = false;
-      // Уведомляем подписчиков что соединение установлено
+      reconnectAttempt = 0;
       handlers.get("ws.connected")?.forEach(h => h({}));
     };
 
@@ -69,7 +87,6 @@ export async function connectGlobalWS(): Promise<void> {
       try {
         const data = decodePaddedFrame(e.data as string);
         const type = data.type as string;
-        // Диспатчим конкретный тип + wildcard "*"
         handlers.get(type)?.forEach(h => h(data));
         handlers.get("*")?.forEach(h => h(data));
       } catch { /* ignore */ }
@@ -78,29 +95,34 @@ export async function connectGlobalWS(): Promise<void> {
     socket.onclose = () => {
       connecting = false;
       ws = null;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => connectGlobalWS(), 4000);
+      scheduleReconnect();
     };
 
     socket.onerror = () => {
       connecting = false;
-      // CONNECTIVITY: force the next reconnect attempt to re-evaluate the configured server pool.
       clearActiveServer();
       socket.close();
     };
   } catch {
     connecting = false;
     clearActiveServer();
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(() => connectGlobalWS(), 4000);
+    scheduleReconnect();
   }
 }
 
 export function disconnectGlobalWS(): void {
+  intentionalDisconnect = true;
   if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  reconnectAttempt = 0;
   if (ws) {
     ws.onclose = null;
     ws.close();
     ws = null;
   }
+}
+
+export function resetGlobalWSReconnectState(): void {
+  intentionalDisconnect = false;
+  reconnectAttempt = 0;
 }

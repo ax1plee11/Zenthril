@@ -1,3 +1,4 @@
+import { api } from "../../../api/index";
 import { useCallStore } from '../store/callStore';
 import type {
   ActiveCall,
@@ -10,56 +11,62 @@ type EventHandler = (...args: unknown[]) => void;
 
 class SignalingService {
   private ws: WebSocket | null = null;
-  private token: string | null = null;
+  private wsUrl = '';
   private handlers: Map<string, EventHandler[]> = new Map();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 8;
 
-  connect(wsUrl: string, token: string) {
-    this.token = token;
+  connect(wsUrl: string) {
     this.wsUrl = wsUrl;
-    this.openConnection();
+    void this.openConnection();
   }
 
-  private wsUrl = '';
-
-  private openConnection() {
+  private async openConnection() {
     if (this.ws) {
       this.ws.close();
     }
 
-    const url = `${this.wsUrl}/ws?ticket=${this.token}`;
-    this.ws = new WebSocket(url);
+    try {
+      // WEAKNESS FIXED: one-time ws tickets are consumed on connect; always fetch fresh ticket.
+      const { ticket } = await api.auth.wsTicket();
+      const url = `${this.wsUrl}/ws?ticket=${encodeURIComponent(ticket)}`;
+      this.ws = new WebSocket(url);
 
-    this.ws.onopen = () => {
-      this.reconnectAttempts = 0;
-      this.emit('connected', {});
-    };
+      this.ws.onopen = () => {
+        this.reconnectAttempts = 0;
+        this.emit('connected', {});
+      };
 
-    this.ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        this.handleMessage(msg);
-      } catch {
-        // Ignore malformed signaling messages.
-      }
-    };
+      this.ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          this.handleMessage(msg);
+        } catch {
+          // Ignore malformed signaling messages.
+        }
+      };
 
-    this.ws.onclose = () => {
+      this.ws.onclose = () => {
+        this.scheduleReconnect();
+      };
+
+      this.ws.onerror = () => {
+        this.ws?.close();
+      };
+    } catch {
       this.scheduleReconnect();
-    };
-
-    this.ws.onerror = () => {
-      this.ws?.close();
-    };
+    }
   }
 
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
+    const baseDelay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
+    const jitter = Math.random() * 0.3 * baseDelay;
     this.reconnectAttempts++;
-    this.reconnectTimer = setTimeout(() => this.openConnection(), delay);
+    this.reconnectTimer = setTimeout(() => {
+      void this.openConnection();
+    }, baseDelay + jitter);
   }
 
   private handleMessage(msg: { type: string; [key: string]: unknown }) {

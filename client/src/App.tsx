@@ -72,8 +72,8 @@ export default function App() {
     setUser(newUser);
     setNetworkEnabled(true);
     getActiveServer()
-      .then(server => signalingService.connect(server.wsBase, newToken))
-      .catch(() => signalingService.connect("ws://localhost:8080", newToken));
+      .then(server => signalingService.connect(server.wsBase))
+      .catch(() => signalingService.connect("ws://localhost:8080"));
   }, []);
 
   const connectSession = useCallback(async () => {
@@ -87,8 +87,8 @@ export default function App() {
     setSessionNotice(null);
     setNetworkEnabled(true);
     getActiveServer()
-      .then(server => signalingService.connect(server.wsBase, activeToken))
-      .catch(() => signalingService.connect("ws://localhost:8080", activeToken));
+      .then(server => signalingService.connect(server.wsBase))
+      .catch(() => signalingService.connect("ws://localhost:8080"));
   }, [token, user]);
 
   const logout = useCallback((notice?: string) => {

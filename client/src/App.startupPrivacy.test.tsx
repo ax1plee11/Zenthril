@@ -118,7 +118,7 @@ describe("App privacy-first startup", () => {
     });
 
     expect(restoreAccessTokenMock).toHaveBeenCalledTimes(1);
-    expect(connectMock).toHaveBeenCalledWith("ws://localhost:8080", "restored-access");
+    expect(connectMock).toHaveBeenCalledWith("ws://localhost:8080");
     expect(rootEl.textContent).toContain("Main layout");
   });
 

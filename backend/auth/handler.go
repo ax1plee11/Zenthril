@@ -71,11 +71,9 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	h.setTokenCookies(w, pair)
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"user_id":       user.ID.String(),
-		"access_token":  pair.AccessToken,
-		"refresh_token": pair.RefreshToken,
-		"expires_in":    pair.ExpiresIn,
-		"token":         pair.AccessToken,
+		"user_id":    user.ID.String(),
+		"token":      pair.AccessToken,
+		"expires_in": pair.ExpiresIn,
 	})
 }
 
@@ -103,11 +101,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	h.setTokenCookies(w, pair)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"access_token":  pair.AccessToken,
-		"refresh_token": pair.RefreshToken,
-		"expires_in":    pair.ExpiresIn,
-		"token":         pair.AccessToken,
-		"user":          user,
+		"token":      pair.AccessToken,
+		"expires_in": pair.ExpiresIn,
+		"user":       user,
 	})
 }
 
@@ -144,10 +140,8 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	h.setTokenCookies(w, pair)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"access_token":  pair.AccessToken,
-		"refresh_token": pair.RefreshToken,
-		"expires_in":    pair.ExpiresIn,
-		"token":         pair.AccessToken,
+		"token":      pair.AccessToken,
+		"expires_in": pair.ExpiresIn,
 	})
 }
 
@@ -155,6 +149,11 @@ func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok || userID == "" {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	// SECURITY: limit ws-ticket issuance to prevent Redis write amplification and reconnect storms.
+	if err := h.svc.CheckWSTicketRateLimit(r.Context(), userID); err != nil {
+		writeError(w, http.StatusTooManyRequests, "rate_limited", "Too many WebSocket ticket requests")
 		return
 	}
 	ticket, err := h.svc.IssueWSTicket(r.Context(), userID)
@@ -231,7 +230,10 @@ const (
 )
 
 func (h *Handler) setTokenCookies(w http.ResponseWriter, pair *TokenPair) {
-	// SECURITY: cookies are HttpOnly/SameSite and Secure in production; JSON tokens remain for desktop compatibility.
+	// SECURITY: refresh token is delivered ONLY via HttpOnly/SameSite cookie to
+	// prevent JavaScript access. It is intentionally NOT included in the JSON body.
+	// Native/desktop clients that cannot use cookies must obtain a fresh ticket
+	// through a dedicated non-browser auth flow.
 	http.SetCookie(w, h.authCookie(accessCookieName, pair.AccessToken, pair.ExpiresIn))
 	http.SetCookie(w, h.authCookie(refreshCookieName, pair.RefreshToken, int(h.svc.RefreshTokenTTL().Seconds())))
 }

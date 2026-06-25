@@ -8,6 +8,7 @@ import (
 const (
 	gatewayConnectionMessagesPerMinute = 120
 	gatewayUserMessagesPerMinute       = 300
+	userRateLimitWindow                = time.Minute
 )
 
 type rateLimiter struct {

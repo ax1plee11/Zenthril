@@ -2,7 +2,6 @@ package security
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -10,15 +9,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
 
+// Guard provides IP rate limiting, brute-force protection, and security event logging.
+//
+// Previously Guard held a *database/sql.DB alongside the pgxpool.Pool used
+// everywhere else in the service, creating two independent connection pools to
+// the same Postgres instance.
+//
+// VULNERABILITY FIXED: Guard now uses the same *pgxpool.Pool that the rest of
+// the application uses. The database/sql + lib/pq dependency has been removed.
 type Guard struct {
 	redis *redis.Client
-	db    *sql.DB
+	db    *pgxpool.Pool
 }
 
-func NewGuard(rdb *redis.Client, db *sql.DB) *Guard {
+func NewGuard(rdb *redis.Client, db *pgxpool.Pool) *Guard {
 	return &Guard{redis: rdb, db: db}
 }
 
@@ -106,7 +114,7 @@ func (g *Guard) LogSecurityEvent(ctx context.Context, eventType, ip, userID stri
 		ipVal = ip
 	}
 
-	_, err = g.db.ExecContext(ctx,
+	_, err = g.db.Exec(ctx,
 		`INSERT INTO security_log (event_type, ip_address, user_id, details)
 		 VALUES ($1, $2, $3, $4)`,
 		eventType, ipVal, userIDVal, string(detailsJSON),
@@ -118,6 +126,11 @@ func (g *Guard) LogSecurityEvent(ctx context.Context, eventType, ip, userID stri
 }
 
 func extractIP(r *http.Request) string {
+	// NOTE: security/guard.go also reads X-Forwarded-For here for IP logging
+	// purposes. This is intentional — Guard is used for logging and soft-blocking
+	// only; it does not gate access control decisions based on this value. The
+	// per-IP connection limit in the WebSocket gateway (internal/gateway) uses
+	// RemoteAddr exclusively. See internal/gateway/handler.go clientIPFromRequest.
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
 		if ip := strings.TrimSpace(parts[0]); ip != "" {

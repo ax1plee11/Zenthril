@@ -10,13 +10,13 @@ import (
 func TestRegistryDeliversToSubscribedChannel(t *testing.T) {
 	t.Parallel()
 	registry := NewRegistry(RegistryOptions{NodeID: "node-a", MaxConnections: 10})
-	conn := NewConnection("conn-1", "user-1", "device-1", "node-a", 1)
+	conn := NewConnection("conn-1", "user-1", "device-1", "node-a", "", 1)
 	if err := registry.Register(conn); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	defer registry.Unregister(conn.ID)
 
-	if err := registry.Subscribe(conn.ID, "channel-1"); err != nil {
+	if err := registry.Subscribe(context.Background(), conn.ID, "channel-1", conn.UserID); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
@@ -47,7 +47,7 @@ func TestRegistryDrainingRejectsNewConnections(t *testing.T) {
 	t.Parallel()
 	registry := NewRegistry(RegistryOptions{NodeID: "node-a"})
 	registry.StartDraining()
-	if err := registry.Register(NewConnection("conn-1", "user-1", "", "node-a", 1)); err != ErrDraining {
+	if err := registry.Register(NewConnection("conn-1", "user-1", "", "node-a", "", 1)); err != ErrDraining {
 		t.Fatalf("Register error = %v, want ErrDraining", err)
 	}
 }

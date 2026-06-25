@@ -435,7 +435,13 @@ func (s *Service) GetGuildChannels(ctx context.Context, guildID, userID string) 
 	return channels, nil
 }
 
-func (s *Service) GetGuildMembers(ctx context.Context, guildID, requesterID string) ([]map[string]string, error) {
+// GuildMember is the public projection of a guild member returned by the API.
+type GuildMember struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+}
+
+func (s *Service) GetGuildMembers(ctx context.Context, guildID, requesterID string) ([]GuildMember, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid guild id: %w", err)
@@ -462,16 +468,16 @@ func (s *Service) GetGuildMembers(ctx context.Context, guildID, requesterID stri
 	}
 	defer rows.Close()
 
-	var members []map[string]string
+	members := []GuildMember{}
 	for rows.Next() {
-		var id, username string
-		if err := rows.Scan(&id, &username); err != nil {
+		var m GuildMember
+		if err := rows.Scan(&m.ID, &m.Username); err != nil {
 			return nil, fmt.Errorf("scan member: %w", err)
 		}
-		members = append(members, map[string]string{"id": id, "username": username})
+		members = append(members, m)
 	}
-	if members == nil {
-		members = []map[string]string{}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("members rows: %w", err)
 	}
 	return members, nil
 }

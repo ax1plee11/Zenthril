@@ -314,6 +314,25 @@ func (s *Service) RefreshTokenTTL() time.Duration {
 }
 
 const wsTicketTTL = 2 * time.Minute
+const wsTicketRateLimitPerMinute = 30
+
+func (s *Service) CheckWSTicketRateLimit(ctx context.Context, userID string) error {
+	if s.redis == nil || userID == "" {
+		return nil
+	}
+	key := fmt.Sprintf("ws:ticket:rate:%s:%d", userID, time.Now().Unix()/60)
+	count, err := s.redis.Incr(ctx, key).Result()
+	if err != nil {
+		return fmt.Errorf("ws ticket rate limit: %w", err)
+	}
+	if count == 1 {
+		_ = s.redis.Expire(ctx, key, time.Minute+5*time.Second).Err()
+	}
+	if count > wsTicketRateLimitPerMinute {
+		return fmt.Errorf("ws ticket rate limit exceeded")
+	}
+	return nil
+}
 
 func (s *Service) IssueWSTicket(ctx context.Context, userID string) (string, error) {
 	b := make([]byte, 32)
