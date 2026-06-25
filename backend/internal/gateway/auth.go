@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+const maxWebSocketBearerTokenBytes = 4096
 
 type UserClaims struct {
 	UserID    string
@@ -34,19 +37,14 @@ func (a *JWTAuthenticator) AuthenticateWebSocket(ctx context.Context, tokenStrin
 	if tokenString == "" {
 		return UserClaims{}, errors.New("missing websocket token")
 	}
+	tokenString = strings.TrimSpace(tokenString)
+	if len(tokenString) > maxWebSocketBearerTokenBytes {
+		// SECURITY: reject oversized bearer tokens before any Redis/session lookup.
+		// WEAKNESS FIXED: malformed input cannot amplify load on the session backend.
+		return UserClaims{}, errors.New("websocket token is too large")
+	}
 	if a.secret == "" {
 		return UserClaims{}, errors.New("jwt secret is not configured")
-	}
-
-	// SECURITY: reject revoked tokens before cryptographic validation completes the auth path.
-	if a.validator != nil {
-		blacklisted, err := a.validator.IsTokenBlacklisted(ctx, tokenString)
-		if err != nil {
-			return UserClaims{}, fmt.Errorf("check token blacklist: %w", err)
-		}
-		if blacklisted {
-			return UserClaims{}, errors.New("token revoked")
-		}
 	}
 
 	claims := jwtClaims{}
@@ -71,8 +69,18 @@ func (a *JWTAuthenticator) AuthenticateWebSocket(ctx context.Context, tokenStrin
 		return UserClaims{}, errors.New("invalid websocket token")
 	}
 
-	// SECURITY: globally banned accounts must not establish realtime sessions.
+	// SECURITY: session lifecycle checks run only after local JWT validation.
+	// WEAKNESS FIXED: random invalid tokens no longer cause Redis blacklist lookups.
 	if a.validator != nil {
+		blacklisted, err := a.validator.IsTokenBlacklisted(ctx, tokenString)
+		if err != nil {
+			return UserClaims{}, fmt.Errorf("check token blacklist: %w", err)
+		}
+		if blacklisted {
+			return UserClaims{}, errors.New("token revoked")
+		}
+
+		// SECURITY: globally banned accounts must not establish realtime sessions.
 		banned, err := a.validator.IsGloballyBanned(ctx, claims.UserID)
 		if err != nil {
 			return UserClaims{}, fmt.Errorf("check global ban: %w", err)

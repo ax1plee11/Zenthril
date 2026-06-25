@@ -300,7 +300,7 @@ func main() {
 	rdb := redis.NewClient(redisOpts)
 
 	authSvc := auth.NewService(database, rdb, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
-	authHandler := auth.NewHandler(authSvc, cfg.Environment == "production")
+	authHandler := auth.NewHandler(authSvc, cfg.SecureCookies)
 	deviceSvc := device.NewService(database)
 	deviceHandler := device.NewHandler(deviceSvc)
 
@@ -480,6 +480,26 @@ func main() {
 		r.Get("/peers", federationAuth(cfg, federationHandler.Peers))
 		r.Post("/inbox", federationAuth(cfg, federationHandler.Inbox))
 	})
+
+	// Static SPA — serve pre-built frontend if STATIC_DIR is set.
+	// This allows a single ngrok / reverse-proxy URL to serve both the API and
+	// the React app without a separate web server.
+	if cfg.StaticDir != "" {
+		fs := http.FileServer(http.Dir(cfg.StaticDir))
+		// All unmatched paths fall through to index.html for client-side routing.
+		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+			path := cfg.StaticDir + r.URL.Path
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				http.ServeFile(w, r, cfg.StaticDir+"/index.html")
+				return
+			}
+			fs.ServeHTTP(w, r)
+		})
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, cfg.StaticDir+"/index.html")
+		})
+		slog.Info("serving static frontend", "dir", cfg.StaticDir)
+	}
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

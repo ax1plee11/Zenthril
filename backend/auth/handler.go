@@ -244,14 +244,22 @@ func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
 }
 
 func (h *Handler) authCookie(name, value string, maxAge int) *http.Cookie {
+	// SECURITY: when served over HTTPS (ngrok / production), cookies must use
+	// SameSite=None; Secure so the browser sends them cross-origin on the same
+	// HTTPS URL. In plain HTTP dev mode, SameSite=Lax is used instead.
+	sameSite := http.SameSiteLaxMode
+	secure := h.secureCookies
+	if h.secureCookies {
+		sameSite = http.SameSiteNoneMode
+	}
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   h.secureCookies,
-		SameSite: http.SameSiteStrictMode,
+		Secure:   secure,
+		SameSite: sameSite,
 	}
 }
 

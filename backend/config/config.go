@@ -28,6 +28,8 @@ type Config struct {
 	FederationToken    string
 	EventBusDriver     string
 	Environment        string
+	StaticDir          string
+	SecureCookies      bool
 }
 
 func Load() (*Config, error) {
@@ -55,6 +57,8 @@ func Load() (*Config, error) {
 		FederationToken:    getEnv("FEDERATION_TOKEN", ""),
 		EventBusDriver:     strings.ToLower(getEnv("EVENT_BUS_DRIVER", "memory")),
 		Environment:        getEnvWithFallback("ENVIRONMENT", "APP_ENV", "development"),
+		StaticDir:          getEnv("STATIC_DIR", ""),
+		SecureCookies:      getEnvBool("SECURE_COOKIES", false),
 	}
 
 	if cfg.DBURL == "" {

@@ -160,7 +160,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	clientIP := clientIPFromRequest(r)
 	conn := NewConnection(connectionID, claims.UserID, claims.DeviceID, h.nodeID, clientIP, 256)
 	if err := h.registry.Register(conn); err != nil {
-		_ = socket.WriteJSON(ErrorEnvelope("gateway_unavailable", err.Error()))
+		// SECURITY: do not expose internal capacity/draining details to clients.
+		// WEAKNESS FIXED: gateway registration failures are logged internally and
+		// returned as a stable generic error envelope.
+		h.logger.Warn("security gateway registration rejected", "user_id", claims.UserID, "client_ip", clientIP, "error", err)
+		_ = socket.WriteJSON(ErrorEnvelope("gateway_unavailable", "gateway is unavailable"))
 		return
 	}
 	defer h.registry.Unregister(connectionID)
@@ -238,7 +242,11 @@ func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Co
 					h.sendError(conn, "forbidden", "no access to this channel")
 					continue
 				}
-				h.sendError(conn, "subscribe_failed", err.Error())
+				// SECURITY: hide internal ACL/backend errors from clients while retaining
+				// structured logs for operators.
+				// WEAKNESS FIXED: websocket subscribe failures no longer disclose internals.
+				h.logger.Warn("security gateway subscribe failed", "connection_id", conn.ID, "user_id", conn.UserID, "channel_id", command.ChannelID, "error", err)
+				h.sendError(conn, "subscribe_failed", "subscription failed")
 			}
 		case CommandUnsubscribeChannel:
 			if command.ChannelID == "" {
@@ -251,7 +259,9 @@ func (h *Handler) readLoop(ctx context.Context, socket *websocket.Conn, conn *Co
 			}
 			malformedMessages = 0
 			if err := h.registry.Unsubscribe(conn.ID, command.ChannelID); err != nil {
-				h.sendError(conn, "unsubscribe_failed", err.Error())
+				// SECURITY: keep unsubscribe backend details out of client-visible errors.
+				h.logger.Warn("security gateway unsubscribe failed", "connection_id", conn.ID, "user_id", conn.UserID, "channel_id", command.ChannelID, "error", err)
+				h.sendError(conn, "unsubscribe_failed", "unsubscribe failed")
 			}
 		case CommandPing:
 			malformedMessages = 0

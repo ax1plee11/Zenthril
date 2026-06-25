@@ -151,6 +151,7 @@ export async function checkServerHealth(server: ZenthrilServer, timeoutMs = 4000
     const response = await fetch(`${server.apiBase}${server.healthPath}`, {
       method: "GET",
       signal: controller.signal,
+      headers: { "ngrok-skip-browser-warning": "true" },
     });
     return response.ok || response.status === 401;
   } catch {
@@ -220,8 +221,12 @@ function serverBackups(primary: ZenthrilServer): ZenthrilServer[] {
 
 async function fetchServerList(): Promise<Response> {
   const serverListURL = import.meta.env.VITE_SERVER_LIST_URL?.trim();
+  // Always pass the ngrok bypass header so the browser-warning interstitial
+  // does not intercept the JSON response when the list is hosted behind ngrok.
+  const ngrokHeaders = { "ngrok-skip-browser-warning": "true" };
+
   if (serverListURL) {
-    return fetch(serverListURL, { cache: "no-store" });
+    return fetch(serverListURL, { cache: "no-store", headers: ngrokHeaders });
   }
 
   const dohName = import.meta.env.VITE_SERVER_LIST_DOH_NAME?.trim();
@@ -231,7 +236,7 @@ async function fetchServerList(): Promise<Response> {
     for (const address of addresses) {
       try {
         const url = dohTemplate.replace("{address}", address).replace("{name}", dohName);
-        const response = await fetch(url, { cache: "no-store" });
+        const response = await fetch(url, { cache: "no-store", headers: ngrokHeaders });
         if (response.ok) return response;
       } catch {
         // continue to bundled fallback
@@ -239,7 +244,7 @@ async function fetchServerList(): Promise<Response> {
     }
   }
 
-  return fetch("/servers.json", { cache: "no-store" });
+  return fetch("/servers.json", { cache: "no-store", headers: ngrokHeaders });
 }
 
 function normalizeTransport(value: string | undefined): ServerTransport {

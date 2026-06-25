@@ -62,10 +62,12 @@ export function getBackendOrigin(): string {
   if (raw) {
     return trimTrailingSlash(raw);
   }
-  return `${window.location.protocol}//${window.location.hostname}:8080`;
+  // When no explicit API base is configured the frontend and backend are served
+  // from the same origin (e.g. both behind the same ngrok / reverse-proxy URL).
+  return trimTrailingSlash(window.location.origin);
 }
 
-/** WebSocket к тому же API-origin (или к хосту страницы :8080 в dev). */
+/** WebSocket к тому же API-origin (или к тому же origin страницы в dev). */
 export function getWebSocketUrl(path = "/ws"): string {
   const raw = import.meta.env.VITE_API_BASE?.trim();
   if (raw) {
@@ -74,14 +76,15 @@ export function getWebSocketUrl(path = "/ws"): string {
     try {
       u = new URL(base);
     } catch {
-      return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8080${path}`;
+      return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${path}`;
     }
     const wsProto = u.protocol === "https:" ? "wss:" : "ws:";
     const p = path.startsWith("/") ? path : `/${path}`;
     return `${wsProto}//${u.host}${p}`;
   }
+  // Same-origin fallback: use the page's own host (works with ngrok / reverse proxy).
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.hostname}:8080${path}`;
+  return `${proto}//${window.location.host}${path}`;
 }
 
 export async function getActiveWebSocketUrl(path = "/ws"): Promise<string> {
@@ -129,6 +132,8 @@ async function requestFromServer<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // Skip the ngrok browser-warning page when the backend is tunneled via ngrok.
+    "ngrok-skip-browser-warning": "true",
   };
 
   if (auth) {

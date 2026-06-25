@@ -1,17 +1,15 @@
 {
   "version": 1,
-  "updated_at": "2026-05-29",
+  "updated_at": "2026-06-25",
   "servers": [
     {
-      "id": "local",
-      "name": "Local development",
-      "api_base": "http://localhost:8080",
-      "ws_base": "ws://localhost:8080",
-      "health_path": "/health",
+      "id": "ngrok",
+      "name": "Zenthril (ngrok)",
+      "api_base": "https://satirical-fragile-dormitory.ngrok-free.dev",
+      "ws_base": "wss://satirical-fragile-dormitory.ngrok-free.dev",
+      "health_path": "/livez",
       "transport": "direct",
-      "backup_endpoints": [
-        "http://127.0.0.1:8080"
-      ]
+      "backup_endpoints": []
     }
   ]
 }
