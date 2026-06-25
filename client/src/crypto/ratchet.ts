@@ -1,8 +1,8 @@
 import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 
-const RATCHET_SALT = new TextEncoder().encode("zenthril.double-ratchet.v1");
-const RATCHET_INFO = new TextEncoder().encode("chain+message");
+const RATCHET_SALT = new TextEncoder().encode("zenthril-ratchet-v1");
+const RATCHET_INFO = new TextEncoder().encode("chain");
 const KEY_BYTES = 32;
 
 export interface RatchetStep {
