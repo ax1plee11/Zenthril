@@ -5,22 +5,26 @@ provenance rules for Zenthril.
 
 ## Lawful Use Only
 
-Zenthril is provided for lawful software development, education, research,
-self-hosted testing, and community experimentation.
+Zenthril is a private proprietary project. Authorized users may use it only for
+lawful software development, education, research, self-hosted testing, and
+community experimentation within the scope of permission granted by the
+copyright holder.
 
 You may not use this project for illegal activity, fraud, spam, harassment,
 credential theft, malware distribution, unauthorized surveillance, abuse of
 platform moderation systems, or any other harmful purpose.
 
 The maintainer does not endorse, authorize, or accept responsibility for
-unlawful or harmful third-party use of forks, modified builds, deployments, or
-copies of this project.
+unlawful or harmful third-party use of unauthorized forks, modified builds,
+deployments, or copies of this project.
 
 ## Attribution
 
-If you use substantial parts of Zenthril in a fork, derivative repository,
-coursework, diploma work, thesis, article, presentation, product, benchmark, or
-research project, you must clearly cite the original repository and author.
+Substantial copying, forks, derivative repositories, coursework reuse, diploma
+work reuse, thesis reuse, articles, presentations, products, benchmarks, or
+research publications require prior written permission from the copyright
+holder. When permission is granted, you must clearly cite the original
+repository and author.
 
 Suggested attribution:
 
@@ -35,8 +39,9 @@ screen, or publication references, depending on how the project is reused.
 ## Academic and Student Use
 
 Students and researchers may study the code, architecture, documentation, and
-research materials. Copying substantial parts into coursework, diploma projects,
-theses, or publications without attribution is not acceptable.
+research materials only when they have been granted access. Copying substantial
+parts into coursework, diploma projects, theses, or publications requires prior
+written permission and clear attribution.
 
 When in doubt, cite the original repository and clearly explain which parts are
 your own work and which parts are based on Zenthril.
@@ -44,8 +49,8 @@ your own work and which parts are based on Zenthril.
 ## No Misrepresentation
 
 Do not claim authorship of the original Zenthril codebase, documentation,
-architecture, or research materials. Forks and derivative works should be
-clearly labeled as such.
+architecture, or research materials. Authorized forks and derivative works must
+be clearly labeled as such.
 
 Examples of acceptable labels:
 
@@ -56,7 +61,7 @@ Examples of acceptable labels:
 ## Private Materials
 
 Files that are local-only, ignored by Git, unpublished, or explicitly marked as
-private are not part of the public open-source project. This includes local
+private are not part of any authorized distribution. This includes local
 architecture reports, administrator notes, secrets, private keys, credentials,
 environment files, and local exports.
 

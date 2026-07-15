@@ -1,44 +1,54 @@
-MIT License with Commons Clause
+Zenthril Proprietary License
+============================
 
-Copyright (c) 2026 ax1plee11 — Zenthril Project
-Original repository: https://github.com/ax1plee11/Zenthril
+Copyright (c) 2026 ax1plee11. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Zenthril, including its source code, architecture, documentation, research
+materials, frontend/client code, backend services, deployment files, and
+related assets, is private proprietary software unless a specific file states
+otherwise in writing.
 
-1. The above copyright notice and this permission notice shall be included in
-   all copies or substantial portions of the Software.
+No permission is granted to copy, publish, distribute, sublicense, sell, host,
+rebrand, fork publicly, or create derivative works from this project without
+prior written permission from the copyright holder.
 
-2. ATTRIBUTION REQUIREMENT: Any distribution, fork, or derivative work must
-   clearly state that it is based on "Zenthril" by ax1plee11
-   (https://github.com/ax1plee11/Zenthril). This attribution must appear in:
-   - The README or main documentation
-   - The application's About screen or credits (if applicable)
-   - Any marketing materials describing the software
+Limited Permission for Authorized Review
+----------------------------------------
 
-3. NAMING RESTRICTION (Commons Clause): Without the prior written permission
-   of the copyright holder, you may not distribute or sell the Software, or
-   any derivative work, under a name that does not clearly indicate its
-   origin from the Zenthril project. You may not present the Software as
-   your own original creation without attribution.
+If you have been explicitly granted access by the copyright holder, you may
+read, run, and test the project only for the purpose and time period authorized
+by that access. This limited permission does not allow redistribution,
+commercial use, public publication, or removal of attribution.
 
-4. NO MISREPRESENTATION: You may not claim authorship of the original
-   Zenthril codebase. Forks and derivatives must be clearly labeled as
-   such (e.g., "Based on Zenthril", "Fork of Zenthril").
+Attribution and Misrepresentation
+---------------------------------
+
+You may not claim authorship of the original Zenthril codebase, architecture,
+documentation, or research materials. Any authorized derivative, publication,
+demo, academic use, or substantial excerpt must clearly identify the original
+project and author:
+
+  Zenthril by ax1plee11
+  https://github.com/ax1plee11/Zenthril
+
+Acceptable Use
+--------------
+
+The software may not be used for illegal activity, fraud, spam, harassment,
+credential theft, malware distribution, unauthorized surveillance, abuse of
+platform moderation systems, or any other harmful purpose.
+
+No Warranty
+-----------
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, SECURITY, AVAILABILITY, AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY ARISING FROM OR RELATED TO THE SOFTWARE OR ITS USE.
 
----
+Permission Requests
+-------------------
 
-For commercial licensing or permission to use without attribution requirements,
-contact: ax1plee@gmail.com
+For licensing, commercial use, academic publication, or redistribution
+permission, contact: ax1plee@gmail.com

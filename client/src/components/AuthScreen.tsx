@@ -110,7 +110,7 @@ export default function AuthScreen({ onAuth, sessionNotice }: AuthScreenProps) {
             </svg>
           </div>
           <div style={s.logoName}>Zenthril</div>
-          <div style={s.logoSub}>Decentralized · Encrypted · Free</div>
+          <div style={s.logoSub}>Private · Encrypted · Self-hosted</div>
         </div>
 
         {/* Tabs */}
@@ -218,7 +218,7 @@ export default function AuthScreen({ onAuth, sessionNotice }: AuthScreenProps) {
         </form>
 
         <div style={s.footer}>
-          End-to-end encrypted · Open source · No tracking
+          End-to-end encrypted · Private project · No tracking
         </div>
       </div>
       {showServers && <ServerSettings onClose={() => setShowServers(false)} />}

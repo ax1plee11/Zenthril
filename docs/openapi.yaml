@@ -3,9 +3,6 @@ info:
   title: Zenthril API
   version: 0.1.0-alpha
   description: Federated E2EE messenger API
-  license:
-    name: MIT
-    url: https://opensource.org/license/mit/
 servers:
   - url: http://localhost:8080
 security: []

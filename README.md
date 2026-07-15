@@ -1,6 +1,14 @@
 # Zenthril
 
-**Zenthril** is an open-source, self-hosted messaging platform focused on realtime communication, privacy, and practical security engineering.
+**Zenthril** is a private, source-available self-hosted messaging platform focused on realtime communication, privacy, and practical security engineering.
+
+> **Project Access: Private / Not Publicly Licensed**
+>
+> Zenthril is no longer positioned as a publicly licensed project. The source code,
+> architecture, documentation, and research materials are provided only for
+> authorized review and development. Copying, redistribution, public forks,
+> commercial use, or derivative publication require explicit written permission
+> from the copyright holder.
 
 > **Security Status: Alpha**
 >
@@ -238,9 +246,11 @@ This section is project guidance and attribution policy. The legal license terms
 For the full attribution and acceptable-use policy, see [`NOTICE`](NOTICE) and
 [`docs/USAGE_POLICY.md`](docs/USAGE_POLICY.md).
 
-## Contributing
+## Private Development
 
-Contributions are welcome, especially in areas where the project is currently raw and incomplete:
+Development is currently private. External contributions are accepted only by
+explicit maintainer invitation, especially in areas where the project is
+currently raw and incomplete:
 
 - Security review
 - Cryptographic protocol review
@@ -250,9 +260,11 @@ Contributions are welcome, especially in areas where the project is currently ra
 - Benchmark design and reproducible research
 - Documentation and translation improvements
 
-Please open an Issue before making large architectural or security-sensitive changes.
+Do not submit large architectural or security-sensitive changes without prior
+written approval from the maintainer.
 
 ## License
 
-See [`LICENSE`](LICENSE) for legal terms and [`NOTICE`](NOTICE) for attribution
-and project provenance.
+Zenthril is **not publicly licensed**. See [`LICENSE`](LICENSE) for private /
+proprietary legal terms and [`NOTICE`](NOTICE) for attribution and project
+provenance.

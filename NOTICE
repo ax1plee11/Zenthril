@@ -32,8 +32,9 @@ environment files, credentials, keys, and local exports are not part of the
 public project unless they are explicitly committed to the repository by the
 maintainer.
 
-License
--------
+Project access
+--------------
 
-The legal license terms are defined in the LICENSE file. This NOTICE file is
-intended to preserve attribution and project provenance.
+Zenthril is a private proprietary project unless a specific file states
+otherwise in writing. The legal terms are defined in the LICENSE file. This
+NOTICE file is intended to preserve attribution and project provenance.

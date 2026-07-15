@@ -31,7 +31,7 @@ Include:
 - A suggested fix, if you have one.
 
 The maintainer aims to respond within 48 hours, but this is an independent
-open-source project and response times are best effort.
+private project and response times are best effort.
 
 ## Current Security Status
 
