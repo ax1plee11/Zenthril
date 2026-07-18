@@ -1,6 +1,6 @@
 # Zenthril
 
-**[English](README.md)** | **[Русский](README.ru.md)** | **[Українська](README.uk.md)**
+**[Русский](README.ru.md)** | **[English](README.md)** | **[Українська](README.uk.md)**
 
 **Zenthril** — open-source self-hosted платформа обміну повідомленнями, сфокусована на безпеці, продуктивності та дослідженні realtime communication systems.
 

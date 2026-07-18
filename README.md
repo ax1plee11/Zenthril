@@ -1,5 +1,7 @@
 # Zenthril
 
+**[Русский](README.ru.md)** | **[English](README.md)** | **[Українська](README.uk.md)**
+
 **Zenthril** is a private, source-available self-hosted messaging platform focused on realtime communication, privacy, and practical security engineering.
 
 > **Project Access: Public Visibility / Not Publicly Licensed**
@@ -84,7 +86,7 @@ committed together with the code or configuration they describe.
 - PostgreSQL and Redis backed backend services
 - Tauri desktop client with React and TypeScript
 - Privacy-first startup mode: saved sessions do not contact the server until explicit Connect by default
-- Multilingual UI foundation: English, Russian, and Ukrainian
+- Multilingual UI foundation: Russian, English, and Ukrainian
 - Benchmark and research materials under [`research/`](research/)
 
 ### In Progress

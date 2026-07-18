@@ -1,6 +1,6 @@
 # Фундамент E2EE Zenthril
 
-Мови: [English](E2EE_FOUNDATION.md) | [Русский](E2EE_FOUNDATION.ru.md) | [Українська](E2EE_FOUNDATION.uk.md)
+Мови: [Русский](E2EE_FOUNDATION.ru.md) | [English](E2EE_FOUNDATION.md) | [Українська](E2EE_FOUNDATION.uk.md)
 
 Цей документ фіксує production-шлях до E2EE у стилі Signal. Поточна реалізація
 є фундаментом для device keys і X3DH key bundles. Це ще не повний і не
