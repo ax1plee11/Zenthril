@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -59,6 +60,86 @@ func TestNextMessageKeyAdvancesCountersAndChains(t *testing.T) {
 	}
 }
 
+func TestNextRecvMessageKeyForHandlesOutOfOrderDeliveryAndReplay(t *testing.T) {
+	shared := bytes.Repeat([]byte{0x34}, 32)
+	info := []byte("out-of-order-session")
+	sender, err := DeriveInitialRatchetState(shared, info, true)
+	if err != nil {
+		t.Fatalf("sender state: %v", err)
+	}
+	receiver, err := DeriveInitialRatchetState(shared, info, false)
+	if err != nil {
+		t.Fatalf("receiver state: %v", err)
+	}
+
+	sent := make([]MessageKey, 3)
+	for i := range sent {
+		sent[i], err = NextSendMessageKey(&sender)
+		if err != nil {
+			t.Fatalf("send key %d: %v", i, err)
+		}
+	}
+
+	latest, err := NextRecvMessageKeyFor(&receiver, 2)
+	if err != nil {
+		t.Fatalf("receive latest key: %v", err)
+	}
+	if !bytes.Equal(latest.Key, sent[2].Key) || !bytes.Equal(latest.Nonce, sent[2].Nonce) {
+		t.Fatal("out-of-order target key does not match sender key")
+	}
+	if receiver.RecvCounter != 3 || len(receiver.SkippedMessageKeys) != 2 {
+		t.Fatalf("receiver state after gap = counter %d, skipped %d", receiver.RecvCounter, len(receiver.SkippedMessageKeys))
+	}
+
+	for _, counter := range []uint32{0, 1} {
+		message, err := NextRecvMessageKeyFor(&receiver, counter)
+		if err != nil {
+			t.Fatalf("consume skipped key %d: %v", counter, err)
+		}
+		if !bytes.Equal(message.Key, sent[counter].Key) || !bytes.Equal(message.Nonce, sent[counter].Nonce) {
+			t.Fatalf("skipped key %d does not match sender key", counter)
+		}
+	}
+	if len(receiver.SkippedMessageKeys) != 0 {
+		t.Fatalf("skipped keys remaining = %d, want 0", len(receiver.SkippedMessageKeys))
+	}
+
+	if _, err := NextRecvMessageKeyFor(&receiver, 0); !errors.Is(err, ErrMessageKeyUnavailable) {
+		t.Fatalf("replayed counter error = %v, want %v", err, ErrMessageKeyUnavailable)
+	}
+}
+
+func TestNextRecvMessageKeyForRejectsExcessiveGapWithoutMutation(t *testing.T) {
+	state, err := DeriveInitialRatchetState(bytes.Repeat([]byte{0x22}, 32), []byte("gap-limit"), false)
+	if err != nil {
+		t.Fatalf("derive: %v", err)
+	}
+	originalChain := cloneBytes(state.RecvChainKey)
+
+	_, err = NextRecvMessageKeyFor(&state, uint32(maxSkippedMessageKeys+1))
+	if !errors.Is(err, ErrSkippedMessageLimit) {
+		t.Fatalf("gap error = %v, want %v", err, ErrSkippedMessageLimit)
+	}
+	if state.RecvCounter != 0 || !bytes.Equal(state.RecvChainKey, originalChain) || len(state.SkippedMessageKeys) != 0 {
+		t.Fatal("excessive skipped-message request must not mutate ratchet state")
+	}
+}
+
+func TestRatchetRejectsCounterExhaustion(t *testing.T) {
+	state, err := DeriveInitialRatchetState(bytes.Repeat([]byte{0x66}, 32), []byte("counter-limit"), true)
+	if err != nil {
+		t.Fatalf("derive: %v", err)
+	}
+	state.SendCounter = maxRatchetMessageCounter
+	if _, err := NextSendMessageKey(&state); !errors.Is(err, ErrRatchetCounterExhausted) {
+		t.Fatalf("send counter error = %v, want %v", err, ErrRatchetCounterExhausted)
+	}
+	state.RecvCounter = maxRatchetMessageCounter
+	if _, err := NextRecvMessageKey(&state); !errors.Is(err, ErrRatchetCounterExhausted) {
+		t.Fatalf("receive counter error = %v, want %v", err, ErrRatchetCounterExhausted)
+	}
+}
+
 func TestRootRatchetDerivesNewRootAndChain(t *testing.T) {
 	root := bytes.Repeat([]byte{0x21}, 32)
 	dh := bytes.Repeat([]byte{0x33}, 32)
@@ -98,5 +179,12 @@ func TestSessionStateCopiesRatchetMaterial(t *testing.T) {
 
 	if bytes.Equal(session.RootKey, state.RootKey) {
 		t.Fatal("session must copy ratchet key material")
+	}
+
+	state.SkippedMessageKeys[7] = MessageKey{Key: bytes.Repeat([]byte{0x01}, 32), Nonce: bytes.Repeat([]byte{0x02}, 12), Counter: 7}
+	session.ApplyRatchetState(state)
+	state.SkippedMessageKeys[7].Key[0] ^= 0xff
+	if bytes.Equal(session.SkippedMessageKeys[7].Key, state.SkippedMessageKeys[7].Key) {
+		t.Fatal("session must copy skipped message key material")
 	}
 }

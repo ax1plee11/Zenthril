@@ -10,11 +10,16 @@ import (
 )
 
 const (
-	ratchetKeySize = 32
+	ratchetKeySize           = 32
+	maxSkippedMessageKeys    = 2000
+	maxRatchetMessageCounter = ^uint32(0)
 )
 
 var (
-	ErrInvalidRatchetState = errors.New("invalid_ratchet_state")
+	ErrInvalidRatchetState     = errors.New("invalid_ratchet_state")
+	ErrSkippedMessageLimit     = errors.New("skipped_message_limit_exceeded")
+	ErrMessageKeyUnavailable   = errors.New("message_key_unavailable")
+	ErrRatchetCounterExhausted = errors.New("ratchet_counter_exhausted")
 )
 
 type MessageKey struct {
@@ -29,6 +34,9 @@ type RatchetState struct {
 	RecvChainKey []byte
 	SendCounter  uint32
 	RecvCounter  uint32
+	// SECURITY: skipped message keys are retained only for bounded, out-of-order
+	// delivery. Each entry is deleted and zeroed immediately when consumed.
+	SkippedMessageKeys map[uint32]MessageKey
 }
 
 type RootRatchetOutput struct {
@@ -41,9 +49,10 @@ func NewRatchetState(rootKey, sendChainKey, recvChainKey []byte) (RatchetState, 
 		return RatchetState{}, fmt.Errorf("%w: root/send/recv keys must be 32 bytes", ErrInvalidRatchetState)
 	}
 	return RatchetState{
-		RootKey:      cloneBytes(rootKey),
-		SendChainKey: cloneBytes(sendChainKey),
-		RecvChainKey: cloneBytes(recvChainKey),
+		RootKey:            cloneBytes(rootKey),
+		SendChainKey:       cloneBytes(sendChainKey),
+		RecvChainKey:       cloneBytes(recvChainKey),
+		SkippedMessageKeys: make(map[uint32]MessageKey),
 	}, nil
 }
 
@@ -85,6 +94,9 @@ func NextSendMessageKey(state *RatchetState) (MessageKey, error) {
 	if state == nil || len(state.SendChainKey) != ratchetKeySize {
 		return MessageKey{}, fmt.Errorf("%w: send chain key is required", ErrInvalidRatchetState)
 	}
+	if state.SendCounter == maxRatchetMessageCounter {
+		return MessageKey{}, ErrRatchetCounterExhausted
+	}
 	msg, next, err := deriveMessageAndNextChain(state.SendChainKey, state.SendCounter)
 	if err != nil {
 		return MessageKey{}, err
@@ -95,8 +107,50 @@ func NextSendMessageKey(state *RatchetState) (MessageKey, error) {
 }
 
 func NextRecvMessageKey(state *RatchetState) (MessageKey, error) {
+	if state == nil {
+		return MessageKey{}, fmt.Errorf("%w: receive chain key is required", ErrInvalidRatchetState)
+	}
+	return NextRecvMessageKeyFor(state, state.RecvCounter)
+}
+
+// NextRecvMessageKeyFor derives a receive key for a message counter while
+// safely supporting bounded out-of-order delivery.
+//
+// SECURITY: a retained skipped key is consumed exactly once. Requests below
+// RecvCounter therefore fail after the matching key has been used, preventing
+// replayed ciphertext from being accepted through the ratchet layer.
+func NextRecvMessageKeyFor(state *RatchetState, counter uint32) (MessageKey, error) {
 	if state == nil || len(state.RecvChainKey) != ratchetKeySize {
 		return MessageKey{}, fmt.Errorf("%w: receive chain key is required", ErrInvalidRatchetState)
+	}
+	if state.SkippedMessageKeys == nil {
+		state.SkippedMessageKeys = make(map[uint32]MessageKey)
+	}
+
+	if counter < state.RecvCounter {
+		return consumeSkippedMessageKey(state, counter)
+	}
+
+	gap := uint64(counter) - uint64(state.RecvCounter)
+	if gap > maxSkippedMessageKeys || len(state.SkippedMessageKeys)+int(gap) > maxSkippedMessageKeys {
+		return MessageKey{}, ErrSkippedMessageLimit
+	}
+
+	for state.RecvCounter < counter {
+		skipped, err := deriveNextReceiveMessageKey(state)
+		if err != nil {
+			return MessageKey{}, err
+		}
+		state.SkippedMessageKeys[skipped.Counter] = cloneMessageKey(skipped)
+		zeroMessageKey(&skipped)
+	}
+
+	return deriveNextReceiveMessageKey(state)
+}
+
+func deriveNextReceiveMessageKey(state *RatchetState) (MessageKey, error) {
+	if state.RecvCounter == maxRatchetMessageCounter {
+		return MessageKey{}, ErrRatchetCounterExhausted
 	}
 	msg, next, err := deriveMessageAndNextChain(state.RecvChainKey, state.RecvCounter)
 	if err != nil {
@@ -108,7 +162,14 @@ func NextRecvMessageKey(state *RatchetState) (MessageKey, error) {
 }
 
 func (s *SessionState) RatchetState() (RatchetState, error) {
-	return NewRatchetState(s.RootKey, s.SendChainKey, s.RecvChainKey)
+	state, err := NewRatchetState(s.RootKey, s.SendChainKey, s.RecvChainKey)
+	if err != nil {
+		return RatchetState{}, err
+	}
+	state.SendCounter = s.SendCounter
+	state.RecvCounter = s.RecvCounter
+	state.SkippedMessageKeys = cloneSkippedMessageKeys(s.SkippedMessageKeys)
+	return state, nil
 }
 
 func (s *SessionState) ApplyRatchetState(state RatchetState) {
@@ -118,6 +179,7 @@ func (s *SessionState) ApplyRatchetState(state RatchetState) {
 	s.RecvChainKey = cloneBytes(state.RecvChainKey)
 	s.SendCounter = state.SendCounter
 	s.RecvCounter = state.RecvCounter
+	s.SkippedMessageKeys = cloneSkippedMessageKeys(state.SkippedMessageKeys)
 }
 
 func deriveMessageAndNextChain(chainKey []byte, counter uint32) (MessageKey, []byte, error) {
@@ -125,11 +187,60 @@ func deriveMessageAndNextChain(chainKey []byte, counter uint32) (MessageKey, []b
 	if err != nil {
 		return MessageKey{}, nil, err
 	}
-	return MessageKey{
-		Key:     material[:ratchetKeySize],
-		Nonce:   material[ratchetKeySize : ratchetKeySize+12],
+	message := MessageKey{
+		Key:     cloneBytes(material[:ratchetKeySize]),
+		Nonce:   cloneBytes(material[ratchetKeySize : ratchetKeySize+12]),
 		Counter: counter,
-	}, material[ratchetKeySize+12:], nil
+	}
+	nextChainKey := cloneBytes(material[ratchetKeySize+12:])
+	zeroBytes(material)
+	return message, nextChainKey, nil
+}
+
+func consumeSkippedMessageKey(state *RatchetState, counter uint32) (MessageKey, error) {
+	stored, ok := state.SkippedMessageKeys[counter]
+	if !ok {
+		return MessageKey{}, ErrMessageKeyUnavailable
+	}
+	delete(state.SkippedMessageKeys, counter)
+	message := cloneMessageKey(stored)
+	zeroMessageKey(&stored)
+	return message, nil
+}
+
+func cloneSkippedMessageKeys(in map[uint32]MessageKey) map[uint32]MessageKey {
+	if len(in) == 0 {
+		return make(map[uint32]MessageKey)
+	}
+	out := make(map[uint32]MessageKey, len(in))
+	for counter, message := range in {
+		out[counter] = cloneMessageKey(message)
+	}
+	return out
+}
+
+func cloneMessageKey(in MessageKey) MessageKey {
+	return MessageKey{
+		Key:     cloneBytes(in.Key),
+		Nonce:   cloneBytes(in.Nonce),
+		Counter: in.Counter,
+	}
+}
+
+func zeroMessageKey(key *MessageKey) {
+	if key == nil {
+		return
+	}
+	zeroBytes(key.Key)
+	zeroBytes(key.Nonce)
+	key.Key = nil
+	key.Nonce = nil
+}
+
+func zeroBytes(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
 }
 
 func hkdfBytes(secret, salt, info []byte, size int) ([]byte, error) {

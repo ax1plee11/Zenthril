@@ -28,16 +28,17 @@ type LocalDeviceKeys struct {
 }
 
 type SessionState struct {
-	UserID              string
-	PeerUserID          string
-	DeviceID            string
-	PeerDeviceID        string
-	EphemeralPublicKey  []byte
-	RootKey             []byte
-	SendChainKey        []byte
-	RecvChainKey        []byte
-	SendCounter         uint32
-	RecvCounter         uint32
+	UserID             string
+	PeerUserID         string
+	DeviceID           string
+	PeerDeviceID       string
+	EphemeralPublicKey []byte
+	RootKey            []byte
+	SendChainKey       []byte
+	RecvChainKey       []byte
+	SendCounter        uint32
+	RecvCounter        uint32
+	SkippedMessageKeys map[uint32]MessageKey
 }
 
 type KeyStore interface {

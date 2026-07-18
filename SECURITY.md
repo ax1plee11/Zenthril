@@ -76,7 +76,10 @@ Current alpha crypto work includes:
 Known limitations:
 
 - Full X3DH session setup is not integrated into all real message flows.
-- Full Double Ratchet, skipped-message-key handling, and session healing are not complete.
+- The internal crypto package has a bounded, one-time skipped-message-key
+  primitive for out-of-order delivery. It is not yet integrated into the real
+  client message flow or complete Double Ratchet session lifecycle.
+- Full Double Ratchet and session healing are not complete.
 - Multi-device recovery and key backup are not production-ready.
 - Protocol-v1 messages remain supported for alpha compatibility, but the client
   `encrypt()` API now requires protocol-v2 AAD context for new message sends.

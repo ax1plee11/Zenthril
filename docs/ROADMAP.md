@@ -30,7 +30,9 @@ Status: in progress.
 - Add X3DH-style pre-key bundles and one-time pre-key consumption.
 - Add safety number verification in the client UX.
 - Improve multi-device session handling.
-- Add session healing after skipped messages and device changes.
+- Integrate the existing bounded skipped-message-key primitive into client
+  receive flows, then add session healing after skipped messages and device
+  changes.
 - Add property-based tests and test vectors for ratchet behavior.
 
 Exit criteria:
