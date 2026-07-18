@@ -2,13 +2,13 @@
 
 **Zenthril** is a private, source-available self-hosted messaging platform focused on realtime communication, privacy, and practical security engineering.
 
-> **Project Access: Private / Not Publicly Licensed**
+> **Project Access: Public Visibility / Not Publicly Licensed**
 >
-> Zenthril is no longer positioned as a publicly licensed project. The source code,
-> architecture, documentation, and research materials are provided only for
-> authorized review and development. Copying, redistribution, public forks,
-> commercial use, or derivative publication require explicit written permission
-> from the copyright holder.
+> This repository may be public for transparency, portfolio, and authorship
+> provenance purposes. Public visibility does **not** mean open-source licensing.
+> The source code, architecture, documentation, and research materials may not
+> be copied, redistributed, publicly forked, commercially used, or published as
+> derivative work without explicit written permission from the copyright holder.
 
 > **Security Status: Alpha**
 >
@@ -228,11 +228,17 @@ npm test
 
 ## Usage Policy & Restrictions
 
-Zenthril is provided for lawful software development, education, experimentation, and research.
+Zenthril is visible for transparency, portfolio, authorship provenance, lawful
+software development, education, experimentation, and research. It is not
+open-source licensed.
 
 You may **not** use this project for illegal activity, fraud, spam, harassment, credential theft, malware distribution, unauthorized surveillance, abuse of platform moderation systems, or any other harmful purpose. The maintainer does not endorse or authorize such use.
 
-Students and researchers are welcome to study the code, run experiments, and learn from the architecture. However, if you copy substantial parts of this project into coursework, diploma work, theses, articles, presentations, or derivative repositories, you must clearly cite the original repository and author.
+Students and researchers may study the public repository for learning and
+review. Copying substantial parts of this project into coursework, diploma
+work, theses, articles, presentations, products, or derivative repositories
+requires prior written permission and clear attribution to the original
+repository and author.
 
 Suggested attribution:
 

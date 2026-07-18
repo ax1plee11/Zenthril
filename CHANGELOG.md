@@ -23,5 +23,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - CI go vet, critical npm audit gate, govulncheck workflow, CodeQL workflow, and Dependabot config
 - CI Go toolchain pinned to a patched version for standard-library vulnerability scanning
 
+### Changed
+- Repository positioning clarified as public-visible/source-available for transparency, portfolio, and authorship provenance, but not open-source licensed.
+- Legal terms updated to proprietary / all-rights-reserved usage with explicit permission required for copying, redistribution, public forks, commercial use, and derivative publication.
+
 ### Known Issues
 - `npm audit` still reports the Vite/esbuild development-server advisory at moderate severity; fixing it requires a Vite major-version migration and is tracked as a follow-up batch.

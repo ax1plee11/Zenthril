@@ -6,20 +6,19 @@ import en from './locales/en.json';
 import ru from './locales/ru.json';
 import uk from './locales/uk.json';
 
-// Функция для определения языка по IP (можно интегрировать с API геолокации)
 const detectLanguageByLocation = async (): Promise<string | null> => {
   try {
-    // Можно использовать API типа ipapi.co или ip-api.com
-    // Пример: const response = await fetch('https://ipapi.co/json/');
+    // Future hook for optional location-based language selection.
+    // Example: const response = await fetch('https://ipapi.co/json/');
     // const data = await response.json();
     // const countryToLanguage: Record<string, string> = {
     //   'RU': 'ru', 'BY': 'ru', 'KZ': 'ru',
     //   'UA': 'uk',
     //   'US': 'en', 'GB': 'en', 'CA': 'en', 'AU': 'en',
     // };
-    // return countryToLanguage[data.country_code] || 'en';
-    
-    // Пока используем язык браузера
+    // return countryToLanguage[data.country_code] || 'ru';
+
+    // Keep automatic location detection disabled until its privacy model is reviewed.
     return null;
   } catch (error) {
     console.error('Failed to detect language by location:', error);
@@ -27,32 +26,31 @@ const detectLanguageByLocation = async (): Promise<string | null> => {
   }
 };
 
-// Инициализация i18n
 i18n
-  .use(LanguageDetector) // Автоматическое определение языка
-  .use(initReactI18next) // Интеграция с React
+  .use(LanguageDetector)
+  .use(initReactI18next)
   .init({
     resources: {
-      en: { translation: en },
       ru: { translation: ru },
+      en: { translation: en },
       uk: { translation: uk },
     },
-    fallbackLng: 'en', // Язык по умолчанию
-    supportedLngs: ['en', 'ru', 'uk'],
-    
-    // Настройки определения языка
+    fallbackLng: 'ru',
+    supportedLngs: ['ru', 'en', 'uk'],
+
     detection: {
+      // Preserve an explicit user choice before consulting browser preferences.
       order: [
-        'localStorage',      // Сначала проверяем сохранённый выбор
-        'navigator',         // Затем язык браузера
-        'htmlTag',          // Затем HTML lang атрибут
+        'localStorage',
+        'navigator',
+        'htmlTag',
       ],
-      caches: ['localStorage'], // Сохраняем выбор в localStorage
+      caches: ['localStorage'],
       lookupLocalStorage: 'i18nextLng',
     },
 
     interpolation: {
-      escapeValue: false, // React уже защищает от XSS
+      escapeValue: false,
     },
 
     react: {
@@ -60,7 +58,7 @@ i18n
     },
   });
 
-// Попытка определить язык по геолокации при первом запуске
+// Use Russian when the user has no saved language preference.
 if (!localStorage.getItem('i18nextLng')) {
   detectLanguageByLocation().then((lang) => {
     if (lang) {
@@ -71,11 +69,10 @@ if (!localStorage.getItem('i18nextLng')) {
 
 export default i18n;
 
-// Экспорт типов для TypeScript
-export type Language = 'en' | 'ru' | 'uk';
+export type Language = 'ru' | 'en' | 'uk';
 
 export const languages: { code: Language; name: string; flag: string }[] = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-  { code: 'uk', name: 'Українська', flag: '🇺🇦' },
+  { code: 'ru', name: '\u0420\u0443\u0441\u0441\u043a\u0438\u0439', flag: 'RU' },
+  { code: 'en', name: 'English', flag: 'EN' },
+  { code: 'uk', name: '\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430', flag: 'UK' },
 ];
