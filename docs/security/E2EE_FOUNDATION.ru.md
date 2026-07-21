@@ -11,7 +11,7 @@
 Реализованные backend-примитивы:
 
 - реестр устройств для каждого пользователя;
-- публичный identity key устройства;
+- отдельные Ed25519 identity signing key и X25519 identity-DH public key;
 - signed prekey и подпись signed prekey;
 - загрузка и расходование one-time prekeys;
 - fingerprint устройства для будущего UX проверки безопасности;
@@ -20,7 +20,8 @@
 Реализованные client-примитивы:
 
 - локальная генерация device key bundle;
-- Ed25519 identity signing key для проверки signed prekey;
+- Ed25519 identity signing key для проверки signed prekey и отдельный X25519
+  identity-DH key для X3DH;
 - X25519 signed prekey и one-time prekeys;
 - best-effort регистрация устройства после login/register;
 - UI управления активными устройствами и отзывом старых устройств;
@@ -54,7 +55,7 @@ Authenticated routes:
 
 1. Перевести Tauri-хранилище device keys на OS keychain или Stronghold.
 2. Добавить отображение safety number и ручную verification UX.
-3. Реализовать X3DH shared secret derivation с test vectors.
+3. Подключить проверенный X3DH bootstrap к message flow клиента и добавить X25519 test vectors.
 4. Добавить Double Ratchet session state для direct messages.
 5. Добавить академическую threat model и раздел с ограничениями протокола.
 

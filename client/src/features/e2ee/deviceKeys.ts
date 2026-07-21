@@ -24,6 +24,9 @@ export function createDeviceKeyBundle(
   }
 
   const identitySigningKey = ed25519.keygen();
+  // WEAKNESS FIXED: Ed25519 identity keys cannot be used as X25519 DH keys.
+  // A device therefore owns separate long-term signing and DH identities.
+  const identityDHKey = x25519.keygen();
   const signedPreKey = x25519.keygen();
   const signature = ed25519.sign(
     signedPreKeyMessage(signedPreKey.publicKey),
@@ -31,11 +34,12 @@ export function createDeviceKeyBundle(
   );
 
   return {
-    version: 1,
+    version: 2,
     userId,
     deviceId: randomDeviceID(),
     deviceName,
     identitySigningKey: serializeKeyPair(identitySigningKey),
+    identityDHKey: serializeKeyPair(identityDHKey),
     signedPreKeyId: SIGNED_PREKEY_ID,
     signedPreKey: serializeKeyPair(signedPreKey),
     signedPreKeySignature: bytesToBase64(signature),
@@ -51,6 +55,7 @@ export function toRegisterDeviceRequest(
     device_id: bundle.deviceId,
     name: bundle.deviceName,
     identity_public_key: bundle.identitySigningKey.publicKey,
+    identity_dh_public_key: bundle.identityDHKey.publicKey,
     signed_pre_key_id: bundle.signedPreKeyId,
     signed_pre_key: bundle.signedPreKey.publicKey,
     signed_pre_key_signature: bundle.signedPreKeySignature,

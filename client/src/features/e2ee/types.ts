@@ -10,11 +10,14 @@ export interface StoredOneTimePreKey {
 }
 
 export interface StoredDeviceKeyBundle {
-  version: 1;
+  version: 2;
   userId: string;
   deviceId: string;
   deviceName: string;
   identitySigningKey: SerializedKeyPair;
+  // SECURITY: X25519 identity key used only for X3DH. It is deliberately
+  // separate from the Ed25519 signing identity above.
+  identityDHKey: SerializedKeyPair;
   signedPreKeyId: number;
   signedPreKey: SerializedKeyPair;
   signedPreKeySignature: string;
@@ -28,6 +31,7 @@ export interface RegisterDeviceRequest {
   device_id: string;
   name: string;
   identity_public_key: string;
+  identity_dh_public_key: string;
   signed_pre_key_id: number;
   signed_pre_key: string;
   signed_pre_key_signature: string;
@@ -42,6 +46,7 @@ export interface DeviceAPI {
   user_id: string;
   name: string;
   identity_public_key: string;
+  identity_dh_public_key: string;
   signed_pre_key_id: number;
   signed_pre_key: string;
   signed_pre_key_signature: string;
@@ -58,6 +63,7 @@ export interface KeyBundleAPI {
   user_id: string;
   device_id: string;
   identity_public_key: string;
+  identity_dh_public_key: string;
   signed_pre_key_id: number;
   signed_pre_key: string;
   signed_pre_key_signature: string;

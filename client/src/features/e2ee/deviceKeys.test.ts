@@ -9,6 +9,7 @@ import {
   canUseInsecureLocalKeyStorage,
   deleteDeviceKeyBundle,
   getDeviceKeyStorageStatus,
+  isTauriRuntime,
   loadDeviceKeyBundle,
   parseStoredDeviceKeyBundle,
   setDeviceKeyStorageAdapterForTests,
@@ -23,6 +24,8 @@ describe("device key bundle", () => {
     );
     expect(bundle.identitySigningKey.publicKey).toBeTruthy();
     expect(bundle.identitySigningKey.secretKey).toBeTruthy();
+    expect(bundle.identityDHKey.publicKey).toBeTruthy();
+    expect(bundle.identityDHKey.secretKey).toBeTruthy();
     expect(bundle.signedPreKey.publicKey).toBeTruthy();
     expect(bundle.signedPreKey.secretKey).toBeTruthy();
     expect(bundle.oneTimePreKeys).toHaveLength(3);
@@ -33,10 +36,12 @@ describe("device key bundle", () => {
     const bundle = createDeviceKeyBundle("user-1", "test device", 2);
     const request = toRegisterDeviceRequest(bundle);
     expect(request.identity_public_key).toBe(bundle.identitySigningKey.publicKey);
+    expect(request.identity_dh_public_key).toBe(bundle.identityDHKey.publicKey);
     expect(request.signed_pre_key).toBe(bundle.signedPreKey.publicKey);
     expect(request.signed_pre_key_signature).toBe(bundle.signedPreKeySignature);
     expect(request.one_time_prekeys).toHaveLength(2);
     expect(JSON.stringify(request)).not.toContain(bundle.identitySigningKey.secretKey);
+    expect(JSON.stringify(request)).not.toContain(bundle.identityDHKey.secretKey);
     expect(JSON.stringify(request)).not.toContain(bundle.signedPreKey.secretKey);
     expect(publicBundleContainsNoPrivateKeys(request)).toBe(true);
   });
@@ -45,6 +50,7 @@ describe("device key bundle", () => {
 describe("device key storage fallback", () => {
   beforeEach(() => {
     localStorage.clear();
+    delete (globalThis as typeof globalThis & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     setDeviceKeyStorageAdapterForTests(null);
   });
 
@@ -82,6 +88,21 @@ describe("device key storage fallback", () => {
     expect(parsed).toBeNull();
   });
 
+  it("migrates an alpha v1 bundle by generating a new X3DH identity key", () => {
+    const current = createDeviceKeyBundle("user-1", "test device", 1);
+    const legacy = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
+    legacy.version = 1;
+    legacy.registeredAt = "2026-01-01T00:00:00.000Z";
+    legacy.backendFingerprint = "old-fingerprint";
+    delete legacy.identityDHKey;
+
+    const migrated = parseStoredDeviceKeyBundle(JSON.stringify(legacy), "user-1");
+    expect(migrated?.version).toBe(2);
+    expect(migrated?.identityDHKey.publicKey).toBeTruthy();
+    expect(migrated?.registeredAt).toBeUndefined();
+    expect(migrated?.backendFingerprint).toBeUndefined();
+  });
+
   it("documents production web localStorage refusal", () => {
     expect(canUseInsecureLocalKeyStorage({ PROD: true })).toBe(false);
     expect(
@@ -99,6 +120,14 @@ describe("device key storage fallback", () => {
     expect(status.available).toBe(true);
     expect(status.productionSafe).toBe(false);
     expect(status.warning).toContain("localStorage");
+  });
+
+  it("detects the default Tauri 2 runtime marker", () => {
+    Object.defineProperty(globalThis, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {},
+    });
+    expect(isTauriRuntime()).toBe(true);
   });
 
   it("uses injected Tauri keychain adapter before localStorage", async () => {

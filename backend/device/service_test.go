@@ -43,6 +43,30 @@ func TestValidateRegisterDeviceRequestRejectsBadKey(t *testing.T) {
 	}
 }
 
+func TestValidateRegisterDeviceRequestRejectsMissingIdentityDHKey(t *testing.T) {
+	t.Parallel()
+
+	req := validRegisterDeviceRequest(t)
+	req.IdentityDHPublicKey = ""
+
+	err := validateRegisterDeviceRequest(req)
+	if !errors.Is(err, ErrInvalidDeviceKey) {
+		t.Fatalf("err = %v, want ErrInvalidDeviceKey", err)
+	}
+}
+
+func TestValidateRegisterDeviceRequestRejectsLowOrderX25519Key(t *testing.T) {
+	t.Parallel()
+
+	req := validRegisterDeviceRequest(t)
+	req.IdentityDHPublicKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
+
+	err := validateRegisterDeviceRequest(req)
+	if !errors.Is(err, ErrInvalidDeviceKey) {
+		t.Fatalf("err = %v, want ErrInvalidDeviceKey", err)
+	}
+}
+
 func TestValidateRegisterDeviceRequestRejectsDuplicateOneTimePreKeys(t *testing.T) {
 	t.Parallel()
 
@@ -71,13 +95,26 @@ func TestDeviceFingerprintStable(t *testing.T) {
 	t.Parallel()
 
 	key := base64.StdEncoding.EncodeToString(randomBytes(t, 32))
-	first := DeviceFingerprint("user-1", "device-1", key)
-	second := DeviceFingerprint("user-1", "device-1", key)
+	first := DeviceFingerprint("user-1", "device-1", key, key)
+	second := DeviceFingerprint("user-1", "device-1", key, key)
 	if first != second {
 		t.Fatal("fingerprint is not stable")
 	}
 	if len(first) != 64 || strings.Contains(first, " ") {
 		t.Fatalf("unexpected fingerprint shape: %q", first)
+	}
+}
+
+func TestDeviceFingerprintBindsBothIdentityKeys(t *testing.T) {
+	t.Parallel()
+
+	signingKey := base64.StdEncoding.EncodeToString(randomBytes(t, 32))
+	firstDHKey := base64.StdEncoding.EncodeToString(randomBytes(t, 32))
+	secondDHKey := base64.StdEncoding.EncodeToString(randomBytes(t, 32))
+	first := DeviceFingerprint("user-1", "device-1", signingKey, firstDHKey)
+	second := DeviceFingerprint("user-1", "device-1", signingKey, secondDHKey)
+	if first == second {
+		t.Fatal("fingerprint must change when the X3DH identity changes")
 	}
 }
 
@@ -118,6 +155,7 @@ func validRegisterDeviceRequestWithEncoder(t *testing.T, encoding *base64.Encodi
 		SignedPreKeyID:        1,
 		SignedPreKey:          encoding.EncodeToString(signedPreKey),
 		SignedPreKeySignature: encoding.EncodeToString(signature),
+		IdentityDHPublicKey:   encoding.EncodeToString(randomBytes(t, 32)),
 		OneTimePreKeys: []OneTimePreKey{
 			{
 				KeyID:     1,

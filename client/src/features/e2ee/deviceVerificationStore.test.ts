@@ -76,6 +76,7 @@ function makeRemoteDevice(userId: string): DeviceAPI {
     user_id: userId,
     name: request.name,
     identity_public_key: request.identity_public_key,
+    identity_dh_public_key: request.identity_dh_public_key,
     signed_pre_key_id: request.signed_pre_key_id,
     signed_pre_key: request.signed_pre_key,
     signed_pre_key_signature: request.signed_pre_key_signature,

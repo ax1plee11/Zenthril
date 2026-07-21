@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 	"testing"
@@ -57,6 +58,29 @@ func generateTestKeyPair(t *testing.T) (privateKey, publicKey []byte) {
 	return privateKey, publicKey
 }
 
+func generatePeerBundle(t *testing.T, includeOneTimePreKey bool) DeviceKeyBundle {
+	t.Helper()
+	identitySigningPublic, identitySigningPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate signing identity: %v", err)
+	}
+	_, identityDHPublic := generateTestKeyPair(t)
+	_, signedPreKey := generateTestKeyPair(t)
+	bundle := DeviceKeyBundle{
+		UserID:                   "bob",
+		DeviceID:                 "device-1",
+		IdentitySigningPublicKey: identitySigningPublic,
+		IdentityDHPublicKey:      identityDHPublic,
+		SignedPreKey:             signedPreKey,
+		SignedPreKeySig:          ed25519.Sign(identitySigningPrivate, signedPreKeyMessage(signedPreKey)),
+	}
+	if includeOneTimePreKey {
+		_, bundle.OneTimePreKey = generateTestKeyPair(t)
+		bundle.OneTimePreKeyID = 7
+	}
+	return bundle
+}
+
 func TestStartSessionRejectsIncompleteIdentifiers(t *testing.T) {
 	service := NewX3DHService(&fakeKeyStore{})
 	_, err := service.StartSession(context.Background(), LocalDeviceKeys{
@@ -74,11 +98,7 @@ func TestStartSessionRejectsIncompletePeerBundle(t *testing.T) {
 	alicePriv, alicePub := generateTestKeyPair(t)
 	service := NewX3DHService(&fakeKeyStore{
 		bundles: map[string]DeviceKeyBundle{
-			"bob:device-1": {
-				UserID:      "bob",
-				DeviceID:    "device-1",
-				IdentityKey: []byte("peer-id"),
-			},
+			"bob:device-1": {UserID: "bob", DeviceID: "device-1", IdentityDHPublicKey: []byte("peer-id")},
 		},
 	})
 	_, err := service.StartSession(context.Background(), LocalDeviceKeys{
@@ -94,21 +114,13 @@ func TestStartSessionRejectsIncompletePeerBundle(t *testing.T) {
 
 func TestStartSessionConsumesPeerOneTimePreKeyWhenPresent(t *testing.T) {
 	alicePriv, alicePub := generateTestKeyPair(t)
-	_, bobIdentity := generateTestKeyPair(t)
-	_, bobSignedPreKey := generateTestKeyPair(t)
-	_, bobOTPK := generateTestKeyPair(t)
+	peerBundle := generatePeerBundle(t, true)
 
 	store := &fakeKeyStore{
 		bundles: map[string]DeviceKeyBundle{
-			"bob:device-1": {
-				UserID:        "bob",
-				DeviceID:      "device-1",
-				IdentityKey:   bobIdentity,
-				SignedPreKey:  bobSignedPreKey,
-				OneTimePreKey: bobOTPK,
-			},
+			"bob:device-1": peerBundle,
 		},
-		consumeKey: bobOTPK,
+		consumeKey: peerBundle.OneTimePreKey,
 	}
 	service := NewX3DHService(store)
 
@@ -132,16 +144,54 @@ func TestStartSessionConsumesPeerOneTimePreKeyWhenPresent(t *testing.T) {
 	}
 }
 
+func TestStartSessionRejectsTamperedSignedPreKey(t *testing.T) {
+	alicePriv, alicePub := generateTestKeyPair(t)
+	peerBundle := generatePeerBundle(t, false)
+	peerBundle.SignedPreKeySig[0] ^= 0xff
+	service := NewX3DHService(&fakeKeyStore{bundles: map[string]DeviceKeyBundle{
+		"bob:device-1": peerBundle,
+	}})
+
+	_, err := service.StartSession(context.Background(), LocalDeviceKeys{
+		UserID:             "alice",
+		DeviceID:           "device-1",
+		IdentityPrivateKey: alicePriv,
+		IdentityPublicKey:  alicePub,
+	}, "bob", "device-1")
+	if err == nil {
+		t.Fatal("expected tampered signed prekey to be rejected")
+	}
+}
+
+func TestStartSessionRejectsMismatchedConsumedOneTimePreKey(t *testing.T) {
+	alicePriv, alicePub := generateTestKeyPair(t)
+	peerBundle := generatePeerBundle(t, true)
+	_, differentPreKey := generateTestKeyPair(t)
+	store := &fakeKeyStore{
+		bundles:    map[string]DeviceKeyBundle{"bob:device-1": peerBundle},
+		consumeKey: differentPreKey,
+	}
+	service := NewX3DHService(store)
+
+	_, err := service.StartSession(context.Background(), LocalDeviceKeys{
+		UserID:             "alice",
+		DeviceID:           "device-1",
+		IdentityPrivateKey: alicePriv,
+		IdentityPublicKey:  alicePub,
+	}, "bob", "device-1")
+	if err == nil {
+		t.Fatal("expected mismatched one-time prekey to be rejected")
+	}
+	if store.saveCalls != 0 {
+		t.Fatalf("saved a session after rejected one-time prekey: %d", store.saveCalls)
+	}
+}
+
 func TestStartSessionRejectsMalformedKeyMaterial(t *testing.T) {
 	alicePriv, alicePub := generateTestKeyPair(t)
 	store := &fakeKeyStore{
 		bundles: map[string]DeviceKeyBundle{
-			"bob:device-1": {
-				UserID:       "bob",
-				DeviceID:     "device-1",
-				IdentityKey:  []byte("peer-id"),
-				SignedPreKey: []byte("peer-spk"),
-			},
+			"bob:device-1": {UserID: "bob", DeviceID: "device-1", IdentityDHPublicKey: []byte("peer-id"), SignedPreKey: []byte("peer-spk")},
 		},
 	}
 	service := NewX3DHService(store)
@@ -169,17 +219,11 @@ func TestStartSessionRejectsMalformedKeyMaterial(t *testing.T) {
 
 func TestStartSessionPersistsGeneratedSession(t *testing.T) {
 	alicePriv, alicePub := generateTestKeyPair(t)
-	_, bobIdentity := generateTestKeyPair(t)
-	_, bobSignedPreKey := generateTestKeyPair(t)
+	peerBundle := generatePeerBundle(t, false)
 
 	store := &fakeKeyStore{
 		bundles: map[string]DeviceKeyBundle{
-			"bob:device-1": {
-				UserID:       "bob",
-				DeviceID:     "device-1",
-				IdentityKey:  bobIdentity,
-				SignedPreKey: bobSignedPreKey,
-			},
+			"bob:device-1": peerBundle,
 		},
 	}
 	service := NewX3DHService(store)
@@ -215,8 +259,8 @@ func TestX3DHSharedSecretUsesRealECDH(t *testing.T) {
 
 	// Placeholder hash would produce identical output regardless of private keys.
 	secretA, err := deriveX3DHSharedSecret(aliceIdentityPriv, ephemeralPriv, DeviceKeyBundle{
-		IdentityKey:  bobIdentityPub,
-		SignedPreKey: bobSignedPreKeyPub,
+		IdentityDHPublicKey: bobIdentityPub,
+		SignedPreKey:        bobSignedPreKeyPub,
 	}, nil)
 	if err != nil {
 		t.Fatalf("deriveX3DHSharedSecret: %v", err)
@@ -224,8 +268,8 @@ func TestX3DHSharedSecretUsesRealECDH(t *testing.T) {
 
 	wrongPriv, _ := generateTestKeyPair(t)
 	secretB, err := deriveX3DHSharedSecret(wrongPriv, ephemeralPriv, DeviceKeyBundle{
-		IdentityKey:  bobIdentityPub,
-		SignedPreKey: bobSignedPreKeyPub,
+		IdentityDHPublicKey: bobIdentityPub,
+		SignedPreKey:        bobSignedPreKeyPub,
 	}, nil)
 	if err != nil {
 		t.Fatalf("deriveX3DHSharedSecret wrong key: %v", err)

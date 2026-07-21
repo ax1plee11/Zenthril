@@ -1,21 +1,24 @@
 package crypto
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 )
 
 type DeviceKeyBundle struct {
-	UserID            string
-	DeviceID          string
-	IdentityKey       []byte
-	SignedPreKey      []byte
-	SignedPreKeyID    uint32
-	SignedPreKeySig   []byte
-	OneTimePreKey     []byte
-	OneTimePreKeyID   uint32
-	PublishedRevision uint64
+	UserID                   string
+	DeviceID                 string
+	IdentitySigningPublicKey []byte
+	IdentityDHPublicKey      []byte
+	SignedPreKey             []byte
+	SignedPreKeyID           uint32
+	SignedPreKeySig          []byte
+	OneTimePreKey            []byte
+	OneTimePreKeyID          uint32
+	PublishedRevision        uint64
 }
 
 // LocalDeviceKeys holds the initiator's private material required for X3DH.
@@ -76,9 +79,12 @@ func (s *X3DHService) StartSession(ctx context.Context, local LocalDeviceKeys, p
 
 	var oneTimePreKeyPublic []byte
 	if len(peer.OneTimePreKey) == x25519KeySize {
-		consumed, _, err := s.keys.ConsumeOneTimePreKey(ctx, peerUserID, peerDeviceID)
+		consumed, consumedID, err := s.keys.ConsumeOneTimePreKey(ctx, peerUserID, peerDeviceID)
 		if err != nil {
 			return SessionState{}, fmt.Errorf("consume one-time prekey: %w", err)
+		}
+		if consumedID != peer.OneTimePreKeyID || !bytes.Equal(consumed, peer.OneTimePreKey) {
+			return SessionState{}, errors.New("consumed one-time prekey does not match claimed bundle")
 		}
 		oneTimePreKeyPublic = consumed
 	}
@@ -131,13 +137,27 @@ func validateLocalKeys(local LocalDeviceKeys) error {
 }
 
 func validatePeerBundle(peer DeviceKeyBundle) error {
-	if len(peer.IdentityKey) != x25519KeySize || len(peer.SignedPreKey) != x25519KeySize {
-		return errors.New("peer X3DH key bundle must contain 32-byte keys")
+	if len(peer.IdentitySigningPublicKey) != ed25519.PublicKeySize || len(peer.IdentityDHPublicKey) != x25519KeySize || len(peer.SignedPreKey) != x25519KeySize {
+		return errors.New("peer X3DH key bundle must contain valid Ed25519 and X25519 public keys")
 	}
-	if len(peer.IdentityKey) == 0 || len(peer.SignedPreKey) == 0 {
+	if len(peer.SignedPreKeySig) != ed25519.SignatureSize {
+		return errors.New("peer X3DH key bundle must contain a signed prekey signature")
+	}
+	if !ed25519.Verify(ed25519.PublicKey(peer.IdentitySigningPublicKey), signedPreKeyMessage(peer.SignedPreKey), peer.SignedPreKeySig) {
+		return errors.New("peer signed prekey signature verification failed")
+	}
+	if len(peer.IdentityDHPublicKey) == 0 || len(peer.SignedPreKey) == 0 {
 		return errors.New("peer X3DH key bundle is incomplete")
 	}
 	return nil
+}
+
+func signedPreKeyMessage(publicKey []byte) []byte {
+	context := []byte("Zenthril signed prekey v1")
+	out := make([]byte, 0, len(context)+len(publicKey))
+	out = append(out, context...)
+	out = append(out, publicKey...)
+	return out
 }
 
 func concatBytes(parts ...[]byte) []byte {

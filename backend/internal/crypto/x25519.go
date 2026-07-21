@@ -58,7 +58,7 @@ func deriveX3DHSharedSecret(
 	if err != nil {
 		return nil, fmt.Errorf("X3DH DH1: %w", err)
 	}
-	dh2, err := x25519SharedSecret(ephemeralPrivateKey, peer.IdentityKey)
+	dh2, err := x25519SharedSecret(ephemeralPrivateKey, peer.IdentityDHPublicKey)
 	if err != nil {
 		return nil, fmt.Errorf("X3DH DH2: %w", err)
 	}

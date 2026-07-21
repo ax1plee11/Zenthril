@@ -11,7 +11,7 @@ yet a complete audited end-to-end encryption protocol.
 Implemented backend primitives:
 
 - per-user device registry;
-- device identity public key;
+- separate Ed25519 identity signing key and X25519 identity-DH public key;
 - signed prekey and signed prekey signature;
 - one-time prekey upload and consumption;
 - device fingerprint for safety verification UX;
@@ -22,7 +22,8 @@ Implemented backend primitives:
 Implemented client primitives:
 
 - local device key bundle generation;
-- Ed25519 identity signing key for signed prekey verification;
+- Ed25519 identity signing key for signed prekey verification and a separate
+  X25519 identity-DH key for X3DH;
 - X25519 signed prekey and one-time prekeys;
 - best-effort device registration after login/register;
 - device management UI for active devices and remote device revocation;
@@ -64,7 +65,7 @@ and removes its one-time prekeys so new sessions cannot be established with it.
 
 1. Add client-side secure device key storage in Tauri.
 2. Add safety number display and manual verification UX.
-3. Replace the temporary X3DH bootstrap placeholder with audited X25519 test vectors.
+3. Connect the verified X3DH bootstrap to the client message flow and add audited X25519 test vectors.
 4. Persist Double Ratchet session state for direct messages.
 5. Add product threat model and protocol limitations section.
 

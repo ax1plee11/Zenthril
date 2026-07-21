@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/curve25519"
 
 	"zenthril-backend/metrics"
 )
@@ -35,6 +36,7 @@ type RegisterDeviceRequest struct {
 	DeviceID              string          `json:"device_id,omitempty"`
 	Name                  string          `json:"name,omitempty"`
 	IdentityPublicKey     string          `json:"identity_public_key"`
+	IdentityDHPublicKey   string          `json:"identity_dh_public_key"`
 	SignedPreKeyID        int             `json:"signed_pre_key_id"`
 	SignedPreKey          string          `json:"signed_pre_key"`
 	SignedPreKeySignature string          `json:"signed_pre_key_signature"`
@@ -46,6 +48,7 @@ type Device struct {
 	UserID                string    `json:"user_id"`
 	Name                  string    `json:"name"`
 	IdentityPublicKey     string    `json:"identity_public_key"`
+	IdentityDHPublicKey   string    `json:"identity_dh_public_key"`
 	SignedPreKeyID        int       `json:"signed_pre_key_id"`
 	SignedPreKey          string    `json:"signed_pre_key"`
 	SignedPreKeySignature string    `json:"signed_pre_key_signature"`
@@ -61,6 +64,7 @@ type KeyBundle struct {
 	UserID                string         `json:"user_id"`
 	DeviceID              string         `json:"device_id"`
 	IdentityPublicKey     string         `json:"identity_public_key"`
+	IdentityDHPublicKey   string         `json:"identity_dh_public_key"`
 	SignedPreKeyID        int            `json:"signed_pre_key_id"`
 	SignedPreKey          string         `json:"signed_pre_key"`
 	SignedPreKeySignature string         `json:"signed_pre_key_signature"`
@@ -100,16 +104,17 @@ func (s *Service) RegisterDevice(ctx context.Context, userID string, req Registe
 	}
 	defer tx.Rollback(ctx)
 
-	fingerprint := DeviceFingerprint(userUUID.String(), deviceID.String(), req.IdentityPublicKey)
+	fingerprint := DeviceFingerprint(userUUID.String(), deviceID.String(), req.IdentityPublicKey, req.IdentityDHPublicKey)
 	row := tx.QueryRow(ctx,
 		`INSERT INTO devices (
-			id, user_id, name, identity_public_key, signed_pre_key_id,
+			id, user_id, name, identity_public_key, identity_dh_public_key, signed_pre_key_id,
 			signed_pre_key, signed_pre_key_signature, fingerprint, last_seen_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,
 			identity_public_key = EXCLUDED.identity_public_key,
+			identity_dh_public_key = EXCLUDED.identity_dh_public_key,
 			signed_pre_key_id = EXCLUDED.signed_pre_key_id,
 			signed_pre_key = EXCLUDED.signed_pre_key,
 			signed_pre_key_signature = EXCLUDED.signed_pre_key_signature,
@@ -119,11 +124,11 @@ func (s *Service) RegisterDevice(ctx context.Context, userID string, req Registe
 			updated_at = NOW(),
 			last_seen_at = NOW()
 		WHERE devices.user_id = EXCLUDED.user_id
-		RETURNING id::text, user_id::text, name, identity_public_key, signed_pre_key_id,
+		RETURNING id::text, user_id::text, name, identity_public_key, identity_dh_public_key, signed_pre_key_id,
 			signed_pre_key, signed_pre_key_signature, fingerprint, trust_state,
 			created_at, updated_at, last_seen_at`,
-		deviceID, userUUID, strings.TrimSpace(req.Name), req.IdentityPublicKey, req.SignedPreKeyID,
-		req.SignedPreKey, req.SignedPreKeySignature, fingerprint,
+		deviceID, userUUID, strings.TrimSpace(req.Name), req.IdentityPublicKey, req.IdentityDHPublicKey,
+		req.SignedPreKeyID, req.SignedPreKey, req.SignedPreKeySignature, fingerprint,
 	)
 
 	var out Device
@@ -176,7 +181,7 @@ func (s *Service) ListUserDevices(ctx context.Context, userID string) ([]Device,
 	}
 
 	rows, err := s.db.Query(ctx,
-		`SELECT d.id::text, d.user_id::text, d.name, d.identity_public_key, d.signed_pre_key_id,
+		`SELECT d.id::text, d.user_id::text, d.name, d.identity_public_key, d.identity_dh_public_key, d.signed_pre_key_id,
 			d.signed_pre_key, d.signed_pre_key_signature, d.fingerprint, d.trust_state,
 			d.created_at, d.updated_at, d.last_seen_at,
 			COUNT(p.key_id) FILTER (WHERE p.consumed_at IS NULL)::int AS one_time_prekey_count
@@ -228,7 +233,7 @@ func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, devic
 
 	var bundle KeyBundle
 	err = tx.QueryRow(ctx,
-		`SELECT user_id::text, id::text, identity_public_key, signed_pre_key_id,
+		`SELECT user_id::text, id::text, identity_public_key, identity_dh_public_key, signed_pre_key_id,
 			signed_pre_key, signed_pre_key_signature, fingerprint
 		 FROM devices
 		 WHERE user_id = $1 AND id = $2 AND revoked_at IS NULL`,
@@ -237,6 +242,7 @@ func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, devic
 		&bundle.UserID,
 		&bundle.DeviceID,
 		&bundle.IdentityPublicKey,
+		&bundle.IdentityDHPublicKey,
 		&bundle.SignedPreKeyID,
 		&bundle.SignedPreKey,
 		&bundle.SignedPreKeySignature,
@@ -375,8 +381,10 @@ func (s *Service) CountAvailablePreKeys(ctx context.Context, deviceID string) (i
 	return count, nil
 }
 
-func DeviceFingerprint(userID, deviceID, identityPublicKey string) string {
-	sum := sha256.Sum256([]byte(userID + ":" + deviceID + ":" + identityPublicKey))
+func DeviceFingerprint(userID, deviceID, identitySigningPublicKey, identityDHPublicKey string) string {
+	// SECURITY: bind both long-term public identities into the displayed device
+	// fingerprint so replacing either key is detectable by the client.
+	sum := sha256.Sum256([]byte(userID + ":" + deviceID + ":" + identitySigningPublicKey + ":" + identityDHPublicKey))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -394,10 +402,13 @@ func validateRegisterDeviceRequest(req RegisterDeviceRequest) error {
 	if err := validateBase64Key(req.IdentityPublicKey, 32, "identity_public_key"); err != nil {
 		return err
 	}
+	if err := validateX25519PublicKey(req.IdentityDHPublicKey, "identity_dh_public_key"); err != nil {
+		return err
+	}
 	if req.SignedPreKeyID <= 0 {
 		return fmt.Errorf("%w: signed_pre_key_id is required", ErrInvalidDeviceKey)
 	}
-	if err := validateBase64Key(req.SignedPreKey, 32, "signed_pre_key"); err != nil {
+	if err := validateX25519PublicKey(req.SignedPreKey, "signed_pre_key"); err != nil {
 		return err
 	}
 	if err := validateBase64Key(req.SignedPreKeySignature, 64, "signed_pre_key_signature"); err != nil {
@@ -418,7 +429,7 @@ func validateRegisterDeviceRequest(req RegisterDeviceRequest) error {
 			return fmt.Errorf("%w: duplicate one_time_prekeys.key_id", ErrInvalidDeviceKey)
 		}
 		seen[preKey.KeyID] = struct{}{}
-		if err := validateBase64Key(preKey.PublicKey, 32, "one_time_prekeys.public_key"); err != nil {
+		if err := validateX25519PublicKey(preKey.PublicKey, "one_time_prekeys.public_key"); err != nil {
 			return err
 		}
 	}
@@ -472,6 +483,25 @@ func validateBase64Key(value string, wantLen int, field string) error {
 	return nil
 }
 
+func validateX25519PublicKey(value, field string) error {
+	if err := validateBase64Key(value, curve25519.ScalarSize, field); err != nil {
+		return err
+	}
+	publicKey, err := decodeBase64Key(value)
+	if err != nil {
+		return fmt.Errorf("%w: %s must be base64", ErrInvalidDeviceKey, field)
+	}
+	// SECURITY: reject low-order X25519 points at registration. A 32-byte value
+	// is not necessarily a usable DH public key, and accepting one can collapse
+	// a future X3DH exchange into a predictable or invalid shared secret.
+	validationPrivateKey := make([]byte, curve25519.ScalarSize)
+	validationPrivateKey[0] = 1
+	if _, err := curve25519.X25519(validationPrivateKey, publicKey); err != nil {
+		return fmt.Errorf("%w: %s is not a valid X25519 public key", ErrInvalidDeviceKey, field)
+	}
+	return nil
+}
+
 func decodeBase64Key(value string) ([]byte, error) {
 	value = strings.TrimSpace(value)
 	decoded, err := base64.StdEncoding.DecodeString(value)
@@ -500,6 +530,7 @@ func scanDevice(row rowScanner, d *Device) error {
 		&d.UserID,
 		&d.Name,
 		&d.IdentityPublicKey,
+		&d.IdentityDHPublicKey,
 		&d.SignedPreKeyID,
 		&d.SignedPreKey,
 		&d.SignedPreKeySignature,
@@ -517,6 +548,7 @@ func scanDeviceWithPreKeyCount(row rowScanner, d *Device) error {
 		&d.UserID,
 		&d.Name,
 		&d.IdentityPublicKey,
+		&d.IdentityDHPublicKey,
 		&d.SignedPreKeyID,
 		&d.SignedPreKey,
 		&d.SignedPreKeySignature,

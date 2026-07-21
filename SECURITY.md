@@ -71,11 +71,16 @@ Current alpha crypto work includes:
 - Backend validation requires the full protocol-v2 AAD context for new message
   sends and rejects missing route/user binding fields.
 - Device key registration and revocation foundations.
+- Separate Ed25519 signing identities and X25519 identity-DH keys for X3DH
+  foundations; signed prekeys are verified before a backend bootstrap proceeds.
 - Safety number foundations.
 
 Known limitations:
 
 - Full X3DH session setup is not integrated into all real message flows.
+- Updated clients migrate local v1 device bundles by generating an X25519
+  identity-DH key and re-registering the public bundle. Older remote alpha
+  bundles without that key cannot safely participate in X3DH.
 - The internal crypto package has a bounded, one-time skipped-message-key
   primitive for out-of-order delivery. It is not yet integrated into the real
   client message flow or complete Double Ratchet session lifecycle.

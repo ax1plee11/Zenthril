@@ -1,3 +1,5 @@
+import { x25519 } from "@noble/curves/ed25519.js";
+import { bytesToBase64 } from "./encoding";
 import type { StoredDeviceKeyBundle } from "./types";
 
 const STORAGE_PREFIX = "zenthril_e2ee_device_bundle:";
@@ -29,6 +31,9 @@ export interface DeviceKeyStorageAdapter {
 }
 
 type InvokeFn = <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
+type ParsedStoredBundle = Omit<Partial<StoredDeviceKeyBundle>, "version"> & {
+  version?: number;
+};
 
 let testAdapter: DeviceKeyStorageAdapter | null = null;
 
@@ -39,7 +44,9 @@ export function setDeviceKeyStorageAdapterForTests(
 }
 
 export function isTauriRuntime(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
+  // SECURITY: Tauri 2 exposes __TAURI_INTERNALS__ by default. __TAURI__ is
+  // optional and relying on it can silently select an insecure web fallback.
+  return typeof globalThis !== "undefined" && "__TAURI_INTERNALS__" in globalThis;
 }
 
 export function canUseInsecureLocalKeyStorage(env: EnvLike = import.meta.env): boolean {
@@ -109,13 +116,17 @@ export function parseStoredDeviceKeyBundle(
   expectedUserId: string,
 ): StoredDeviceKeyBundle | null {
   try {
-    const parsed = JSON.parse(raw) as Partial<StoredDeviceKeyBundle>;
+    const parsed = JSON.parse(raw) as ParsedStoredBundle;
     // SECURITY-HARDENING: never load private device keys for a different user context.
+    if (parsed.version === 1) {
+      return migrateLegacyBundle(parsed, expectedUserId);
+    }
     if (
-      parsed.version !== 1 ||
+      parsed.version !== 2 ||
       parsed.userId !== expectedUserId ||
       typeof parsed.deviceId !== "string" ||
       typeof parsed.identitySigningKey?.secretKey !== "string" ||
+      typeof parsed.identityDHKey?.secretKey !== "string" ||
       typeof parsed.signedPreKey?.secretKey !== "string"
     ) {
       return null;
@@ -190,14 +201,52 @@ async function invokeTauri<T = unknown>(
 function validateBundleForStorage(bundle: StoredDeviceKeyBundle): void {
   // SECURITY-HARDENING: reject malformed local private-key bundles before persistence.
   if (
-    bundle.version !== 1 ||
+    bundle.version !== 2 ||
     !bundle.userId ||
     !bundle.deviceId ||
     !bundle.identitySigningKey?.secretKey ||
+    !bundle.identityDHKey?.secretKey ||
     !bundle.signedPreKey?.secretKey
   ) {
     throw new Error("Invalid device key bundle");
   }
+}
+
+function migrateLegacyBundle(
+  parsed: ParsedStoredBundle,
+  expectedUserId: string,
+): StoredDeviceKeyBundle | null {
+  if (
+    parsed.userId !== expectedUserId ||
+    typeof parsed.deviceId !== "string" ||
+    typeof parsed.deviceName !== "string" ||
+    typeof parsed.identitySigningKey?.publicKey !== "string" ||
+    typeof parsed.identitySigningKey.secretKey !== "string" ||
+    typeof parsed.signedPreKey?.publicKey !== "string" ||
+    typeof parsed.signedPreKey.secretKey !== "string" ||
+    typeof parsed.signedPreKeyId !== "number" ||
+    typeof parsed.signedPreKeySignature !== "string" ||
+    !Array.isArray(parsed.oneTimePreKeys) ||
+    typeof parsed.createdAt !== "string"
+  ) {
+    return null;
+  }
+
+  // SECURITY: a v1 bundle has no valid X25519 identity-DH key. Generate one
+  // locally and clear registration markers so the public bundle is published
+  // again before it can be used for X3DH.
+  const identityDHKey = x25519.keygen();
+  const migrated = {
+    ...(parsed as Omit<StoredDeviceKeyBundle, "version" | "identityDHKey">),
+    version: 2,
+    identityDHKey: {
+      publicKey: bytesToBase64(identityDHKey.publicKey),
+      secretKey: bytesToBase64(identityDHKey.secretKey),
+    },
+  } as StoredDeviceKeyBundle;
+  delete (migrated as Partial<StoredDeviceKeyBundle>).registeredAt;
+  delete (migrated as Partial<StoredDeviceKeyBundle>).backendFingerprint;
+  return migrated;
 }
 
 function storageKey(userId: string): string {
