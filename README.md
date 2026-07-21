@@ -174,6 +174,15 @@ current design and limitations.
 - Kubernetes-oriented deployment manifests
 - ADRs and research documentation
 
+### Local database debugging
+
+PostgreSQL and Redis are intentionally available only to Docker services by default.
+To expose them on loopback for a local database client, start Compose with the debug override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml up
+```
+
 ## Performance Research
 
 Zenthril includes local benchmark and load-test materials under [`research/`](research/). Any performance numbers published in this repository should be treated as preliminary local benchmark data unless they include hardware, methodology, commit/date, and raw results.
