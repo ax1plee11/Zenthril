@@ -1,5 +1,16 @@
 // Zenthril client data types.
 
+import type { X3DHSessionHeader } from "../features/e2ee/pairwiseSession";
+
+export interface RecipientKeyEnvelope {
+  recipientUserId: string;
+  recipientDeviceId: string;
+  sessionId: string;
+  ratchetCounter: number;
+  bootstrapHeader?: X3DHSessionHeader;
+  payload: EncryptedPayload;
+}
+
 export interface EncryptedPayload {
   ciphertext: string;
   iv: string;
@@ -12,6 +23,7 @@ export interface EncryptedPayload {
   sessionId?: string;
   clientMessageId?: string;
   cipherSuite?: string;
+  recipientEnvelopes?: RecipientKeyEnvelope[];
 }
 
 export interface User {

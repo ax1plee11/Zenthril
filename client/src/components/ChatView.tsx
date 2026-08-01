@@ -12,10 +12,9 @@ import React, {
 import { api } from "../api/index";
 import type { MessageAPI, EncryptedPayloadAPI } from "../api/index";
 import {
-  encrypt,
-  getOrCreateSessionKey,
+  ChannelSessionDistributionUnavailableError,
 } from "../crypto/index";
-import { buildMessageAADInput, MissingDeviceKeyBundleError } from "../features/e2ee";
+import { decryptChannelMessage, prepareChannelMessage, MissingDeviceKeyBundleError } from "../features/e2ee";
 import type { EncryptedPayload } from "../types/index";
 import MessageItem, { canGroup, formatDateDivider } from "./MessageItem";
 import MessageInput from "./MessageInput";
@@ -110,6 +109,14 @@ function toApiPayload(p: EncryptedPayload): EncryptedPayloadAPI {
   if (p.sessionId) out.session_id = p.sessionId;
   if (p.clientMessageId) out.client_message_id = p.clientMessageId;
   if (p.cipherSuite) out.cipher_suite = p.cipherSuite;
+	if (p.recipientEnvelopes) out.recipient_envelopes = p.recipientEnvelopes.map(envelope => ({
+		recipient_user_id: envelope.recipientUserId,
+		recipient_device_id: envelope.recipientDeviceId,
+		session_id: envelope.sessionId,
+		ratchet_counter: envelope.ratchetCounter,
+		...(envelope.bootstrapHeader ? { bootstrap_header: envelope.bootstrapHeader } : {}),
+		payload: toApiPayload(envelope.payload),
+	}));
   return out;
 }
 
@@ -128,6 +135,14 @@ function fromApiPayload(p: EncryptedPayloadAPI): EncryptedPayload {
   if (p.session_id) out.sessionId = p.session_id;
   if (p.client_message_id) out.clientMessageId = p.client_message_id;
   if (p.cipher_suite) out.cipherSuite = p.cipher_suite;
+	if (p.recipient_envelopes) out.recipientEnvelopes = p.recipient_envelopes.map(envelope => ({
+		recipientUserId: envelope.recipient_user_id,
+		recipientDeviceId: envelope.recipient_device_id,
+		sessionId: envelope.session_id,
+		ratchetCounter: envelope.ratchet_counter,
+		...(envelope.bootstrap_header ? { bootstrapHeader: envelope.bootstrap_header as import("../features/e2ee").X3DHSessionHeader } : {}),
+		payload: fromApiPayload(envelope.payload),
+	}));
   return out;
 }
 
@@ -226,10 +241,9 @@ export default function ChatView({
       void (async () => {
         try {
           if (enriched.payload?.tag) {
-            const { decrypt: dec, getOrCreateSessionKey: getKey } = await import("../crypto/index");
-            const key = await getKey(enriched.channel_id);
             const payload = fromApiPayload(enriched.payload);
-            const text = await dec(payload, key);
+            const text = await decryptChannelMessage(payload, currentUserId);
+			if (text === null) throw new Error("No recipient envelope for this device");
             setMessages((prev) => {
               if (prev.some((m) => m.id === enriched.id)) return prev;
               return [...prev, { ...enriched, decryptedContent: text }];
@@ -319,11 +333,11 @@ export default function ChatView({
       if (!channelId) return;
 
       try {
-        const sessionKey = await getOrCreateSessionKey(channelId);
-        const encrypted = await encrypt(text, sessionKey, await buildMessageAADInput(channelId, currentUserId));
-        const apiPayload = toApiPayload(encrypted);
+        const prepared = await prepareChannelMessage(text, channelId, currentUserId);
+        const apiPayload = toApiPayload(prepared.payload);
 
         const msg = await api.messages.send(channelId, apiPayload);
+		await prepared.persist();
         trackMessage();
         const enriched = enrichMessage(
           { ...msg, decryptedContent: text },
@@ -337,6 +351,13 @@ export default function ChatView({
         });
         setTimeout(scrollToBottom, 50);
       } catch (err) {
+        if (err instanceof ChannelSessionDistributionUnavailableError) {
+          showNotification(
+            "Encrypted channel messaging is not ready",
+            "This production build does not use the unsafe local-only channel key fallback.",
+          ).catch(() => {});
+          return;
+        }
         if (err instanceof MissingDeviceKeyBundleError) {
           showNotification(
             "Security setup required",
@@ -354,13 +375,12 @@ export default function ChatView({
   const handleEdit = useCallback(
     async (messageId: string, newText: string) => {
       if (!channelId) return;
-
       try {
-        const sessionKey = await getOrCreateSessionKey(channelId);
-        const encrypted = await encrypt(newText, sessionKey, await buildMessageAADInput(channelId, currentUserId));
-        const apiPayload = toApiPayload(encrypted);
+        const prepared = await prepareChannelMessage(newText, channelId, currentUserId);
+        const apiPayload = toApiPayload(prepared.payload);
 
         await api.messages.edit(messageId, apiPayload);
+		await prepared.persist();
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -370,6 +390,13 @@ export default function ChatView({
           ),
         );
       } catch (err) {
+        if (err instanceof ChannelSessionDistributionUnavailableError) {
+          showNotification(
+            "Encrypted channel editing is not ready",
+            "This production build does not use the unsafe local-only channel key fallback.",
+          ).catch(() => {});
+          return;
+        }
         if (err instanceof MissingDeviceKeyBundleError) {
           showNotification(
             "Security setup required",
@@ -399,9 +426,6 @@ export default function ChatView({
 
     const decryptMessages = async () => {
       try {
-        const sessionKey = await getOrCreateSessionKey(channelId);
-        const { decrypt } = await import("../crypto/index");
-
         // Берём актуальный список через функциональный setState
         setMessages((prev) => {
           const toDecrypt = prev.filter(
@@ -412,8 +436,9 @@ export default function ChatView({
           // Запускаем асинхронное дешифрование и обновляем по мере готовности
           Promise.allSettled(
             toDecrypt.map(async (m) => {
-              const payload = fromApiPayload(m.payload);
-              const text = await decrypt(payload, sessionKey);
+			  const payload = fromApiPayload(m.payload);
+			  const text = await decryptChannelMessage(payload, currentUserId);
+			  if (text === null) throw new Error("No recipient envelope for this device");
               return { id: m.id, text };
             }),
           ).then((results) => {
@@ -440,7 +465,7 @@ export default function ChatView({
 
     decryptMessages();
     return () => { cancelled = true; };
-  }, [channelId, messages.length]);
+  }, [channelId, currentUserId, messages.length]);
 
   if (!channelId) {
     return (

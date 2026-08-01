@@ -14,7 +14,9 @@ const AES_GCM_TAG_BYTES = 16;
 const ECDH_HKDF_SALT = new TextEncoder().encode("zenthril.e2ee.ecdh.hkdf.v1");
 const ECDH_HKDF_INFO = new TextEncoder().encode("zenthril.e2ee.message-key.v1");
 
-const sessionKeys = new Map<string, CryptoKey>();
+// SECURITY: legacy keys are intentionally in-memory only. They are a local
+// development aid, not a shared channel E2EE mechanism.
+const legacyDevelopmentSessionKeys = new Map<string, CryptoKey>();
 
 export interface X25519KeyPair {
   secretKey: Uint8Array;
@@ -33,6 +35,13 @@ export type CryptoAADContext = {
 };
 
 export type CryptoAADContextInput = Omit<CryptoAADContext, "protocolVersion" | "keyId" | "cipherSuite">;
+
+export class ChannelSessionDistributionUnavailableError extends Error {
+  constructor() {
+    super("Encrypted channel session distribution is not available in this build");
+    this.name = "ChannelSessionDistributionUnavailableError";
+  }
+}
 
 function bufferToBase64(buf: Uint8Array | ArrayBuffer): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -275,21 +284,34 @@ export async function decrypt(
 }
 
 export async function rotateSessionKey(channelId: string): Promise<CryptoKey> {
+  assertLegacyChannelKeysAllowed();
   const newKey = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
     false,
     ["encrypt", "decrypt"],
   );
-  sessionKeys.set(channelId, newKey);
+  legacyDevelopmentSessionKeys.set(channelId, newKey);
   return newKey;
 }
 
 export async function getOrCreateSessionKey(
   channelId: string,
 ): Promise<CryptoKey> {
-  const existing = sessionKeys.get(channelId);
+  assertLegacyChannelKeysAllowed();
+  const existing = legacyDevelopmentSessionKeys.get(channelId);
   if (existing) return existing;
   return rotateSessionKey(channelId);
+}
+
+export function canUseLegacyChannelKeys(env: { PROD: boolean } = import.meta.env): boolean {
+  return !env.PROD;
+}
+
+function assertLegacyChannelKeysAllowed(): void {
+  if (canUseLegacyChannelKeys()) return;
+  // WEAKNESS FIXED: a random key local to one browser cannot secure a shared
+  // channel. Production must wait for recipient-device session distribution.
+  throw new ChannelSessionDistributionUnavailableError();
 }
 
 export function isTauri(): boolean {

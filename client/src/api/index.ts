@@ -329,6 +329,10 @@ export const api = {
   },
 
   messages: {
+		recipients: (channelId: string) =>
+			request<{ recipients: Array<{ user_id: string; device_id: string }> }>(
+				"GET", `/api/v1/channels/${channelId}/e2ee-recipients`,
+			),
     history: (channelId: string, before?: string) => {
       const qs = before ? `?before=${before}&limit=50` : "?limit=50";
       return request<MessageAPI[]>(
@@ -363,6 +367,16 @@ export interface EncryptedPayloadAPI {
   session_id?: string;
   client_message_id?: string;
   cipher_suite?: string;
+	recipient_envelopes?: RecipientKeyEnvelopeAPI[];
+}
+
+export interface RecipientKeyEnvelopeAPI {
+	recipient_user_id: string;
+	recipient_device_id: string;
+	session_id: string;
+	ratchet_counter: number;
+	bootstrap_header?: unknown;
+	payload: EncryptedPayloadAPI;
 }
 
 export interface GuildAPI {

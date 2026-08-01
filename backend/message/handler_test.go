@@ -139,6 +139,41 @@ func TestValidateEncryptedPayloadRejectsUnsupportedCipherSuite(t *testing.T) {
 	}
 }
 
+func TestValidateEncryptedPayloadAcceptsRecipientEnvelope(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	wrappedKey := validPayload()
+	wrappedKey.SessionID = "pairwise-session-1"
+	payload.RecipientEnvelopes = []models.RecipientKeyEnvelope{{
+		RecipientUserID:   "recipient-user",
+		RecipientDeviceID: "recipient-device",
+		SessionID:         "pairwise-session-1",
+		RatchetCounter:    0,
+		BootstrapHeader:   []byte(`{"version":1}`),
+		Payload:           wrappedKey,
+	}}
+	if err := validateEncryptedPayload(payload); err != nil {
+		t.Fatalf("recipient envelope rejected: %v", err)
+	}
+}
+
+func TestValidateEncryptedPayloadRejectsDuplicateRecipientDevice(t *testing.T) {
+	t.Parallel()
+
+	payload := validPayload()
+	wrappedKey := validPayload()
+	wrappedKey.SessionID = "pairwise-session-1"
+	envelope := models.RecipientKeyEnvelope{
+		RecipientUserID: "recipient-user", RecipientDeviceID: "recipient-device",
+		SessionID: "pairwise-session-1", Payload: wrappedKey,
+	}
+	payload.RecipientEnvelopes = []models.RecipientKeyEnvelope{envelope, envelope}
+	if err := validateEncryptedPayload(payload); err == nil {
+		t.Fatal("duplicate recipient device was accepted")
+	}
+}
+
 func TestValidateEnvelopeClaimsRejectsMismatchedChannel(t *testing.T) {
 	t.Parallel()
 

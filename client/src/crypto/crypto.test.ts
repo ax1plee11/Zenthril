@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   CIPHER_SUITE_V2,
+  canUseLegacyChannelKeys,
   CRYPTO_PROTOCOL_VERSION,
   decrypt,
   deriveMessageKeyBytes,
@@ -246,6 +247,13 @@ describe("rotateSessionKey", () => {
     const key1 = await rotateSessionKey("channel-2");
     const key2 = await rotateSessionKey("channel-2");
     expect(key1).not.toBe(key2);
+  });
+
+  it("is explicitly limited to development compatibility mode", () => {
+    // Production builds must use recipient-device session distribution instead
+    // of a random AES key that exists only in one client process.
+    expect(canUseLegacyChannelKeys({ PROD: false })).toBe(true);
+    expect(canUseLegacyChannelKeys({ PROD: true })).toBe(false);
   });
 });
 

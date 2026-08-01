@@ -39,6 +39,9 @@ Implemented client primitives:
   v1 payloads;
 - private device material stays client-side and is not included in backend
   registration requests.
+- a client pairwise X3DH bootstrap that verifies the remote signed prekey,
+  derives a root plus directional chain keys with HKDF-SHA256, and consumes the
+  selected one-time prekey on acceptance.
 
 ## API Surface
 
@@ -63,10 +66,10 @@ and removes its one-time prekeys so new sessions cannot be established with it.
 
 ## Next Steps
 
-1. Add client-side secure device key storage in Tauri.
-2. Add safety number display and manual verification UX.
-3. Connect the verified X3DH bootstrap to the client message flow and add audited X25519 test vectors.
-4. Persist Double Ratchet session state for direct messages.
+1. Connect the verified X3DH bootstrap to recipient-device message envelopes.
+2. Persist pairwise ratchet state through OS-backed storage for direct messages.
+3. Add skipped-message-key handling, DH ratchet turns, and audited X25519 test vectors.
+4. Design a reviewed sender-key or MLS-based protocol for group channels.
 5. Add product threat model and protocol limitations section.
 
 ## Security Notes
@@ -74,15 +77,14 @@ and removes its one-time prekeys so new sessions cannot be established with it.
 - The server must never receive private keys.
 - One-time prekeys are consumed with row-level locking to avoid double issue.
 - Device fingerprints are verification aids, not authentication by themselves.
-- The current Tauri storage adapter uses the Tauri store plugin as a local
-  persistence layer. Replace it with OS keychain/Stronghold before claiming
-  production-grade private key storage.
+- Tauri desktop now prefers OS-backed storage via Rust `keyring`; the previous
+  store-plugin data is an alpha migration fallback only. This is still not a
+  substitute for secure recovery, device verification, or external audit.
 - Safety numbers are local verification UX primitives. They do not replace
   signature verification, trust decisions, or future per-user trust records.
-- The current Double Ratchet code is a backend foundation for deterministic key
-  evolution and tests. It is not yet a complete message protocol with skipped
-  message keys, header encryption, full DH ratchet turns, or production session
-  persistence.
+- The client pairwise session foundation is not yet a complete message protocol:
+  it has no skipped message keys, header encryption, full DH ratchet turns, or
+  production recipient-device envelope distribution.
 - Alpha messages created before the protocol-v1 envelope may not decrypt from
   history because the backend did not persist the AES-GCM authentication tag.
 - Protocol-v1 payloads remain accepted as a temporary alpha compatibility path;

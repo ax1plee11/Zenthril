@@ -424,6 +424,7 @@ func main() {
 		})
 		r.Route("/channels", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
+			r.Get("/{channelId}/e2ee-recipients", messageHandler.ListRecipientDevices)
 			r.Route("/{channelId}/messages", func(r chi.Router) {
 				r.With(spamGuard.Middleware).Post("/", messageHandler.SendMessage)
 				r.Get("/", messageHandler.GetHistory)

@@ -74,6 +74,16 @@ export function verifySignedPreKey(bundle: StoredDeviceKeyBundle): boolean {
   );
 }
 
+// SECURITY: the exact signed-prekey transcript is shared with the X3DH session
+// bootstrap verifier. Do not change it without a protocol-version migration.
+export function signedPreKeyMessage(publicKey: Uint8Array): Uint8Array {
+  const context = new TextEncoder().encode(SIGNED_PREKEY_CONTEXT);
+  const out = new Uint8Array(context.length + publicKey.length);
+  out.set(context, 0);
+  out.set(publicKey, context.length);
+  return out;
+}
+
 export function publicBundleContainsNoPrivateKeys(
   request: RegisterDeviceRequest,
 ): boolean {
@@ -102,14 +112,6 @@ function serializeKeyPair(keyPair: {
     publicKey: bytesToBase64(keyPair.publicKey),
     secretKey: bytesToBase64(keyPair.secretKey),
   };
-}
-
-function signedPreKeyMessage(publicKey: Uint8Array): Uint8Array {
-  const context = new TextEncoder().encode(SIGNED_PREKEY_CONTEXT);
-  const out = new Uint8Array(context.length + publicKey.length);
-  out.set(context, 0);
-  out.set(publicKey, context.length);
-  return out;
 }
 
 function defaultDeviceName(): string {

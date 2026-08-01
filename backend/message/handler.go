@@ -20,6 +20,8 @@ const (
 	maxEncryptedPayloadBodyBytes = 96 << 10
 	maxKeyIDLength               = 128
 	maxAADFieldLength            = 256
+	maxRecipientEnvelopes        = 128
+	maxBootstrapHeaderBytes      = 8 << 10
 )
 
 type Handler struct {
@@ -99,6 +101,24 @@ func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, messages)
+}
+
+func (h *Handler) ListRecipientDevices(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+	recipients, err := h.svc.ListRecipientDevices(r.Context(), chi.URLParam(r, "channelId"), userID)
+	if err != nil {
+		if errors.Is(err, ErrNotChannelMember) {
+			writeError(w, http.StatusForbidden, "forbidden", "You do not have access to this channel")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to list channel recipient devices")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"recipients": recipients})
 }
 
 func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
@@ -271,6 +291,44 @@ func validateEncryptedPayload(payload models.EncryptedPayload) error {
 	if payload.ProtocolVersion == models.CryptoProtocolVersion {
 		if err := validateAADV2Fields(payload); err != nil {
 			return err
+		}
+	}
+	if err := validateRecipientEnvelopes(payload); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRecipientEnvelopes(payload models.EncryptedPayload) error {
+	if len(payload.RecipientEnvelopes) > maxRecipientEnvelopes {
+		return fmt.Errorf("recipient_envelopes must contain at most %d entries", maxRecipientEnvelopes)
+	}
+	seenDevices := make(map[string]struct{}, len(payload.RecipientEnvelopes))
+	for _, envelope := range payload.RecipientEnvelopes {
+		if strings.TrimSpace(envelope.RecipientUserID) == "" || strings.TrimSpace(envelope.RecipientDeviceID) == "" || strings.TrimSpace(envelope.SessionID) == "" {
+			return errors.New("recipient envelope recipient_user_id, recipient_device_id and session_id are required")
+		}
+		if len(envelope.SessionID) > maxAADFieldLength {
+			return fmt.Errorf("recipient envelope session_id must be at most %d characters", maxAADFieldLength)
+		}
+		if _, duplicate := seenDevices[envelope.RecipientDeviceID]; duplicate {
+			return errors.New("recipient envelopes must not repeat a device")
+		}
+		seenDevices[envelope.RecipientDeviceID] = struct{}{}
+		if len(envelope.BootstrapHeader) > maxBootstrapHeaderBytes {
+			return fmt.Errorf("recipient envelope bootstrap_header must be at most %d bytes", maxBootstrapHeaderBytes)
+		}
+		if len(envelope.BootstrapHeader) > 0 && !json.Valid(envelope.BootstrapHeader) {
+			return errors.New("recipient envelope bootstrap_header must be valid JSON")
+		}
+		if err := validateEncryptedPayload(envelope.Payload); err != nil {
+			return fmt.Errorf("invalid recipient envelope payload: %w", err)
+		}
+		if envelope.Payload.SessionID != envelope.SessionID {
+			return errors.New("recipient envelope payload session_id does not match envelope")
+		}
+		if envelope.Payload.ChannelID != payload.ChannelID || envelope.Payload.SenderUserID != payload.SenderUserID || envelope.Payload.SenderDeviceID != payload.SenderDeviceID || envelope.Payload.ClientMessageID != payload.ClientMessageID {
+			return errors.New("recipient envelope payload AAD context does not match message")
 		}
 	}
 	return nil

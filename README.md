@@ -28,10 +28,10 @@
 | Refresh token rotation | Implemented |
 | WebSocket tickets | Implemented |
 | E2EE HKDF envelope | Implemented foundation |
-| X3DH | Incomplete / WIP |
+| X3DH | Pairwise bootstrap foundation / WIP |
 | Double Ratchet | Incomplete / WIP |
 | Device verification | Incomplete |
-| Secure key storage | Incomplete |
+| Secure key storage | OS-keychain foundation / Alpha |
 | External audit | Not done |
 | Federation security | Not production-ready |
 
@@ -65,7 +65,7 @@ committed together with the code or configuration they describe.
 - **Double Ratchet is still in progress:** forward secrecy, skipped message key handling, session healing, and full multi-device behavior are not production complete.
 - **Federation is not ready:** federation endpoints are alpha-level, disabled by default, and should not be described as a finished decentralized protocol.
 - **Scalability is still being validated:** benchmark results are useful research data, not a guarantee of real-world performance under hostile or large-scale workloads.
-- **Desktop key storage needs hardening:** production desktop builds should move private key material to OS keychain or a stronger storage mechanism.
+- **Group E2EE is not ready:** production channel sends fail closed until recipient-device session distribution is implemented. The old local-only channel-key path is limited to development compatibility mode.
 - **Startup privacy is conservative by default:** saved sessions open offline until the user explicitly connects, unless auto-connect is enabled.
 - **Voice and realtime features are experimental:** hybrid voice and WebSocket gateway work exist, but edge cases and abuse resistance still need more testing.
 - **External security audit has not been completed:** do not treat the project as audited secure software.
@@ -92,8 +92,8 @@ committed together with the code or configuration they describe.
 ### In Progress
 
 - Full Double Ratchet integration into real message flows
-- X3DH-style session setup and stronger multi-device E2EE semantics
-- Production-grade private key storage for the desktop client
+- Recipient-device session distribution and stronger multi-device E2EE semantics
+- Key recovery and audited desktop secure-storage behavior
 - Multi-instance WebSocket gateway behavior and distributed fan-out
 - Federation protocol design and inter-node trust model
 - Better observability with OpenTelemetry tracing and expanded metrics

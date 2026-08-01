@@ -72,18 +72,22 @@ Current alpha crypto work includes:
   sends and rejects missing route/user binding fields.
 - Device key registration and revocation foundations.
 - Separate Ed25519 signing identities and X25519 identity-DH keys for X3DH
-  foundations; signed prekeys are verified before a backend bootstrap proceeds.
+  foundations; client pairwise bootstrap verifies a peer signed prekey before
+  deriving a session root, and consumes a claimed one-time prekey locally.
 - Safety number foundations.
 
 Known limitations:
 
-- Full X3DH session setup is not integrated into all real message flows.
+- A tested client pairwise X3DH bootstrap exists, but recipient-device session
+  distribution is not yet integrated into guild-channel messages. Production
+  builds therefore reject the legacy random local channel key mechanism rather
+  than silently treating it as shared E2EE.
 - Updated clients migrate local v1 device bundles by generating an X25519
   identity-DH key and re-registering the public bundle. Older remote alpha
   bundles without that key cannot safely participate in X3DH.
-- The internal crypto package has a bounded, one-time skipped-message-key
-  primitive for out-of-order delivery. It is not yet integrated into the real
-  client message flow or complete Double Ratchet session lifecycle.
+- The client has a symmetric chain-ratchet foundation for pairwise sessions.
+  Skipped-message-key handling, DH ratchet turns, header encryption, and a
+  complete session lifecycle are not yet implemented.
 - Full Double Ratchet and session healing are not complete.
 - Multi-device recovery and key backup are not production-ready.
 - Protocol-v1 messages remain supported for alpha compatibility, but the client

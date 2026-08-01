@@ -9,6 +9,20 @@ export interface StoredOneTimePreKey {
   secretKey: string;
 }
 
+// SECURITY: this state contains ratchet secrets and is persisted only through
+// the existing secure device-bundle storage adapter (OS keychain in Tauri).
+export interface StoredPairwiseSession {
+  version: 1;
+  sessionId: string;
+  peerUserId: string;
+  peerDeviceId: string;
+  rootKey: string;
+  sendChainKey: string;
+  receiveChainKey: string;
+  sendCounter: number;
+  receiveCounter: number;
+}
+
 export interface StoredDeviceKeyBundle {
   version: 2;
   userId: string;
@@ -24,7 +38,8 @@ export interface StoredDeviceKeyBundle {
   oneTimePreKeys: StoredOneTimePreKey[];
   createdAt: string;
   registeredAt?: string;
-  backendFingerprint?: string;
+	backendFingerprint?: string;
+	pairwiseSessions?: Record<string, StoredPairwiseSession>;
 }
 
 export interface RegisterDeviceRequest {
