@@ -10,6 +10,7 @@ import (
 
 	"zenthril-backend/auth"
 	"zenthril-backend/config"
+	"zenthril-backend/middleware"
 )
 
 func TestMetricsAuthRequiresBearerToken(t *testing.T) {
@@ -164,10 +165,10 @@ func TestBlockDebugEndpointsInProduction(t *testing.T) {
 
 func TestCORSMiddlewareRejectsUnknownOrigins(t *testing.T) {
 	t.Parallel()
-	cfg := &config.Config{
+	cfg := config.Config{
 		CORSAllowedOrigins: []string{"https://app.example.com"},
 	}
-	handler := corsMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := middleware.CORS(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
@@ -182,7 +183,8 @@ func TestCORSMiddlewareRejectsUnknownOrigins(t *testing.T) {
 	req = httptest.NewRequest(http.MethodOptions, "/api/v1/test", nil)
 	req.Header.Set("Origin", "https://app.example.com")
 	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
+	req.Header.Add("Access-Control-Request-Headers", "Authorization")
+	req.Header.Add("Access-Control-Request-Headers", "Content-Type")
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
@@ -195,10 +197,10 @@ func TestCORSMiddlewareRejectsUnknownOrigins(t *testing.T) {
 
 func TestCORSMiddlewareRejectsInvalidPreflight(t *testing.T) {
 	t.Parallel()
-	cfg := &config.Config{
+	cfg := config.Config{
 		CORSAllowedOrigins: []string{"https://app.example.com"},
 	}
-	handler := corsMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := middleware.CORS(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
@@ -213,7 +215,7 @@ func TestCORSMiddlewareRejectsInvalidPreflight(t *testing.T) {
 	req = httptest.NewRequest(http.MethodOptions, "/api/v1/test", nil)
 	req.Header.Set("Origin", "https://app.example.com")
 	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-	req.Header.Set("Access-Control-Request-Headers", "X-Unsafe-Header")
+	req.Header.Add("Access-Control-Request-Headers", "X-Unsafe-Header")
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {

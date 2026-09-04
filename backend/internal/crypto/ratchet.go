@@ -34,6 +34,13 @@ type RatchetState struct {
 	RecvChainKey []byte
 	SendCounter  uint32
 	RecvCounter  uint32
+	
+	// DH Ratchet keys for asymmetric ratchet turns
+	DHSendPrivate     []byte // Our current DH private key
+	DHSendPublic      []byte // Our current DH public key
+	DHRecvPublic      []byte // Peer's current DH public key
+	PreviousCounter   uint32 // Messages sent in previous sending chain
+	
 	// SECURITY: skipped message keys are retained only for bounded, out-of-order
 	// delivery. Each entry is deleted and zeroed immediately when consumed.
 	SkippedMessageKeys map[uint32]MessageKey
@@ -52,6 +59,29 @@ func NewRatchetState(rootKey, sendChainKey, recvChainKey []byte) (RatchetState, 
 		RootKey:            cloneBytes(rootKey),
 		SendChainKey:       cloneBytes(sendChainKey),
 		RecvChainKey:       cloneBytes(recvChainKey),
+		SkippedMessageKeys: make(map[uint32]MessageKey),
+	}, nil
+}
+
+// NewRatchetStateWithDH creates a ratchet state with DH keys for full Double Ratchet
+func NewRatchetStateWithDH(rootKey, sendChainKey, recvChainKey []byte, dhSendPriv, dhSendPub, dhRecvPub []byte) (RatchetState, error) {
+	if len(rootKey) != ratchetKeySize || len(sendChainKey) != ratchetKeySize || len(recvChainKey) != ratchetKeySize {
+		return RatchetState{}, fmt.Errorf("%w: root/send/recv keys must be 32 bytes", ErrInvalidRatchetState)
+	}
+	if len(dhSendPriv) != x25519KeySize || len(dhSendPub) != x25519KeySize {
+		return RatchetState{}, fmt.Errorf("%w: DH send keys must be 32 bytes", ErrInvalidRatchetState)
+	}
+	if len(dhRecvPub) > 0 && len(dhRecvPub) != x25519KeySize {
+		return RatchetState{}, fmt.Errorf("%w: DH recv key must be 32 bytes or empty", ErrInvalidRatchetState)
+	}
+	
+	return RatchetState{
+		RootKey:            cloneBytes(rootKey),
+		SendChainKey:       cloneBytes(sendChainKey),
+		RecvChainKey:       cloneBytes(recvChainKey),
+		DHSendPrivate:      cloneBytes(dhSendPriv),
+		DHSendPublic:       cloneBytes(dhSendPub),
+		DHRecvPublic:       cloneBytes(dhRecvPub),
 		SkippedMessageKeys: make(map[uint32]MessageKey),
 	}, nil
 }
@@ -88,6 +118,74 @@ func RootRatchet(rootKey, dhOutput []byte) (RootRatchetOutput, error) {
 		RootKey:  material[:ratchetKeySize],
 		ChainKey: material[ratchetKeySize:],
 	}, nil
+}
+
+// DHRatchetTurn performs a DH ratchet turn when receiving a new peer public key.
+// This provides forward secrecy and post-compromise security.
+//
+// SECURITY: This must be called when receiving a message with a new DH public key
+// that differs from DHRecvPublic. The receiver:
+// 1. Performs DH with peer's new public key
+// 2. Advances root key
+// 3. Initializes new receive chain
+// 4. Generates new DH key pair
+// 5. Performs DH with own new private key
+// 6. Advances root key again
+// 7. Initializes new send chain
+func DHRatchetTurn(state *RatchetState, newPeerDHPublic []byte) error {
+	if state == nil {
+		return fmt.Errorf("%w: state is required", ErrInvalidRatchetState)
+	}
+	if len(newPeerDHPublic) != x25519KeySize {
+		return fmt.Errorf("%w: peer DH public key must be 32 bytes", ErrInvalidRatchetState)
+	}
+	
+	// Step 1: Perform DH with new peer public key using our current DH private key
+	dhOutput, err := x25519SharedSecret(state.DHSendPrivate, newPeerDHPublic)
+	if err != nil {
+		return fmt.Errorf("DH with new peer key: %w", err)
+	}
+	
+	// Step 2: Advance root key and get new receive chain key
+	rootOutput, err := RootRatchet(state.RootKey, dhOutput)
+	if err != nil {
+		return fmt.Errorf("root ratchet for receive: %w", err)
+	}
+	
+	state.RootKey = rootOutput.RootKey
+	state.RecvChainKey = rootOutput.ChainKey
+	state.PreviousCounter = state.SendCounter
+	state.RecvCounter = 0
+	state.DHRecvPublic = cloneBytes(newPeerDHPublic)
+	
+	// Step 3: Generate new DH key pair for sending
+	newDHPrivate, newDHPublic, err := generateEphemeralKeyPair()
+	if err != nil {
+		return fmt.Errorf("generate new DH pair: %w", err)
+	}
+	
+	// Zero out old DH private key before replacing
+	zeroBytes(state.DHSendPrivate)
+	state.DHSendPrivate = newDHPrivate
+	state.DHSendPublic = newDHPublic
+	
+	// Step 4: Perform DH with peer's public key using new private key
+	dhOutput2, err := x25519SharedSecret(state.DHSendPrivate, newPeerDHPublic)
+	if err != nil {
+		return fmt.Errorf("DH with new send key: %w", err)
+	}
+	
+	// Step 5: Advance root key again and get new send chain key
+	rootOutput2, err := RootRatchet(state.RootKey, dhOutput2)
+	if err != nil {
+		return fmt.Errorf("root ratchet for send: %w", err)
+	}
+	
+	state.RootKey = rootOutput2.RootKey
+	state.SendChainKey = rootOutput2.ChainKey
+	state.SendCounter = 0
+	
+	return nil
 }
 
 func NextSendMessageKey(state *RatchetState) (MessageKey, error) {
@@ -168,6 +266,10 @@ func (s *SessionState) RatchetState() (RatchetState, error) {
 	}
 	state.SendCounter = s.SendCounter
 	state.RecvCounter = s.RecvCounter
+	state.DHSendPrivate = cloneBytes(s.DHSendPrivate)
+	state.DHSendPublic = cloneBytes(s.DHSendPublic)
+	state.DHRecvPublic = cloneBytes(s.DHRecvPublic)
+	state.PreviousCounter = s.PreviousCounter
 	state.SkippedMessageKeys = cloneSkippedMessageKeys(s.SkippedMessageKeys)
 	return state, nil
 }
@@ -179,6 +281,10 @@ func (s *SessionState) ApplyRatchetState(state RatchetState) {
 	s.RecvChainKey = cloneBytes(state.RecvChainKey)
 	s.SendCounter = state.SendCounter
 	s.RecvCounter = state.RecvCounter
+	s.DHSendPrivate = cloneBytes(state.DHSendPrivate)
+	s.DHSendPublic = cloneBytes(state.DHSendPublic)
+	s.DHRecvPublic = cloneBytes(state.DHRecvPublic)
+	s.PreviousCounter = state.PreviousCounter
 	s.SkippedMessageKeys = cloneSkippedMessageKeys(state.SkippedMessageKeys)
 }
 

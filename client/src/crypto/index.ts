@@ -23,6 +23,10 @@ export interface X25519KeyPair {
   publicKey: Uint8Array;
 }
 
+export type CryptoAADContextInput = Omit<CryptoAADContext, "protocolVersion" | "keyId" | "cipherSuite"> & {
+  nonce?: number[];
+};
+
 export type CryptoAADContext = {
   protocolVersion: number;
   keyId: string;
@@ -32,9 +36,8 @@ export type CryptoAADContext = {
   sessionId: string;
   clientMessageId: string;
   cipherSuite: typeof CIPHER_SUITE_V2;
+  nonce?: number[];
 };
-
-export type CryptoAADContextInput = Omit<CryptoAADContext, "protocolVersion" | "keyId" | "cipherSuite">;
 
 export class ChannelSessionDistributionUnavailableError extends Error {
   constructor() {
@@ -157,8 +160,9 @@ export async function encrypt(
   plaintext: string,
   key: CryptoKey,
   aadContext: CryptoAADContextInput,
+  options?: { nonce?: number[] },
 ): Promise<EncryptedPayload> {
-  return encryptWithContext(plaintext, key, aadContext);
+  return encryptWithContext(plaintext, key, aadContext, options);
 }
 
 // SECURITY-HARDENING: new client sends must use protocol-v2 AAD context. This
@@ -174,8 +178,9 @@ async function encryptWithContext(
   plaintext: string,
   key: CryptoKey,
   aadContext?: CryptoAADContextInput,
+  options?: { nonce?: number[] },
 ): Promise<EncryptedPayload> {
-  const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
+  const iv = options?.nonce ? new Uint8Array(options.nonce) : crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
   const encoded = new TextEncoder().encode(plaintext);
   const keyId = generateKeyId();
   const protocolVersion = aadContext ? CRYPTO_PROTOCOL_VERSION : LEGACY_CRYPTO_PROTOCOL_VERSION;
@@ -231,6 +236,7 @@ export async function decrypt(
   payload: EncryptedPayload,
   key: CryptoKey,
   aadContext?: CryptoAADContext,
+  options?: { nonce?: number[] },
 ): Promise<string> {
   if (payload.protocolVersion !== LEGACY_CRYPTO_PROTOCOL_VERSION && payload.protocolVersion !== CRYPTO_PROTOCOL_VERSION) {
     throw new Error("Unsupported crypto protocol version");
@@ -269,10 +275,13 @@ export async function decrypt(
       cipherSuite: payload.cipherSuite as typeof CIPHER_SUITE_V2,
     })
     : encryptedPayloadAAD(payload.protocolVersion, payload.keyId);
+
+  // E2EE: allow explicit nonce from Double Ratchet for per-message uniqueness.
+  const iv = options?.nonce ? new Uint8Array(options.nonce) : ivBytes;
   const plainBuffer = await crypto.subtle.decrypt(
     {
       name: "AES-GCM",
-      iv: toBufferSource(ivBytes),
+      iv: toBufferSource(iv),
       tagLength: AES_GCM_TAG_BYTES * 8,
       additionalData: toBufferSource(aad),
     },

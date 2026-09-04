@@ -14,6 +14,7 @@ import (
 	"zenthril-backend/internal/cqrs"
 	"zenthril-backend/internal/event"
 	"zenthril-backend/internal/gateway"
+	"zenthril-backend/internal/observability"
 	"zenthril-backend/internal/repository"
 )
 
@@ -32,6 +33,7 @@ var Module = fx.Options(
 	fx.Provide(
 		loadConfig,
 		newLogger,
+		newTracerProvider,
 		newCommandBus,
 		newQueryBus,
 		newEventStore,
@@ -47,6 +49,7 @@ var Module = fx.Options(
 	fx.Invoke(
 		enforceProductionGuards,
 		startGatewayHandler,
+		startTracerProvider,
 	),
 )
 
@@ -229,6 +232,21 @@ func startGatewayHandler(lc fx.Lifecycle, handler *gateway.Handler, logger *slog
 			// ARCHITECTURE: fx lifecycle must tear down bus subscriptions on shutdown.
 			logger.Info("gateway handler stopped")
 			return nil
+		},
+	})
+}
+
+func newTracerProvider(cfg config.Config, logger *slog.Logger) *observability.TracerProvider {
+	return observability.NewTracerProvider(cfg.Observability, logger)
+}
+
+func startTracerProvider(lc fx.Lifecycle, provider *observability.TracerProvider, logger *slog.Logger) {
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return provider.Start(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return provider.Shutdown(ctx)
 		},
 	})
 }

@@ -10,12 +10,14 @@ import {
   ShieldCheck,
   Trash2,
   X,
+  QrCode,
 } from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../store/auth";
 import {
   ensureLocalDeviceRegistered,
   clearDeviceVerification,
+  createSafetyNumberQRPayload,
   getDeviceKeyStorageStatus,
   getDeviceVerificationStatus,
   loadDeviceKeyBundle,
@@ -43,6 +45,7 @@ export default function DeviceManagement({ onClose }: Props) {
   const [busyDeviceId, setBusyDeviceId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [qrPayload, setQrPayload] = useState<string | null>(null);
   const [verificationByDevice, setVerificationByDevice] = useState<
     Record<string, DeviceVerificationStatus>
   >({});
@@ -147,6 +150,13 @@ export default function DeviceManagement({ onClose }: Props) {
     if (!ok) return;
     await verifyDeviceSafetyNumber(localBundle, device);
     await refreshDeviceVerification(device);
+  }
+
+  async function handleShowQR(device: DeviceAPI) {
+    if (!localBundle || device.device_id === localBundle.deviceId) return;
+    const status = verificationByDevice[device.device_id];
+    if (!status?.safetyNumber) return;
+    setQrPayload(createSafetyNumberQRPayload(status.safetyNumber));
   }
 
   async function handleClearVerification(device: DeviceAPI) {
@@ -298,6 +308,8 @@ export default function DeviceManagement({ onClose }: Props) {
                       copied={copied === `safety:${device.device_id}`}
                       onVerify={() => void handleVerifyDevice(device)}
                       onClear={() => void handleClearVerification(device)}
+                      onShowQR={() => void handleShowQR(device)}
+                      qrPayload={qrPayload}
                     />
                   )}
                 </div>
@@ -368,12 +380,16 @@ function VerificationPanel({
   copied,
   onVerify,
   onClear,
+  onShowQR,
+  qrPayload,
 }: {
   status: DeviceVerificationStatus;
   onCopy: () => void;
   copied: boolean;
   onVerify: () => void;
   onClear: () => void;
+  onShowQR: () => void;
+  qrPayload: string | null;
 }) {
   const isVerified = status.state === "verified";
   const isChanged = status.state === "identity_changed";
@@ -417,12 +433,25 @@ function VerificationPanel({
         <button type="button" onClick={onVerify} style={s.secondaryButton}>
           {isVerified ? "Re-verify" : "Mark verified"}
         </button>
+        <button type="button" onClick={onShowQR} style={s.secondaryButton}>
+          <QrCode size={14} style={{ marginRight: 6 }} />
+          QR
+        </button>
         {status.record && (
           <button type="button" onClick={onClear} style={s.secondaryButton}>
             Clear
           </button>
         )}
       </div>
+      {qrPayload && (
+        <div style={s.qrBlock}>
+          <div style={s.qrTitle}>Scan to verify safety number</div>
+          <div style={s.qrValue}>{qrPayload}</div>
+          <div style={s.qrNote}>
+            Compare this payload with the other user out-of-band.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -783,6 +812,37 @@ const s = {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
+  } as React.CSSProperties,
+  qrBlock: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    border: "1px solid rgba(139,157,255,0.22)",
+    background: "rgba(139,157,255,0.08)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    minWidth: 0,
+  } as React.CSSProperties,
+  qrTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "var(--text-primary)",
+  } as React.CSSProperties,
+  qrValue: {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    fontSize: 10,
+    color: "var(--text-secondary)",
+    background: "var(--bg-input)",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    padding: "8px 10px",
+    wordBreak: "break-all",
+  } as React.CSSProperties,
+  qrNote: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+    lineHeight: 1.35,
   } as React.CSSProperties,
   primaryButton: {
     padding: "8px 10px",

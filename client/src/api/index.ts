@@ -375,6 +375,7 @@ export interface RecipientKeyEnvelopeAPI {
 	recipient_device_id: string;
 	session_id: string;
 	ratchet_counter: number;
+	dh_public_key?: string;
 	bootstrap_header?: unknown;
 	payload: EncryptedPayloadAPI;
 }

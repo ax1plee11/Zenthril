@@ -140,6 +140,7 @@ function fromApiPayload(p: EncryptedPayloadAPI): EncryptedPayload {
 		recipientDeviceId: envelope.recipient_device_id,
 		sessionId: envelope.session_id,
 		ratchetCounter: envelope.ratchet_counter,
+		dhPublicKey: envelope.dh_public_key ?? "",
 		...(envelope.bootstrap_header ? { bootstrapHeader: envelope.bootstrap_header as import("../features/e2ee").X3DHSessionHeader } : {}),
 		payload: fromApiPayload(envelope.payload),
 	}));

@@ -83,29 +83,11 @@ func adminOnly(cfg *config.Config) func(http.Handler) http.Handler {
 	}
 }
 
-func requestBodyLimit(maxBytes int64) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// SECURITY: all mutating endpoints get a hard body cap before JSON decoding.
-			switch r.Method {
-			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 func blockDebugEndpoints(cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if cfg.Environment == "production" && (r.URL.Path == "/debug" || strings.HasPrefix(r.URL.Path, "/debug/")) {
-				// SECURITY-HARDENING: debug/pprof endpoints must never be exposed in production.
-				// VULNERABILITY FIXED: accidental profiler/debug route registration cannot leak runtime internals.
-				slog.Warn("security debug endpoint blocked", "path", r.URL.Path, "remote_addr", r.RemoteAddr)
-				w.Header().Set("Content-Type", "application/json")
+			if cfg.Environment == "production" && strings.Contains(r.URL.Path, "/debug/") {
 				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(`{"error":"not_found","message":"Not found"}`))
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -113,58 +95,17 @@ func blockDebugEndpoints(cfg *config.Config) func(http.Handler) http.Handler {
 	}
 }
 
-func corsMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
-	allowed := make(map[string]struct{}, len(cfg.CORSAllowedOrigins))
-	for _, origin := range cfg.CORSAllowedOrigins {
-		allowed[origin] = struct{}{}
-	}
-
+func requestBodyLimit(limit int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := strings.TrimSpace(r.Header.Get("Origin"))
-
-			w.Header().Add("Vary", "Origin")
-			w.Header().Add("Vary", "Access-Control-Request-Method")
-			w.Header().Add("Vary", "Access-Control-Request-Headers")
-
-			if origin != "" {
-				if _, ok := allowed[origin]; !ok {
-					// SECURITY-HARDENING: reject unknown browser origins instead of reflecting them.
-					// VULNERABILITY FIXED: the API no longer mirrors arbitrary Origin values into CORS responses.
-					slog.Warn("security cors origin rejected", "reason", "origin_not_allowed", "origin", origin, "path", r.URL.Path)
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			}
-
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.Header().Set("Access-Control-Max-Age", "600")
-
-			if r.Method == http.MethodOptions {
-				if origin == "" {
-					slog.Warn("security cors preflight rejected", "reason", "empty_origin", "path", r.URL.Path)
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-				if !validPreflightRequest(r) {
-					// SECURITY-HARDENING: preflight must request only methods and headers the API intentionally exposes.
-					// VULNERABILITY FIXED: browsers cannot pre-authorize unsafe custom headers or methods.
-					slog.Warn("security cors preflight rejected", "reason", "method_or_headers_not_allowed", "origin", origin, "path", r.URL.Path)
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
+// validPreflightRequest ensures the preflight only asks for methods and headers
+// the API intentionally exposes.
 func validPreflightRequest(r *http.Request) bool {
 	method := strings.ToUpper(strings.TrimSpace(r.Header.Get("Access-Control-Request-Method")))
 	if method == "" {
@@ -336,7 +277,7 @@ func main() {
 	r.Use(securityheaders.SecurityHeaders)
 	r.Use(blockDebugEndpoints(cfg))
 	r.Use(metrics.HTTPMiddleware)
-	r.Use(corsMiddleware(cfg))
+	r.Use(securityheaders.CORS(*cfg))
 
 	r.Use(secGuard.IPRateLimit)
 	r.Use(requestBodyLimit(maxRequestBodyBytes))
@@ -531,9 +472,11 @@ func main() {
 		}
 	}
 
-	// ARCHITECTURE: legacy entrypoint now drains HTTP requests on SIGTERM like cmd/api.
+	// ARCHITECTURE: legacy entrypoint now drains HTTP requests and WebSocket
+	// connections on SIGTERM like cmd/api.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	wsHub.Drain()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("server shutdown error: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -103,6 +104,7 @@ type Hub struct {
 	mu                 sync.RWMutex
 	register           chan *Client
 	unregister         chan *Client
+	draining           atomic.Bool
 }
 
 func NewHub(g ChannelAccessChecker) *Hub {
@@ -133,6 +135,11 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			if h.draining.Load() {
+				_ = client.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseServiceRestart, "server is draining"), time.Now().Add(wsWriteWait))
+				_ = client.conn.Close()
+				continue
+			}
 			metrics.Global().IncrementConnections()
 			h.mu.Lock()
 			if h.users[client.UserID] == nil {
@@ -148,6 +155,20 @@ func (h *Hub) Run() {
 			if h.unregisterClient(client) {
 				metrics.Global().DecrementConnections()
 			}
+		}
+	}
+}
+
+// Drain stops accepting new WebSocket connections and closes existing ones.
+// SECURITY: during shutdown, new connections are rejected with CloseServiceRestart.
+func (h *Hub) Drain() {
+	h.draining.Store(true)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, userClients := range h.users {
+		for client := range userClients {
+			_ = client.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseServiceRestart, "server is draining"), time.Now().Add(wsWriteWait))
+			_ = client.conn.Close()
 		}
 	}
 }

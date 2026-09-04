@@ -7,6 +7,7 @@ export interface RecipientKeyEnvelope {
   recipientDeviceId: string;
   sessionId: string;
   ratchetCounter: number;
+  dhPublicKey?: string;
   bootstrapHeader?: X3DHSessionHeader;
   payload: EncryptedPayload;
 }

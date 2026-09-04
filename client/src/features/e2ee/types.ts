@@ -21,6 +21,10 @@ export interface StoredPairwiseSession {
   receiveChainKey: string;
   sendCounter: number;
   receiveCounter: number;
+  dhSendPublic: string;
+  dhRecvPublic: string;
+  previousCounter: number;
+  skippedMessageKeys: Record<number, { key: string; nonce: string; counter: number }>;
 }
 
 export interface StoredDeviceKeyBundle {

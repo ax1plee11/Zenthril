@@ -256,9 +256,9 @@ func (s *Service) insertRecipientEnvelopes(ctx context.Context, tx pgx.Tx, messa
 		}
 		_, err = tx.Exec(ctx,
 			`INSERT INTO message_recipient_envelopes
-				(message_id, recipient_user_id, recipient_device_id, session_id, ratchet_counter, bootstrap_header, payload)
-			 VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::jsonb, $7::jsonb)`,
-			messageID, userID, deviceID, envelope.SessionID, envelope.RatchetCounter,
+				(message_id, recipient_user_id, recipient_device_id, session_id, ratchet_counter, dh_public_key, bootstrap_header, payload)
+			 VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::jsonb, $8::jsonb)`,
+			messageID, userID, deviceID, envelope.SessionID, envelope.RatchetCounter, envelope.DHPublicKey,
 			string(envelope.BootstrapHeader), string(payloadJSON),
 		)
 		if err != nil {
@@ -283,7 +283,7 @@ func (s *Service) attachRecipientEnvelopes(ctx context.Context, messages []model
 		return fmt.Errorf("parse recipient user id: %w", err)
 	}
 	rows, err := s.db.Query(ctx,
-		`SELECT message_id, recipient_user_id::text, recipient_device_id::text, session_id, ratchet_counter, COALESCE(bootstrap_header::text, ''), payload
+		`SELECT message_id, recipient_user_id::text, recipient_device_id::text, session_id, ratchet_counter, COALESCE(dh_public_key, ''), bootstrap_header, payload
 		 FROM message_recipient_envelopes
 		 WHERE message_id = ANY($1) AND recipient_user_id = $2`,
 		ids, recipientID,
@@ -295,14 +295,16 @@ func (s *Service) attachRecipientEnvelopes(ctx context.Context, messages []model
 	for rows.Next() {
 		var messageID uuid.UUID
 		var envelope models.RecipientKeyEnvelope
+		var dhPublicKey string
 		var bootstrap string
 		var payloadJSON []byte
-		if err := rows.Scan(&messageID, &envelope.RecipientUserID, &envelope.RecipientDeviceID, &envelope.SessionID, &envelope.RatchetCounter, &bootstrap, &payloadJSON); err != nil {
+		if err := rows.Scan(&messageID, &envelope.RecipientUserID, &envelope.RecipientDeviceID, &envelope.SessionID, &envelope.RatchetCounter, &dhPublicKey, &bootstrap, &payloadJSON); err != nil {
 			return fmt.Errorf("scan recipient envelope: %w", err)
 		}
 		if err := json.Unmarshal(payloadJSON, &envelope.Payload); err != nil {
 			return fmt.Errorf("decode recipient envelope payload: %w", err)
 		}
+		envelope.DHPublicKey = dhPublicKey
 		if bootstrap != "" {
 			envelope.BootstrapHeader = []byte(bootstrap)
 		}

@@ -10,11 +10,13 @@ import (
 // RecipientKeyEnvelope encrypts the per-message content key for exactly one
 // recipient device. The server stores and relays this opaque material only.
 // SECURITY: private keys and plaintext content keys must never appear here.
+// E2EE: includes sender's current DH public key to enable DH ratchet turns.
 type RecipientKeyEnvelope struct {
 	RecipientUserID   string           `json:"recipient_user_id"`
 	RecipientDeviceID string           `json:"recipient_device_id"`
 	SessionID         string           `json:"session_id"`
 	RatchetCounter    uint32           `json:"ratchet_counter"`
+	DHPublicKey       string           `json:"dh_public_key,omitempty"`
 	BootstrapHeader   json.RawMessage  `json:"bootstrap_header,omitempty"`
 	Payload           EncryptedPayload `json:"payload"`
 }

@@ -88,6 +88,7 @@ type ShardingConfig struct {
 
 type ObservabilityConfig struct {
 	OTLPEndpoint string
+	OTLPInsecure bool
 }
 
 func Load() (Config, error) {
@@ -147,6 +148,7 @@ func Load() (Config, error) {
 		},
 		Observability: ObservabilityConfig{
 			OTLPEndpoint: env("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+			OTLPInsecure: envBool("OTEL_EXPORTER_OTLP_INSECURE", false),
 		},
 	}
 

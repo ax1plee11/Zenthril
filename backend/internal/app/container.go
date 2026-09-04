@@ -12,12 +12,14 @@ import (
 	"zenthril-backend/internal/cqrs"
 	"zenthril-backend/internal/event"
 	"zenthril-backend/internal/gateway"
+	"zenthril-backend/internal/observability"
 	"zenthril-backend/internal/repository"
 )
 
 type Container struct {
 	Config          config.Config
 	Logger          *slog.Logger
+	TracerProvider  *observability.TracerProvider
 	CommandBus      *cqrs.CommandBus
 	QueryBus        *cqrs.QueryBus
 	EventStore      cqrs.EventStore

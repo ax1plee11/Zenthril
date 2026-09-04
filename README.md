@@ -27,10 +27,10 @@
 | Auth hardening | Partial / Alpha |
 | Refresh token rotation | Implemented |
 | WebSocket tickets | Implemented |
-| E2EE HKDF envelope | Implemented foundation |
-| X3DH | Pairwise bootstrap foundation / WIP |
-| Double Ratchet | Incomplete / WIP |
-| Device verification | Incomplete |
+| E2EE HKDF envelope | Implemented |
+| X3DH | Implemented / Tested |
+| Double Ratchet | Implemented (DH + symmetric + skipped keys) / Alpha |
+| Device verification | Partial / Alpha (safety numbers + QR UI present) |
 | Secure key storage | OS-keychain foundation / Alpha |
 | External audit | Not done |
 | Federation security | Not production-ready |
@@ -61,11 +61,11 @@ committed together with the code or configuration they describe.
 ## Known Limitations / Current Issues
 
 - **Not production ready:** deployment, monitoring, incident response, key storage, and operational procedures still require more work.
-- **E2EE is incomplete:** Zenthril has foundational cryptographic components, but it does not yet implement a complete Signal-grade protocol.
-- **Double Ratchet is still in progress:** forward secrecy, skipped message key handling, session healing, and full multi-device behavior are not production complete.
+- **E2EE is alpha-grade:** Zenthril has a complete pairwise X3DH + Double Ratchet implementation with DH ratchet turns, skipped message keys, and session healing. It is not yet equivalent to the Signal Protocol and has not been externally audited.
+- **Backend-side X3DH initialization is WIP:** the server currently cannot initiate new pairwise sessions because private keys never leave the client. Session creation must be client-driven until secure server-side key retrieval is implemented.
+- **Group E2EE scales poorly for large groups:** the current implementation encrypts separately for each recipient device (pairwise). For large groups a Sender Keys or MLS-based approach is required.
 - **Federation is not ready:** federation endpoints are alpha-level, disabled by default, and should not be described as a finished decentralized protocol.
 - **Scalability is still being validated:** benchmark results are useful research data, not a guarantee of real-world performance under hostile or large-scale workloads.
-- **Group E2EE is not ready:** production channel sends fail closed until recipient-device session distribution is implemented. The old local-only channel-key path is limited to development compatibility mode.
 - **Startup privacy is conservative by default:** saved sessions open offline until the user explicitly connects, unless auto-connect is enabled.
 - **Voice and realtime features are experimental:** hybrid voice and WebSocket gateway work exist, but edge cases and abuse resistance still need more testing.
 - **External security audit has not been completed:** do not treat the project as audited secure software.

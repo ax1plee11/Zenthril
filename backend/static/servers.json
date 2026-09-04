@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-25",
+  "servers": [
+    {
+      "id": "ngrok",
+      "name": "Zenthril (ngrok)",
+      "api_base": "https://satirical-fragile-dormitory.ngrok-free.dev",
+      "ws_base": "wss://satirical-fragile-dormitory.ngrok-free.dev",
+      "health_path": "/livez",
+      "transport": "direct",
+      "backup_endpoints": []
+    }
+  ]
+}

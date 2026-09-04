@@ -41,6 +41,13 @@ type SessionState struct {
 	RecvChainKey       []byte
 	SendCounter        uint32
 	RecvCounter        uint32
+	
+	// DH Ratchet keys
+	DHSendPrivate   []byte
+	DHSendPublic    []byte
+	DHRecvPublic    []byte
+	PreviousCounter uint32
+	
 	SkippedMessageKeys map[uint32]MessageKey
 }
 
@@ -105,6 +112,33 @@ func (s *X3DHService) StartSession(ctx context.Context, local LocalDeviceKeys, p
 	if err != nil {
 		return SessionState{}, err
 	}
+	
+	// Initialize DH ratchet keys for initiator
+	// Per Signal Protocol: initiator performs initial DH ratchet step with peer's signed prekey
+	dhSendPriv, dhSendPub, err := generateEphemeralKeyPair()
+	if err != nil {
+		return SessionState{}, fmt.Errorf("generate initial DH keys: %w", err)
+	}
+	
+	// Perform initial DH with peer's signed prekey to establish first sending chain
+	dhOutput, err := x25519SharedSecret(dhSendPriv, peer.SignedPreKey)
+	if err != nil {
+		return SessionState{}, fmt.Errorf("initial DH with peer signed prekey: %w", err)
+	}
+	
+	// Perform root ratchet to get new send chain key
+	rootOutput, err := RootRatchet(ratchet.RootKey, dhOutput)
+	if err != nil {
+		return SessionState{}, fmt.Errorf("initial root ratchet: %w", err)
+	}
+	
+	// Update ratchet state with new keys
+	ratchet.RootKey = rootOutput.RootKey
+	ratchet.SendChainKey = rootOutput.ChainKey
+	ratchet.DHSendPrivate = dhSendPriv
+	ratchet.DHSendPublic = dhSendPub
+	ratchet.DHRecvPublic = peer.SignedPreKey // Peer's signed prekey is their current DH public key
+	// RecvChainKey stays as derived from X3DH shared secret for receiving peer's first message
 
 	session := SessionState{
 		UserID:             local.UserID,
