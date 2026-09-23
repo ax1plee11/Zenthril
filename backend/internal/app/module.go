@@ -29,22 +29,44 @@ import (
 // In production this module enforces:
 //   - A real Redis-backed SessionValidator (NoopSessionValidator is rejected).
 //   - A durable EventStore (InMemoryEventStore is rejected).
+// Module defines the next-generation API dependency graph.
+//
+// ARCHITECTURE: All services are wired through uber/fx providers with
+// explicit lifecycle hooks. Each provider declares its dependencies
+// declaratively, ensuring correct initialization order.
+//
+// SECURITY: cmd/api is EXPERIMENTAL. It does not wire the full business-logic
+// stack (messages, guilds, friends). Do NOT deploy it as a replacement for the
+// legacy main.go until all services and session validation are ported.
+// In production this module enforces:
+//   - A real Redis-backed SessionValidator (NoopSessionValidator is rejected).
+//   - A durable EventStore (InMemoryEventStore is rejected).
+//   - A configured Redis client for distributed rate limiting.
 var Module = fx.Options(
 	fx.Provide(
-		loadConfig,
-		newLogger,
-		newTracerProvider,
-		newCommandBus,
-		newQueryBus,
-		newEventStore,
-		newShardManager,
-		newEventBus,
-		newRedisClient,
-		newSessionValidator,
-		newGatewayRegistry,
-		newGatewayAuthenticator,
-		newGatewayHandler,
-		newContainer,
+		// Core configuration and logging
+		fx.Annotate(loadConfig, fx.As(new(config.Config))),
+		fx.Annotate(newLogger, fx.As(new(*slog.Logger))),
+		fx.Annotate(newTracerProvider, fx.As(new(*observability.TracerProvider))),
+		// CQRS buses
+		fx.Annotate(newCommandBus, fx.As(new(*cqrs.CommandBus))),
+		fx.Annotate(newQueryBus, fx.As(new(*cqrs.QueryBus))),
+		// Event sourcing
+		fx.Annotate(newEventStore, fx.As(new(cqrs.EventStore))),
+		// Data layer
+		fx.Annotate(newShardManager, fx.As(new(*repository.ShardManager))),
+		// Event bus
+		fx.Annotate(newEventBus, fx.As(new(event.Bus))),
+		// Redis client for session validation and rate limiting
+		fx.Annotate(newRedisClient, fx.As(new(*redis.Client))),
+		// Security: session validator
+		fx.Annotate(newSessionValidator, fx.As(new(gateway.SessionValidator))),
+		// Gateway infrastructure
+		fx.Annotate(newGatewayRegistry, fx.As(new(*gateway.Registry))),
+		fx.Annotate(newGatewayAuthenticator, fx.As(new(gateway.Authenticator))),
+		fx.Annotate(newGatewayHandler, fx.As(new(*gateway.Handler))),
+		// Container aggregation
+		fx.Annotate(newContainer, fx.As(new(*Container))),
 	),
 	fx.Invoke(
 		enforceProductionGuards,
@@ -261,10 +283,14 @@ func newContainer(
 	shards *repository.ShardManager,
 	registry *gateway.Registry,
 	handler *gateway.Handler,
+	validator gateway.SessionValidator,
+	redis *redis.Client,
+	tracer *observability.TracerProvider,
 ) *Container {
 	return &Container{
 		Config:          cfg,
 		Logger:          logger,
+		TracerProvider:  tracer,
 		CommandBus:      commandBus,
 		QueryBus:        queryBus,
 		EventStore:      eventStore,
@@ -272,5 +298,7 @@ func newContainer(
 		ShardManager:    shards,
 		GatewayRegistry: registry,
 		GatewayHandler:  handler,
+		SessionValidator: validator,
+		RedisClient:     redis,
 	}
 }

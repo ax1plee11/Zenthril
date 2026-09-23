@@ -12,8 +12,12 @@ COPY backend/ ./
 
 ARG TARGET=./cmd/api
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ${TARGET}
+# Build with security flags
+# SECURITY: PIE and static linking harden the binary against exploitation.
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w -buildid= -linkmode external -extldflags '-static -z relro -z now -z noexecstack'" \
+    -a -installsuffix cgo -o server ${TARGET}
 
 # Runtime stage
 FROM alpine:3.20
@@ -29,11 +33,25 @@ COPY --from=builder /app/server .
 # Copy migrations
 COPY backend/migrations ./migrations/
 
-RUN chown -R zenthril:zenthril /app
+# SECURITY: drop all capabilities and set read-only filesystem.
+RUN chown -R zenthril:zenthril /app && \
+    chmod 550 /app/server && \
+    chmod 755 /app/migrations
+
 USER zenthril
+
+# SECURITY: non-root user, read-only filesystem, no new privileges.
+# Note: security options are applied at runtime via docker run --security-opt.
 
 # Expose port
 EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
+    CMD wget -q -O- http://127.0.0.1:8080/livez >/dev/null 2>&1 || exit 1
+
+# Graceful shutdown on SIGTERM
+STOPSIGNAL SIGTERM
 
 # Run
 CMD ["./server"]

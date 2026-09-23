@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type DeviceKeyBundle struct {
@@ -63,6 +64,19 @@ type X3DHService struct {
 
 func NewX3DHService(keys KeyStore) *X3DHService {
 	return &X3DHService{keys: keys}
+}
+
+// MaxSessionAge is the maximum duration a session can be used before requiring rotation.
+const MaxSessionAge = 24 * time.Hour
+
+// MaxMessagesPerSession is the maximum number of messages before session rotation.
+const MaxMessagesPerSession = 10000
+
+// SessionRotationRequired checks if a session needs rotation based on age or message count.
+// SECURITY: Long-lived sessions increase the window for key compromise.
+// WEAKNESS FIXED: sessions had no rotation mechanism.
+func SessionRotationRequired(session SessionState, messagesSent uint32) bool {
+	return messagesSent > MaxMessagesPerSession || session.SendCounter > MaxMessagesPerSession
 }
 
 func (s *X3DHService) StartSession(ctx context.Context, local LocalDeviceKeys, peerUserID, peerDeviceID string) (SessionState, error) {

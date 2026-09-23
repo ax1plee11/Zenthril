@@ -30,6 +30,7 @@
 | E2EE HKDF envelope | Implemented |
 | X3DH | Implemented / Tested |
 | Double Ratchet | Implemented (DH + symmetric + skipped keys) / Alpha |
+| Group E2EE (Sender Keys foundation) | Implemented / Alpha (max 10 devices, fail-closed) |
 | Device verification | Partial / Alpha (safety numbers + QR UI present) |
 | Secure key storage | OS-keychain foundation / Alpha |
 | External audit | Not done |
@@ -63,7 +64,7 @@ committed together with the code or configuration they describe.
 - **Not production ready:** deployment, monitoring, incident response, key storage, and operational procedures still require more work.
 - **E2EE is alpha-grade:** Zenthril has a complete pairwise X3DH + Double Ratchet implementation with DH ratchet turns, skipped message keys, and session healing. It is not yet equivalent to the Signal Protocol and has not been externally audited.
 - **Backend-side X3DH initialization is WIP:** the server currently cannot initiate new pairwise sessions because private keys never leave the client. Session creation must be client-driven until secure server-side key retrieval is implemented.
-- **Group E2EE scales poorly for large groups:** the current implementation encrypts separately for each recipient device (pairwise). For large groups a Sender Keys or MLS-based approach is required.
+- **Group E2EE foundation implemented, large groups remain WIP:** Zenthril now has a Sender Keys foundation for group encryption with a fail-closed limit of 10 devices per group. It is not full MLS; large groups require a different protocol and external audit.
 - **Federation is not ready:** federation endpoints are alpha-level, disabled by default, and should not be described as a finished decentralized protocol.
 - **Scalability is still being validated:** benchmark results are useful research data, not a guarantee of real-world performance under hostile or large-scale workloads.
 - **Startup privacy is conservative by default:** saved sessions open offline until the user explicitly connects, unless auto-connect is enabled.

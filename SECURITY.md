@@ -74,26 +74,33 @@ Current alpha crypto work includes:
 - Separate Ed25519 signing identities and X25519 identity-DH keys for X3DH
   foundations; client pairwise bootstrap verifies a peer signed prekey before
   deriving a session root, and consumes a claimed one-time prekey locally.
-- Safety number foundations.
+- Safety number foundations with QR payload export.
+- Pairwise Double Ratchet with DH ratchet turns, symmetric chain ratchet,
+  skipped message keys (bounded, max 2000), and session healing.
+- Recipient-device session distribution: each message is encrypted separately
+  for every recipient device with its own pairwise session/bootstrap header.
+- Group Sender Keys foundation for up to 10 devices per group with fail-closed
+  enforcement. Full MLS is not implemented.
 
 Known limitations:
 
-- A tested client pairwise X3DH bootstrap exists, but recipient-device session
-  distribution is not yet integrated into guild-channel messages. Production
-  builds therefore reject the legacy random local channel key mechanism rather
-  than silently treating it as shared E2EE.
+- A tested client pairwise X3DH bootstrap exists, but backend-side X3DH
+  initialization is not yet production-ready because private keys never leave
+  the client. Session creation must be client-driven until secure server-side
+  key retrieval is implemented.
 - Updated clients migrate local v1 device bundles by generating an X25519
   identity-DH key and re-registering the public bundle. Older remote alpha
   bundles without that key cannot safely participate in X3DH.
-- The client has a symmetric chain-ratchet foundation for pairwise sessions.
-  Skipped-message-key handling, DH ratchet turns, header encryption, and a
-  complete session lifecycle are not yet implemented.
-- Full Double Ratchet and session healing are not complete.
 - Multi-device recovery and key backup are not production-ready.
 - Protocol-v1 messages remain supported for alpha compatibility, but the client
   `encrypt()` API now requires protocol-v2 AAD context for new message sends.
 - Messages created before the protocol-v1 envelope stored an incomplete server-side payload and may not be decryptable from history.
 - No independent cryptographic audit has been completed.
+- Group E2EE uses a simple Sender Keys foundation, not full MLS. Groups larger
+  than 10 devices are rejected. The foundation does not yet support group
+  membership changes (add/remove) without creating a new group session.
+- DH ratchet cross-side message matching after asymmetric ratchet turns has not
+  been verified against known test vectors and is marked WIP.
 
 Do not use Zenthril for highly sensitive communication at this stage.
 

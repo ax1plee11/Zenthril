@@ -326,8 +326,9 @@ export function nextReceiveMessageKey(state: PairwiseSessionState, counter?: num
     }
     for (let i = state.receiveCounter; i < counter; i++) {
       const step = advanceRatchet(state.receiveChainKey);
-      state.skippedMessageKeys.set(i, { key: step.messageKey, nonce: step.newChainKey.slice(0, 12), counter: i });
+      state.skippedMessageKeys.set(i, { key: step.messageKey, nonce: step.messageNonce, counter: i });
       state.receiveChainKey = step.newChainKey;
+      state.receiveCounter = i + 1;
     }
   }
   return nextMessageKey(state, "receive");

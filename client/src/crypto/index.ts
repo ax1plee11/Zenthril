@@ -25,6 +25,7 @@ export interface X25519KeyPair {
 
 export type CryptoAADContextInput = Omit<CryptoAADContext, "protocolVersion" | "keyId" | "cipherSuite"> & {
   nonce?: number[];
+  cipherSuite?: string;
 };
 
 export type CryptoAADContext = {
@@ -193,7 +194,7 @@ async function encryptWithContext(
       senderDeviceId: aadContext.senderDeviceId,
       sessionId: aadContext.sessionId,
       clientMessageId: aadContext.clientMessageId,
-      cipherSuite: CIPHER_SUITE_V2,
+      cipherSuite: (aadContext.cipherSuite ?? CIPHER_SUITE_V2) as typeof CIPHER_SUITE_V2,
     }
     : undefined;
   const aad = fullAADContext ? buildAAD(fullAADContext) : encryptedPayloadAAD(protocolVersion, keyId);
