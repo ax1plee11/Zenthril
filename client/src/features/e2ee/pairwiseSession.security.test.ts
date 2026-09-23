@@ -354,18 +354,18 @@ describe("DH ratchet cross-side message matching (WIP)", () => {
     const oldSendChain = Array.from(initiated.state.sendChainKey);
     const oldRecvChain = Array.from(initiated.state.receiveChainKey);
     const oldDHPublic = Array.from(initiated.state.dhSendPublic);
-    const oldDHRecv = Array.from(initiated.state.dhRecvPublic);
+
 
     // Bob performs a DH ratchet turn with Alice's new public key
     // (simulating Bob receiving Alice's new DH public key from a message header)
     const aliceNewDHPublic = new Uint8Array(32);
     crypto.getRandomValues(aliceNewDHPublic);
-    const bobTurned = performDHRatchetTurn(accepted.state, aliceNewDHPublic);
+    let bobTurned = performDHRatchetTurn(accepted.state, aliceNewDHPublic);
 
     // Alice also performs a DH ratchet turn with Bob's new DH public key
     const bobNewDHPublic = new Uint8Array(32);
     crypto.getRandomValues(bobNewDHPublic);
-    const aliceTurned = performDHRatchetTurn(initiated.state, bobNewDHPublic);
+    let aliceTurned = performDHRatchetTurn(initiated.state, bobNewDHPublic);
 
     // State changed: root key, send chain, recv chain, DH public all different
     expect(Array.from(aliceTurned.rootKey)).not.toEqual(oldRoot);
@@ -381,14 +381,14 @@ describe("DH ratchet cross-side message matching (WIP)", () => {
 
     // Encryption/decryption works with the new send chain (directional correctness)
     const msg2 = nextSendMessageKey(aliceTurned);
-    aliceTurned.state = msg2.state;
+    aliceTurned = msg2.state;
 
     const msg3 = nextSendMessageKey(aliceTurned);
-    aliceTurned.state = msg3.state;
+    aliceTurned = msg3.state;
 
     const recv2 = nextReceiveMessageKey(bobTurned, 0);
     expect(Array.from(recv2.messageKey)).toEqual(Array.from(msg2.messageKey));
-    bobTurned.state = recv2.state;
+    bobTurned = recv2.state;
 
     const recv3 = nextReceiveMessageKey(bobTurned, 1);
     expect(Array.from(recv3.messageKey)).toEqual(Array.from(msg3.messageKey));
@@ -450,13 +450,13 @@ describe("DH ratchet cross-side message matching (WIP)", () => {
 
     // Phase 4: normal exchange after recovery — new keys are independent of compromised state
     const post0 = nextSendMessageKey(aliceRecovered);
-    aliceRecovered.state = post0.state;
+    Object.assign(aliceRecovered, post0.state);
     const post1 = nextSendMessageKey(aliceRecovered);
-    aliceRecovered.state = post1.state;
+    Object.assign(aliceRecovered, post1.state);
 
     const postRecv0 = nextReceiveMessageKey(bobRecovered, 0);
     expect(Array.from(postRecv0.messageKey)).toEqual(Array.from(post0.messageKey));
-    bobRecovered.state = postRecv0.state;
+    Object.assign(bobRecovered, postRecv0.state);
     const postRecv1 = nextReceiveMessageKey(bobRecovered, 1);
     expect(Array.from(postRecv1.messageKey)).toEqual(Array.from(post1.messageKey));
 
@@ -476,7 +476,6 @@ describe("DH ratchet cross-side message matching (WIP)", () => {
     const alice = publicKeyBundle("alice", "Alice device");
     const bob = publicKeyBundle("bob", "Bob device");
     const initiated = initiatePairwiseSession(alice.local, bob.publicBundle);
-    const accepted = acceptPairwiseSession(bob.local, initiated.header);
 
     // Perform multiple DH ratchet turns, collecting message keys after each
     const messageKeys: number[][] = [];

@@ -69,39 +69,6 @@ export interface SkippedMessageKey {
   counter: number;
 }
 
-export interface PairwiseSessionState {
-  version: typeof PAIRWISE_SESSION_PROTOCOL_VERSION;
-  sessionId: string;
-  peerUserId: string;
-  peerDeviceId: string;
-  rootKey: Uint8Array;
-  sendChainKey: Uint8Array;
-  receiveChainKey: Uint8Array;
-  sendCounter: number;
-  receiveCounter: number;
-  dhSendPrivate: Uint8Array;
-  dhSendPublic: Uint8Array;
-  dhRecvPublic: Uint8Array;
-  previousCounter: number;
-  skippedMessageKeys: Map<number, { key: Uint8Array; nonce: Uint8Array; counter: number }>;
-}
-
-export interface InitiatedPairwiseSession {
-  header: X3DHSessionHeader;
-  state: PairwiseSessionState;
-}
-
-export interface AcceptedPairwiseSession {
-  state: PairwiseSessionState;
-  updatedLocalBundle: StoredDeviceKeyBundle;
-}
-
-export interface RatchetedMessageKey {
-  messageKey: Uint8Array;
-  counter: number;
-  state: PairwiseSessionState;
-}
-
 export async function importRatchetMessageKey(messageKey: Uint8Array, messageNonce: Uint8Array): Promise<{ key: CryptoKey; nonce: Uint8Array }> {
   if (messageKey.length !== KEY_BYTES) throw new Error("Invalid ratchet message key");
   if (messageNonce.length !== 12) throw new Error("Invalid ratchet nonce");
