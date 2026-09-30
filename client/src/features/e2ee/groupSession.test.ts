@@ -6,7 +6,15 @@ import {
   nextGroupMessageKey,
   restoreGroupSession,
   serializeGroupSession,
+  type GroupSessionState,
 } from "./groupSession";
+
+// GroupSessionState pins version to the literal 1, so exercising the runtime
+// version guard requires a deliberate cast. The unknown hop keeps this type-safe
+// without falling back to `any`.
+function withUnsupportedVersion(state: GroupSessionState): GroupSessionState {
+  return { ...state, version: 99 as unknown as GroupSessionState["version"] };
+}
 
 describe("group session foundation", () => {
   const members = [
@@ -108,25 +116,25 @@ describe("group session foundation", () => {
 
   it("fail-closed on unsupported version", () => {
     const session = createGroupSession("group-1", members);
-    (session as any).version = 99;
-    expect(() => nextGroupMessageKey(session)).toThrow("Unsupported group session version");
+    const badSession = withUnsupportedVersion(session);
+    expect(() => nextGroupMessageKey(badSession)).toThrow("Unsupported group session version");
   });
 
   it("rejects unsupported session version on nextGroupMessageKey", () => {
     const session = createGroupSession("group-1", members);
-    (session as any).version = 99;
-    expect(() => nextGroupMessageKey(session)).toThrow("Unsupported group session version");
+    const badSession = withUnsupportedVersion(session);
+    expect(() => nextGroupMessageKey(badSession)).toThrow("Unsupported group session version");
   });
 
   it("rejects unsupported session version on decrypt", async () => {
     const session = createGroupSession("group-1", members);
     const encrypted = await encryptGroupMessage("secret", session);
-    const badSession = { ...session, version: 99 as any };
+    const badSession = withUnsupportedVersion(session);
     await expect(decryptGroupMessage(encrypted.payload, badSession)).rejects.toThrow("Unsupported group session version");
   });
 
   it("rejects excessive skipped group messages", async () => {
-    let senderState = createGroupSession("group-1", members);
+    const senderState = createGroupSession("group-1", members);
     const encrypted = await encryptGroupMessage("msg0", senderState);
     const receiverState = {
       ...senderState,

@@ -54,7 +54,7 @@ export function dhRatchetTurn(
   const dhOutput1 = x25519.getSharedSecret(dhSendPrivate, newPeerDHPublic);
   const rootStep1 = rootRatchet(rootKey, dhOutput1);
   let newRootKey = rootStep1.newRootKey;
-  let newRecvChainKey = rootStep1.newChainKey;
+  const newRecvChainKey = rootStep1.newChainKey;
 
   const newDH = x25519.keygen();
   const dhOutput2 = x25519.getSharedSecret(newDH.secretKey, newPeerDHPublic);
