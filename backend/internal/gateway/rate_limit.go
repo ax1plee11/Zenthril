@@ -10,14 +10,14 @@ const (
 	gatewayUserMessagesPerMinute       = 300
 	userRateLimitWindow                = time.Minute
 	// SECURITY: anti-flooding constants for message-type specific limits.
-	maxVoiceSignalsPerMinute  = 30
-	maxVoiceICEPerMinute      = 60
-	maxInviteSendPerMinute    = 10
-	maxTypingEventsPerMinute  = 20
+	maxVoiceSignalsPerMinute = 30
+	maxVoiceICEPerMinute     = 60
+	maxInviteSendPerMinute   = 10
+	maxTypingEventsPerMinute = 20
 	// SECURITY: connection flood protection.
-	maxReconnectAttempts     = 5
-	reconnectBackoffSeconds  = 5
-	maxConcurrentReconnects  = 100
+	maxReconnectAttempts    = 5
+	reconnectBackoffSeconds = 5
+	maxConcurrentReconnects = 100
 )
 
 // rateLimiter implements a fixed-window rate limiter.
@@ -50,10 +50,10 @@ func (l *rateLimiter) Allow() bool {
 // SECURITY: prevents boundary-exploit flooding at window edges.
 // WEAKNESS FIXED: only fixed-window rate limiting existed.
 type SlidingWindowRateLimiter struct {
-	mu       sync.Mutex
-	window   time.Duration
-	limit    int
-	events   []time.Time
+	mu     sync.Mutex
+	window time.Duration
+	limit  int
+	events []time.Time
 }
 
 func NewSlidingWindowRateLimiter(window time.Duration, limit int) *SlidingWindowRateLimiter {

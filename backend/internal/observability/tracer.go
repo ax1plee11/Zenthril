@@ -24,11 +24,10 @@ type TracerProvider struct {
 // MetricsCollector aggregates observability metrics for the service.
 // SECURITY: metrics must not leak PII or sensitive data.
 type MetricsCollector struct {
-	mu            sync.RWMutex
-	counters      map[string]int64
-	histograms    map[string][]float64
-	gauges        map[string]float64
-	lastReset     time.Time
+	counters   map[string]int64
+	histograms map[string][]float64
+	gauges     map[string]float64
+	lastReset  time.Time
 }
 
 // NewTracerProvider creates a noop tracer provider by default.

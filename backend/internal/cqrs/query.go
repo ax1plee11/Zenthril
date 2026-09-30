@@ -63,4 +63,3 @@ func (b *QueryBus) Ask(ctx context.Context, query Query) (any, error) {
 	// CQRS: queries are read-only and must not publish domain events.
 	return handler(ctx, query)
 }
-

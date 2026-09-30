@@ -82,4 +82,3 @@ func TestInMemoryEventStoreAppendLoadAndConcurrency(t *testing.T) {
 		t.Fatalf("expected concurrency violation, got %v", err)
 	}
 }
-

@@ -90,4 +90,3 @@ func (s *InMemoryEventStore) Load(ctx context.Context, streamID string) ([]Store
 	defer s.mu.RUnlock()
 	return append([]StoredEvent(nil), s.streams[streamID]...), nil
 }
-

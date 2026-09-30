@@ -24,18 +24,18 @@ import (
 // This ensures proper initialization order, dependency resolution, and
 // graceful shutdown of all components.
 type Container struct {
-	Config          config.Config
-	Logger          *slog.Logger
-	TracerProvider  *observability.TracerProvider
-	CommandBus      *cqrs.CommandBus
-	QueryBus        *cqrs.QueryBus
-	EventStore      cqrs.EventStore
-	EventBus        event.Bus
-	ShardManager    *repository.ShardManager
-	GatewayRegistry *gateway.Registry
-	GatewayHandler  *gateway.Handler
+	Config           config.Config
+	Logger           *slog.Logger
+	TracerProvider   *observability.TracerProvider
+	CommandBus       *cqrs.CommandBus
+	QueryBus         *cqrs.QueryBus
+	EventStore       cqrs.EventStore
+	EventBus         event.Bus
+	ShardManager     *repository.ShardManager
+	GatewayRegistry  *gateway.Registry
+	GatewayHandler   *gateway.Handler
 	SessionValidator gateway.SessionValidator
-	RedisClient     *redis.Client
+	RedisClient      *redis.Client
 
 	fxApp *fx.App
 }

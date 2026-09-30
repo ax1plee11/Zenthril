@@ -10,12 +10,12 @@ import (
 )
 
 var (
-	ErrDraining              = errors.New("gateway is draining")
-	ErrConnectionMissing     = errors.New("connection missing")
-	ErrConnectionLimit       = errors.New("connection limit reached")
-	ErrUserConnectionLimit   = errors.New("user connection limit reached")
-	ErrIPConnectionLimit     = errors.New("ip connection limit reached")
-	ErrChannelAccessDenied   = errors.New("channel access denied")
+	ErrDraining            = errors.New("gateway is draining")
+	ErrConnectionMissing   = errors.New("connection missing")
+	ErrConnectionLimit     = errors.New("connection limit reached")
+	ErrUserConnectionLimit = errors.New("user connection limit reached")
+	ErrIPConnectionLimit   = errors.New("ip connection limit reached")
+	ErrChannelAccessDenied = errors.New("channel access denied")
 )
 
 type RegistryOptions struct {

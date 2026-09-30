@@ -65,4 +65,3 @@ func (b *CommandBus) Dispatch(ctx context.Context, cmd Command) error {
 	// SECURITY: command handlers must perform authorization before mutating state.
 	return handler(ctx, cmd)
 }
-

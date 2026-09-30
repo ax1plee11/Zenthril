@@ -87,7 +87,7 @@ end
 
 		if violations >= 3 {
 			g.redis.Set(ctx, blockKey, "1", 10*60*1000*1000*1000) //nolint:errcheck
-			g.redis.Del(ctx, violationsKey)                        //nolint:errcheck
+			g.redis.Del(ctx, violationsKey)                       //nolint:errcheck
 		}
 
 		return ErrRateLimited

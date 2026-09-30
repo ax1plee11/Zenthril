@@ -542,10 +542,6 @@ func (s *Service) requireMember(ctx context.Context, guildID, userID uuid.UUID) 
 	return nil
 }
 
-func (s *Service) getMemberLevel(ctx context.Context, guildID, userID uuid.UUID) (int, error) {
-	return s.GetHighestRoleLevel(ctx, guildID, userID)
-}
-
 func (s *Service) CreateRole(ctx context.Context, guildID, requesterID, name string, permissions int64) (*models.Role, error) {
 	guildUUID, err := uuid.Parse(guildID)
 	if err != nil {

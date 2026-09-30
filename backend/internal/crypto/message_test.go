@@ -81,7 +81,7 @@ func TestDecryptRejectsWrongAAD(t *testing.T) {
 func TestDHRatchetTurnOnNewPublicKey(t *testing.T) {
 	// Simplified test: two peers start with compatible symmetric ratchet state
 	// and perform DH ratchet turns as they exchange messages
-	
+
 	shared := bytes.Repeat([]byte{0x33}, 32)
 	info := []byte("ratchet-turn-test")
 
@@ -188,7 +188,7 @@ func TestOutOfOrderMessageDelivery(t *testing.T) {
 
 func TestMessageHeaderSerialization(t *testing.T) {
 	_, dhPub, _ := generateEphemeralKeyPair()
-	
+
 	original := MessageHeader{
 		DHPublicKey:     dhPub,
 		PreviousCounter: 42,
@@ -214,7 +214,7 @@ func TestMessageHeaderSerialization(t *testing.T) {
 
 func TestEncryptRequiresDHPublicKey(t *testing.T) {
 	state, _ := DeriveInitialRatchetState(bytes.Repeat([]byte{0x11}, 32), []byte("test"), true)
-	
+
 	// State without DH keys should fail
 	_, err := EncryptMessage(&state, []byte("test"), nil)
 	if err == nil {

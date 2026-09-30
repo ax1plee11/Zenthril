@@ -16,13 +16,13 @@ func BenchmarkDatabaseInsert(b *testing.B) {
 	if dbURL == "" {
 		b.Skip("DB_URL not set, skipping database benchmarks")
 	}
-	
+
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer pool.Close()
-	
+
 	// Создаём тестовую таблицу
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_messages (
@@ -35,7 +35,7 @@ func BenchmarkDatabaseInsert(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_messages")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := pool.Exec(context.Background(),
@@ -54,13 +54,13 @@ func BenchmarkDatabaseSelect(b *testing.B) {
 	if dbURL == "" {
 		b.Skip("DB_URL not set, skipping database benchmarks")
 	}
-	
+
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer pool.Close()
-	
+
 	// Создаём тестовую таблицу и заполняем данными
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_select (
@@ -73,7 +73,7 @@ func BenchmarkDatabaseSelect(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_select")
-	
+
 	// Вставляем тестовые данные
 	for i := 0; i < 1000; i++ {
 		pool.Exec(context.Background(),
@@ -81,7 +81,7 @@ func BenchmarkDatabaseSelect(b *testing.B) {
 			fmt.Sprintf("test message %d", i),
 		)
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rows, err := pool.Query(context.Background(),
@@ -90,7 +90,7 @@ func BenchmarkDatabaseSelect(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		for rows.Next() {
 			var id int
 			var content string
@@ -107,13 +107,13 @@ func BenchmarkDatabaseUpdate(b *testing.B) {
 	if dbURL == "" {
 		b.Skip("DB_URL not set, skipping database benchmarks")
 	}
-	
+
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer pool.Close()
-	
+
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_update (
 			id SERIAL PRIMARY KEY,
@@ -125,7 +125,7 @@ func BenchmarkDatabaseUpdate(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_update")
-	
+
 	// Вставляем тестовые данные
 	for i := 0; i < 100; i++ {
 		pool.Exec(context.Background(),
@@ -133,7 +133,7 @@ func BenchmarkDatabaseUpdate(b *testing.B) {
 			fmt.Sprintf("test message %d", i),
 		)
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := pool.Exec(context.Background(),
@@ -153,13 +153,13 @@ func BenchmarkDatabaseTransaction(b *testing.B) {
 	if dbURL == "" {
 		b.Skip("DB_URL not set, skipping database benchmarks")
 	}
-	
+
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer pool.Close()
-	
+
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_tx (
 			id SERIAL PRIMARY KEY,
@@ -170,14 +170,14 @@ func BenchmarkDatabaseTransaction(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_tx")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tx, err := pool.Begin(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		for j := 0; j < 10; j++ {
 			_, err := tx.Exec(context.Background(),
 				"INSERT INTO bench_test_tx (content) VALUES ($1)",
@@ -188,7 +188,7 @@ func BenchmarkDatabaseTransaction(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
-		
+
 		if err := tx.Commit(context.Background()); err != nil {
 			b.Fatal(err)
 		}
@@ -201,13 +201,13 @@ func BenchmarkDatabaseConcurrentQueries(b *testing.B) {
 	if dbURL == "" {
 		b.Skip("DB_URL not set, skipping database benchmarks")
 	}
-	
+
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer pool.Close()
-	
+
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_concurrent (
 			id SERIAL PRIMARY KEY,
@@ -218,7 +218,7 @@ func BenchmarkDatabaseConcurrentQueries(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_concurrent")
-	
+
 	// Заполняем данными
 	for i := 0; i < 1000; i++ {
 		pool.Exec(context.Background(),
@@ -226,9 +226,9 @@ func BenchmarkDatabaseConcurrentQueries(b *testing.B) {
 			fmt.Sprintf("test %d", i),
 		)
 	}
-	
+
 	concurrencyLevels := []int{1, 10, 50, 100}
-	
+
 	for _, concurrency := range concurrencyLevels {
 		b.Run(fmt.Sprintf("concurrent_%d", concurrency), func(b *testing.B) {
 			b.SetParallelism(concurrency)
@@ -240,7 +240,7 @@ func BenchmarkDatabaseConcurrentQueries(b *testing.B) {
 					if err != nil {
 						b.Fatal(err)
 					}
-					
+
 					for rows.Next() {
 						var id int
 						var content string
@@ -259,13 +259,13 @@ func BenchmarkDatabaseIndexedVsNonIndexed(b *testing.B) {
 	if dbURL == "" {
 		b.Skip("DB_URL not set, skipping database benchmarks")
 	}
-	
+
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer pool.Close()
-	
+
 	// Таблица без индекса
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_no_index (
@@ -278,7 +278,7 @@ func BenchmarkDatabaseIndexedVsNonIndexed(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_no_index")
-	
+
 	// Таблица с индексом
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS bench_test_with_index (
@@ -292,12 +292,12 @@ func BenchmarkDatabaseIndexedVsNonIndexed(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer pool.Exec(context.Background(), "DROP TABLE IF EXISTS bench_test_with_index")
-	
+
 	// Заполняем обе таблицы
 	for i := 0; i < 10000; i++ {
 		username := fmt.Sprintf("user%d", i)
 		email := fmt.Sprintf("user%d@example.com", i)
-		
+
 		pool.Exec(context.Background(),
 			"INSERT INTO bench_test_no_index (username, email) VALUES ($1, $2)",
 			username, email,
@@ -307,7 +307,7 @@ func BenchmarkDatabaseIndexedVsNonIndexed(b *testing.B) {
 			username, email,
 		)
 	}
-	
+
 	b.Run("without_index", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -320,7 +320,7 @@ func BenchmarkDatabaseIndexedVsNonIndexed(b *testing.B) {
 			}
 		}
 	})
-	
+
 	b.Run("with_index", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {

@@ -50,13 +50,13 @@ type MultiDeviceMessageEnvelope struct {
 type SessionManager interface {
 	// GetSession retrieves an existing session between two devices
 	GetSession(ctx context.Context, localDeviceID, remoteUserID, remoteDeviceID string) (SessionState, error)
-	
+
 	// GetOrCreateSession retrieves existing session or creates new one via X3DH
 	GetOrCreateSession(ctx context.Context, localDeviceID, remoteUserID, remoteDeviceID string) (SessionState, bool, error)
-	
+
 	// UpdateSession persists updated session state after encryption/decryption
 	UpdateSession(ctx context.Context, session SessionState) error
-	
+
 	// ListRecipientDevices returns all active devices for a user
 	ListRecipientDevices(ctx context.Context, userID string) ([]DeviceInfo, error)
 }

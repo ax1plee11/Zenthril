@@ -37,7 +37,7 @@ func (f *fakeSessionManager) GetSession(ctx context.Context, localDeviceID, remo
 func (f *fakeSessionManager) GetOrCreateSession(ctx context.Context, localDeviceID, remoteUserID, remoteDeviceID string) (SessionState, bool, error) {
 	f.createCalled++
 	key := sessionKey(localDeviceID, remoteDeviceID, remoteDeviceID)
-	
+
 	session, ok := f.sessions[key]
 	if ok {
 		return session, false, nil
@@ -46,12 +46,12 @@ func (f *fakeSessionManager) GetOrCreateSession(ctx context.Context, localDevice
 	// Create new session with compatible ratchet state
 	shared := bytes.Repeat([]byte{0x42}, 32)
 	info := []byte(localDeviceID + ":" + remoteUserID + ":" + remoteDeviceID)
-	
+
 	ratchet, _ := DeriveInitialRatchetState(shared, info, true)
-	
+
 	dhPriv, dhPub, _ := generateEphemeralKeyPair()
 	peerDHPriv, peerDHPub, _ := generateEphemeralKeyPair()
-	
+
 	ratchet.DHSendPrivate = dhPriv
 	ratchet.DHSendPublic = dhPub
 	ratchet.DHRecvPublic = peerDHPub
@@ -198,7 +198,7 @@ func TestEncryptForRecipientsNoDevices(t *testing.T) {
 		[]byte("Hello"),
 		nil,
 	)
-	
+
 	if err == nil {
 		t.Fatal("expected error when recipient has no devices")
 	}
@@ -238,9 +238,9 @@ func TestDecryptForDevice(t *testing.T) {
 	// Bob needs to specify that Alice is the sender
 	decrypted, err := svc.DecryptForDevice(
 		context.Background(),
-		"device1",           // Bob's local device
-		"alice-device",      // Sender user ID (Alice's device acts as user here in test)
-		"alice-device",      // Sender device ID
+		"device1",      // Bob's local device
+		"alice-device", // Sender user ID (Alice's device acts as user here in test)
+		"alice-device", // Sender device ID
 		envelopes[0],
 		aad,
 	)
@@ -426,7 +426,7 @@ func TestSessionReuseAcrossMessages(t *testing.T) {
 
 	// Session should be reused, not created again
 	if mgr.createCalled != initialCreateCount+1 {
-		t.Fatalf("expected session reuse, but createCalled changed from %d to %d", 
+		t.Fatalf("expected session reuse, but createCalled changed from %d to %d",
 			initialCreateCount, mgr.createCalled)
 	}
 }

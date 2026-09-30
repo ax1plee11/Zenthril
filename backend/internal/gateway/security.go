@@ -141,8 +141,8 @@ func (g *ConnectionGuard) GetConnectionStats() map[string]int {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return map[string]int{
-		"tracked_users":    len(g.reconnectTimestamps),
-		"tracked_ips":      len(g.ipConnectionTimestamps),
+		"tracked_users":     len(g.reconnectTimestamps),
+		"tracked_ips":       len(g.ipConnectionTimestamps),
 		"anti_flood_active": 1,
 	}
 }

@@ -81,15 +81,15 @@ type Client struct {
 	conn     *websocket.Conn
 	hub      *Hub
 	limiter  *wsRateLimiter
-	
+
 	// SECURITY: reconnect tracking prevents connection flooding attacks.
 	reconnectAttempts int
 	lastDisconnect    time.Time
 	connectedAt       time.Time
-	
+
 	// SECURITY: anti-flooding state per message type.
 	messageTypeCounts map[string]int
-	
+
 	// SECURITY: connection fingerprint for anomaly detection.
 	fingerprint string
 }
@@ -517,14 +517,14 @@ func (c *Client) readPump() {
 		return c.conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	})
 	malformedMessages := 0
-	
+
 	// SECURITY: message type rate limiting prevents flooding specific event types.
 	// WEAKNESS FIXED: no per-message-type anti-flooding existed.
 	messageTypeLimits := map[string]int{
-		"voice.signal":  30,
-		"voice.ice":     60,
-		"invite.send":   10,
-		"typing":        20,
+		"voice.signal": 30,
+		"voice.ice":    60,
+		"invite.send":  10,
+		"typing":       20,
 	}
 
 	for {
@@ -578,7 +578,7 @@ func (c *Client) readPump() {
 			continue
 		}
 		malformedMessages = 0
-		
+
 		// SECURITY: anti-flooding check per message type.
 		// WEAKNESS FIXED: no per-message-type rate limiting existed.
 		if limit, ok := messageTypeLimits[evt.Type]; ok {
@@ -836,15 +836,15 @@ func ServeWS(h *Hub, authSvc *auth.Service, upgrader websocket.Upgrader, w http.
 	}
 
 	client := &Client{
-		UserID:          userID,
-		ConnID:          r.Header.Get("X-Request-Id"),
-		Send:            make(chan []byte, 256),
-		conn:            conn,
-		hub:             h,
-		limiter:         newWSRateLimiter(maxWSMessagesPerMinute),
-		connectedAt:     time.Now(),
+		UserID:            userID,
+		ConnID:            r.Header.Get("X-Request-Id"),
+		Send:              make(chan []byte, 256),
+		conn:              conn,
+		hub:               h,
+		limiter:           newWSRateLimiter(maxWSMessagesPerMinute),
+		connectedAt:       time.Now(),
 		messageTypeCounts: make(map[string]int),
-		fingerprint:     remoteAddr,
+		fingerprint:       remoteAddr,
 	}
 
 	h.register <- client
@@ -875,7 +875,7 @@ func CloseGracefully(conn *websocket.Conn, code int, reason string, timeout time
 	go func() {
 		done <- conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(wsWriteWait))
 	}()
-	
+
 	select {
 	case err := <-done:
 		return err

@@ -240,7 +240,7 @@ func TestX3DHSharedSecretVector(t *testing.T) {
 	// Create deterministic keys for reproducible test
 	aliceIdentityPriv := mustDecodeHex("70076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
 	aliceEphemeralPriv := mustDecodeHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
-	
+
 	bobIdentityPub := mustDecodeHex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
 	bobSignedPreKeyPub := mustDecodeHex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
 
@@ -279,7 +279,7 @@ func TestX3DHSharedSecretVector(t *testing.T) {
 func TestX3DHWithOneTimePreKeyVector(t *testing.T) {
 	aliceIdentityPriv := mustDecodeHex("70076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
 	aliceEphemeralPriv := mustDecodeHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
-	
+
 	bobIdentityPub := mustDecodeHex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
 	bobSignedPreKeyPub := mustDecodeHex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
 	bobOneTimePreKeyPub := mustDecodeHex("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
@@ -352,7 +352,7 @@ func TestRootRatchetVector(t *testing.T) {
 // Test vector for message header serialization
 func TestMessageHeaderSerializationVector(t *testing.T) {
 	dhKey := mustDecodeHex("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
-	
+
 	header := MessageHeader{
 		DHPublicKey:     dhKey,
 		PreviousCounter: 42,
@@ -360,7 +360,7 @@ func TestMessageHeaderSerializationVector(t *testing.T) {
 	}
 
 	serialized := SerializeMessageHeader(header)
-	
+
 	// Should be 40 bytes (32 + 4 + 4)
 	if len(serialized) != 40 {
 		t.Errorf("serialized length = %d, want 40", len(serialized))

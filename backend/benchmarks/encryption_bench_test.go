@@ -12,17 +12,17 @@ import (
 func BenchmarkAES256GCMEncryption(b *testing.B) {
 	key := make([]byte, 32) // AES-256
 	rand.Read(key)
-	
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		b.Fatal(err)
 	}
-	
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		b.Fatal(err)
 	}
-	
+
 	// Тестируем разные размеры сообщений
 	sizes := []int{
 		100,    // Короткое сообщение
@@ -30,19 +30,19 @@ func BenchmarkAES256GCMEncryption(b *testing.B) {
 		10240,  // 10 KB
 		102400, // 100 KB
 	}
-	
+
 	for _, size := range sizes {
 		plaintext := make([]byte, size)
 		rand.Read(plaintext)
-		
+
 		b.Run(formatSize(size), func(b *testing.B) {
 			b.SetBytes(int64(size))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				nonce := make([]byte, gcm.NonceSize())
 				rand.Read(nonce)
-				
+
 				_ = gcm.Seal(nil, nonce, plaintext, nil)
 			}
 		})
@@ -53,32 +53,32 @@ func BenchmarkAES256GCMEncryption(b *testing.B) {
 func BenchmarkAES256GCMDecryption(b *testing.B) {
 	key := make([]byte, 32)
 	rand.Read(key)
-	
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		b.Fatal(err)
 	}
-	
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		b.Fatal(err)
 	}
-	
+
 	sizes := []int{100, 1024, 10240, 102400}
-	
+
 	for _, size := range sizes {
 		plaintext := make([]byte, size)
 		rand.Read(plaintext)
-		
+
 		nonce := make([]byte, gcm.NonceSize())
 		rand.Read(nonce)
-		
+
 		ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
-		
+
 		b.Run(formatSize(size), func(b *testing.B) {
 			b.SetBytes(int64(size))
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				_, err := gcm.Open(nil, nonce, ciphertext, nil)
 				if err != nil {

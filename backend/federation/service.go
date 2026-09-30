@@ -34,9 +34,9 @@ type MessageEnvelope struct {
 }
 
 type StoredMessage struct {
-	ID         uuid.UUID      `json:"id"`
+	ID         uuid.UUID       `json:"id"`
 	Envelope   MessageEnvelope `json:"envelope"`
-	ReceivedAt time.Time      `json:"received_at"`
+	ReceivedAt time.Time       `json:"received_at"`
 }
 
 type Service struct {

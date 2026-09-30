@@ -25,10 +25,10 @@ var (
 
 // SessionStore implements persistent storage for Double Ratchet sessions
 type SessionStore struct {
-	db              *pgxpool.Pool
-	x3dhService     *X3DHService
-	deviceService   DeviceLookup
-	encryptionKey   []byte // Key for encrypting sensitive session data at rest
+	db            *pgxpool.Pool
+	x3dhService   *X3DHService
+	deviceService DeviceLookup
+	encryptionKey []byte // Key for encrypting sensitive session data at rest
 }
 
 // DeviceLookup provides device information for session creation
@@ -39,25 +39,25 @@ type DeviceLookup interface {
 
 // StoredSessionState represents session state as stored in database
 type StoredSessionState struct {
-	ID                 string                 `json:"id"`
-	LocalDeviceID      string                 `json:"local_device_id"`
-	RemoteUserID       string                 `json:"remote_user_id"`
-	RemoteDeviceID     string                 `json:"remote_device_id"`
-	SessionVersion     int                    `json:"session_version"`
-	RootKey            []byte                 `json:"root_key"`
-	SendChainKey       []byte                 `json:"send_chain_key"`
-	RecvChainKey       []byte                 `json:"recv_chain_key"`
-	SendCounter        uint32                 `json:"send_counter"`
-	RecvCounter        uint32                 `json:"recv_counter"`
-	DHSendPrivate      []byte                 `json:"dh_send_private"`
-	DHSendPublic       []byte                 `json:"dh_send_public"`
-	DHRecvPublic       []byte                 `json:"dh_recv_public"`
-	PreviousCounter    uint32                 `json:"previous_counter"`
-	EphemeralPublicKey []byte                 `json:"ephemeral_public_key,omitempty"`
-	IsBootstrap        bool                   `json:"is_bootstrap"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
-	LastMessageAt      *time.Time             `json:"last_message_at,omitempty"`
+	ID                 string     `json:"id"`
+	LocalDeviceID      string     `json:"local_device_id"`
+	RemoteUserID       string     `json:"remote_user_id"`
+	RemoteDeviceID     string     `json:"remote_device_id"`
+	SessionVersion     int        `json:"session_version"`
+	RootKey            []byte     `json:"root_key"`
+	SendChainKey       []byte     `json:"send_chain_key"`
+	RecvChainKey       []byte     `json:"recv_chain_key"`
+	SendCounter        uint32     `json:"send_counter"`
+	RecvCounter        uint32     `json:"recv_counter"`
+	DHSendPrivate      []byte     `json:"dh_send_private"`
+	DHSendPublic       []byte     `json:"dh_send_public"`
+	DHRecvPublic       []byte     `json:"dh_recv_public"`
+	PreviousCounter    uint32     `json:"previous_counter"`
+	EphemeralPublicKey []byte     `json:"ephemeral_public_key,omitempty"`
+	IsBootstrap        bool       `json:"is_bootstrap"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	LastMessageAt      *time.Time `json:"last_message_at,omitempty"`
 }
 
 // NewSessionStore creates a new SessionStore with encryption-at-rest support.

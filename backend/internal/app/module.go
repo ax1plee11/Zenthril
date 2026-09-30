@@ -29,6 +29,7 @@ import (
 // In production this module enforces:
 //   - A real Redis-backed SessionValidator (NoopSessionValidator is rejected).
 //   - A durable EventStore (InMemoryEventStore is rejected).
+//
 // Module defines the next-generation API dependency graph.
 //
 // ARCHITECTURE: All services are wired through uber/fx providers with
@@ -288,17 +289,17 @@ func newContainer(
 	tracer *observability.TracerProvider,
 ) *Container {
 	return &Container{
-		Config:          cfg,
-		Logger:          logger,
-		TracerProvider:  tracer,
-		CommandBus:      commandBus,
-		QueryBus:        queryBus,
-		EventStore:      eventStore,
-		EventBus:        bus,
-		ShardManager:    shards,
-		GatewayRegistry: registry,
-		GatewayHandler:  handler,
+		Config:           cfg,
+		Logger:           logger,
+		TracerProvider:   tracer,
+		CommandBus:       commandBus,
+		QueryBus:         queryBus,
+		EventStore:       eventStore,
+		EventBus:         bus,
+		ShardManager:     shards,
+		GatewayRegistry:  registry,
+		GatewayHandler:   handler,
 		SessionValidator: validator,
-		RedisClient:     redis,
+		RedisClient:      redis,
 	}
 }

@@ -51,7 +51,7 @@ func EncryptMessage(state *RatchetState, plaintext []byte, aad []byte) (RatchetM
 	if err != nil {
 		return RatchetMessage{}, fmt.Errorf("create cipher: %w", err)
 	}
-	
+
 	aead, err := cipher.NewGCM(block)
 	if err != nil {
 		return RatchetMessage{}, fmt.Errorf("create AEAD: %w", err)
@@ -112,7 +112,7 @@ func DecryptMessage(state *RatchetState, message RatchetMessage, aad []byte) ([]
 	if err != nil {
 		return nil, fmt.Errorf("create cipher: %w", err)
 	}
-	
+
 	aead, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("create AEAD: %w", err)
@@ -126,42 +126,19 @@ func DecryptMessage(state *RatchetState, message RatchetMessage, aad []byte) ([]
 	return plaintext, nil
 }
 
-// storeSkippedMessageKeys stores message keys for skipped messages in the current chain
-func storeSkippedMessageKeys(state *RatchetState, fromCounter, toCounter uint32) error {
-	if fromCounter >= toCounter {
-		return nil
-	}
-
-	gap := uint64(toCounter) - uint64(fromCounter)
-	if gap > maxSkippedMessageKeys || len(state.SkippedMessageKeys)+int(gap) > maxSkippedMessageKeys {
-		return ErrSkippedMessageLimit
-	}
-
-	for state.RecvCounter < toCounter {
-		skipped, err := deriveNextReceiveMessageKey(state)
-		if err != nil {
-			return err
-		}
-		state.SkippedMessageKeys[skipped.Counter] = cloneMessageKey(skipped)
-		zeroMessageKey(&skipped)
-	}
-
-	return nil
-}
-
 // SerializeMessageHeader serializes a message header to bytes
 func SerializeMessageHeader(header MessageHeader) []byte {
 	buf := make([]byte, 0, x25519KeySize+8)
 	buf = append(buf, header.DHPublicKey...)
-	
+
 	prevCounterBuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(prevCounterBuf, header.PreviousCounter)
 	buf = append(buf, prevCounterBuf...)
-	
+
 	msgCounterBuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(msgCounterBuf, header.MessageCounter)
 	buf = append(buf, msgCounterBuf...)
-	
+
 	return buf
 }
 
