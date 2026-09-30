@@ -67,14 +67,23 @@ func validPreflightRequest(r *http.Request) bool {
 		return false
 	}
 
-	reqHeaders := r.Header.Values("Access-Control-Request-Headers")
 	allowedHeaders := map[string]struct{}{
 		"authorization": {},
 		"content-type":  {},
 	}
-	for _, h := range reqHeaders {
-		if _, ok := allowedHeaders[strings.ToLower(strings.TrimSpace(h))]; !ok {
-			return false
+
+	// Browsers send Access-Control-Request-Headers as a single comma-separated
+	// line, so every entry must be split before it is matched against the
+	// allow-list. Header.Values does not split on commas.
+	for _, line := range r.Header.Values("Access-Control-Request-Headers") {
+		for _, h := range strings.Split(line, ",") {
+			h = strings.ToLower(strings.TrimSpace(h))
+			if h == "" {
+				continue
+			}
+			if _, ok := allowedHeaders[h]; !ok {
+				return false
+			}
 		}
 	}
 	return true

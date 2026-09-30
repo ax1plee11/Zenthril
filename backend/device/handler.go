@@ -57,13 +57,44 @@ func (h *Handler) ListOwn(w http.ResponseWriter, r *http.Request) {
 	h.listUserDevices(w, r, userID)
 }
 
+// SECURITY: cross-user device reads return a minimized projection and require a
+// shared guild. Previously this endpoint returned full key material
+// (identity keys, signed prekeys, signatures) for any userId to any
+// authenticated caller, which is a BOLA on E2EE key material.
 func (h *Handler) ListUser(w http.ResponseWriter, r *http.Request) {
-	userID := chi.URLParam(r, "userId")
-	if userID == "" {
+	requesterID, ok := auth.UserIDFromContext(r.Context())
+	if !ok || requesterID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	targetID := chi.URLParam(r, "userId")
+	if targetID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "userId is required")
 		return
 	}
-	h.listUserDevices(w, r, userID)
+
+	if requesterID == targetID {
+		h.listUserDevices(w, r, targetID)
+		return
+	}
+
+	devices, err := h.svc.ListUserDevicesPublic(r.Context(), requesterID, targetID)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrNoSharedGuild):
+			// Do not distinguish "no such user" from "no shared guild" so the
+			// endpoint cannot be used to probe for account existence.
+			writeError(w, http.StatusNotFound, "not_found", "No devices available")
+			return
+		case errors.Is(err, ErrInvalidDeviceKey):
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid user id")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to list devices")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"devices": devices})
 }
 
 func (h *Handler) RevokeOwn(w http.ResponseWriter, r *http.Request) {

@@ -211,6 +211,109 @@ func (s *Service) ListUserDevices(ctx context.Context, userID string) ([]Device,
 	return devices, nil
 }
 
+// PublicDevice is the minimized projection returned when a user inspects
+// another user's devices.
+//
+// SECURITY: it deliberately omits identity public keys, identity DH keys,
+// signed prekeys, signed prekey signatures, one-time prekey counts, device
+// names and activity timestamps. Those fields let a third party harvest key
+// material for targeting X3DH, observe when a victim's one-time prekeys are
+// running low, and profile the victim's device trust posture. Only the
+// fingerprint is required to render a safety number.
+type PublicDevice struct {
+	DeviceID    string `json:"device_id"`
+	Fingerprint string `json:"fingerprint"`
+	TrustState  string `json:"trust_state"`
+}
+
+// ErrNoSharedGuild is returned when a requester and a target share no guild,
+// which is required before another user's device list may be read.
+var ErrNoSharedGuild = errors.New("no_shared_guild")
+
+// deviceVisibilityDecision is the pure authorization rule for cross-user device
+// reads, extracted so it can be unit tested without a database.
+func deviceVisibilityDecision(requesterID, targetID string) (self bool, err error) {
+	if strings.TrimSpace(requesterID) == "" {
+		return false, fmt.Errorf("%w: requester is required", ErrInvalidDeviceKey)
+	}
+	if strings.TrimSpace(targetID) == "" {
+		return false, fmt.Errorf("%w: target is required", ErrInvalidDeviceKey)
+	}
+	if _, err := uuid.Parse(requesterID); err != nil {
+		return false, fmt.Errorf("%w: invalid requester_id", ErrInvalidDeviceKey)
+	}
+	if _, err := uuid.Parse(targetID); err != nil {
+		return false, fmt.Errorf("%w: invalid target_id", ErrInvalidDeviceKey)
+	}
+	return requesterID == targetID, nil
+}
+
+// ListUserDevicesPublic returns the minimized device projection for another
+// user.
+//
+// SECURITY: the requester must share at least one guild with the target and
+// neither party may be banned. Without this check any authenticated user could
+// enumerate every device of any other user and harvest their key material.
+func (s *Service) ListUserDevicesPublic(ctx context.Context, requesterID, targetID string) ([]PublicDevice, error) {
+	self, err := deviceVisibilityDecision(requesterID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	if self {
+		return nil, fmt.Errorf("%w: use the owner device listing for self", ErrInvalidDeviceKey)
+	}
+	targetUUID, err := uuid.Parse(targetID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid target_id", ErrInvalidDeviceKey)
+	}
+	requesterUUID, err := uuid.Parse(requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid requester_id", ErrInvalidDeviceKey)
+	}
+
+	var shared bool
+	if err := s.db.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1
+			FROM guild_members a
+			JOIN guild_members b ON b.guild_id = a.guild_id
+			WHERE a.user_id = $1 AND b.user_id = $2
+			  AND a.banned = FALSE AND b.banned = FALSE
+		)`,
+		requesterUUID, targetUUID,
+	).Scan(&shared); err != nil {
+		return nil, fmt.Errorf("check shared guild: %w", err)
+	}
+	if !shared {
+		return nil, ErrNoSharedGuild
+	}
+
+	rows, err := s.db.Query(ctx,
+		`SELECT d.id::text, d.fingerprint, d.trust_state
+		 FROM devices d
+		 WHERE d.user_id = $1 AND d.revoked_at IS NULL
+		 ORDER BY d.created_at ASC`,
+		targetUUID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list public devices: %w", err)
+	}
+	defer rows.Close()
+
+	devices := []PublicDevice{}
+	for rows.Next() {
+		var d PublicDevice
+		if err := rows.Scan(&d.DeviceID, &d.Fingerprint, &d.TrustState); err != nil {
+			return nil, fmt.Errorf("scan public device: %w", err)
+		}
+		devices = append(devices, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate public devices: %w", err)
+	}
+	return devices, nil
+}
+
 func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, deviceID string) (*KeyBundle, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {

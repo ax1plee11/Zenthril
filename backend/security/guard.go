@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -89,13 +90,69 @@ func (g *Guard) BruteForceProtect(next http.Handler) http.Handler {
 
 			if count > 10 {
 				g.redis.Set(r.Context(), blockKey, "1", 15*time.Minute) //nolint:errcheck
-				g.redis.Del(r.Context(), failKey)                        //nolint:errcheck
+				g.redis.Del(r.Context(), failKey)                       //nolint:errcheck
 				_ = g.LogSecurityEvent(r.Context(), "brute_force_detected", ip, "", map[string]interface{}{
 					"blocked_for": "15m",
 				})
 			}
 		}
 	})
+}
+
+// rateLimitAllows reports whether a request within the given budget may proceed.
+// SECURITY: the boundary is inclusive, so `limit` is the exact number of
+// permitted requests per window before rejection starts.
+func rateLimitAllows(count, limit int64) bool {
+	return count <= limit
+}
+
+// authRateLimitKey namespaces the counter per scope and client IP so limits for
+// different endpoints cannot be exhausted by each other.
+func authRateLimitKey(scope, ip string) string {
+	return "security:rl:" + scope + ":" + ip
+}
+
+// AuthRateLimit applies a fixed-window request budget per client IP.
+//
+// SECURITY: BruteForceProtect only counts 401 responses, so endpoints that
+// succeed on the happy path (registration, refresh rotation, logout) had no
+// effective limit and could be flooded. Each scope gets an independent budget.
+func (g *Guard) AuthRateLimit(scope string, limit int, window time.Duration) func(http.Handler) http.Handler {
+	if limit <= 0 || window <= 0 {
+		// SECURITY: fail at construction time rather than silently creating a
+		// limiter that allows unlimited traffic.
+		panic("security: AuthRateLimit requires a positive limit and window")
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := extractIP(r)
+			key := authRateLimitKey(scope, ip)
+
+			count, err := g.redis.Incr(r.Context(), key).Result()
+			if err != nil {
+				// SECURITY: fail closed. Authentication already depends on Redis
+				// for refresh rotation and WebSocket tickets, so this adds no new
+				// availability risk, whereas failing open would remove the control.
+				slog.Warn("auth rate limit unavailable", "scope", scope, "error", err)
+				http.Error(w, `{"error":"service_unavailable","message":"Rate limiter unavailable"}`, http.StatusServiceUnavailable)
+				return
+			}
+			if count == 1 {
+				g.redis.Expire(r.Context(), key, window) //nolint:errcheck
+			}
+			if !rateLimitAllows(count, int64(limit)) {
+				_ = g.LogSecurityEvent(r.Context(), "rate_limited", ip, "", map[string]interface{}{
+					"scope":  scope,
+					"limit":  limit,
+					"window": window.String(),
+					"count":  count,
+				})
+				http.Error(w, `{"error":"too_many_requests","message":"Too many requests"}`, http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (g *Guard) LogSecurityEvent(ctx context.Context, eventType, ip, userID string, details map[string]interface{}) error {

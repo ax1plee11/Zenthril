@@ -38,20 +38,6 @@ import (
 const maxRequestBodyBytes int64 = 1 << 20
 const readinessTimeout = 2 * time.Second
 
-var allowedCORSMethods = map[string]struct{}{
-	http.MethodGet:     {},
-	http.MethodPost:    {},
-	http.MethodPut:     {},
-	http.MethodPatch:   {},
-	http.MethodDelete:  {},
-	http.MethodOptions: {},
-}
-
-var allowedCORSHeaders = map[string]struct{}{
-	"authorization": {},
-	"content-type":  {},
-}
-
 func wsAllowedOrigins(cfg *config.Config) []string {
 	return cfg.WSAllowedOrigins
 }
@@ -102,28 +88,6 @@ func requestBodyLimit(limit int64) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// validPreflightRequest ensures the preflight only asks for methods and headers
-// the API intentionally exposes.
-func validPreflightRequest(r *http.Request) bool {
-	method := strings.ToUpper(strings.TrimSpace(r.Header.Get("Access-Control-Request-Method")))
-	if method == "" {
-		return false
-	}
-	if _, ok := allowedCORSMethods[method]; !ok {
-		return false
-	}
-	for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
-		header = strings.ToLower(strings.TrimSpace(header))
-		if header == "" {
-			continue
-		}
-		if _, ok := allowedCORSHeaders[header]; !ok {
-			return false
-		}
-	}
-	return true
 }
 
 func operationalTokenAuth(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
@@ -307,10 +271,12 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", authHandler.Register)
+			// SECURITY: BruteForceProtect only counts 401 responses, so the
+			// happy-path endpoints below needed their own request budgets.
+			r.With(secGuard.AuthRateLimit("register", 10, time.Hour)).Post("/register", authHandler.Register)
 			r.With(secGuard.BruteForceProtect).Post("/login", authHandler.Login)
-			r.Post("/logout", authHandler.Logout)
-			r.Post("/refresh", authHandler.Refresh)
+			r.With(secGuard.AuthRateLimit("logout", 30, time.Minute)).Post("/logout", authHandler.Logout)
+			r.With(secGuard.AuthRateLimit("refresh", 30, time.Minute)).Post("/refresh", authHandler.Refresh)
 			// TOTP/MFA routes are registered but return 501 Not Implemented.
 			// They are explicitly hidden in production to avoid false signals of
 			// MFA support. Set TOTP_ENABLED=true to expose them in development/staging.

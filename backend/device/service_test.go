@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -172,4 +173,77 @@ func randomBytes(t *testing.T, n int) []byte {
 		t.Fatalf("read random bytes: %v", err)
 	}
 	return out
+}
+
+// SECURITY regression: cross-user device visibility must be an explicit,
+// self-only-or-shared-guild decision. The previous handler ignored the
+// requester entirely and returned full key material for any userId.
+func TestDeviceVisibilityDecisionAllowsSelf(t *testing.T) {
+	t.Parallel()
+
+	me := uuid.NewString()
+	self, err := deviceVisibilityDecision(me, me)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !self {
+		t.Fatal("expected self lookup to be recognized as self")
+	}
+}
+
+func TestDeviceVisibilityDecisionMarksOtherUserAsNotSelf(t *testing.T) {
+	t.Parallel()
+
+	requester := uuid.NewString()
+	target := uuid.NewString()
+	self, err := deviceVisibilityDecision(requester, target)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if self {
+		t.Fatal("a different user must not be treated as self")
+	}
+}
+
+func TestDeviceVisibilityDecisionRejectsMissingIDs(t *testing.T) {
+	t.Parallel()
+
+	if _, err := deviceVisibilityDecision("", uuid.NewString()); !errors.Is(err, ErrInvalidDeviceKey) {
+		t.Fatalf("empty requester err = %v, want ErrInvalidDeviceKey", err)
+	}
+	if _, err := deviceVisibilityDecision(uuid.NewString(), "  "); !errors.Is(err, ErrInvalidDeviceKey) {
+		t.Fatalf("blank target err = %v, want ErrInvalidDeviceKey", err)
+	}
+}
+
+func TestDeviceVisibilityDecisionRejectsNonUUID(t *testing.T) {
+	t.Parallel()
+
+	if _, err := deviceVisibilityDecision("not-a-uuid", uuid.NewString()); !errors.Is(err, ErrInvalidDeviceKey) {
+		t.Fatalf("invalid requester err = %v, want ErrInvalidDeviceKey", err)
+	}
+	if _, err := deviceVisibilityDecision(uuid.NewString(), "../../etc/passwd"); !errors.Is(err, ErrInvalidDeviceKey) {
+		t.Fatalf("invalid target err = %v, want ErrInvalidDeviceKey", err)
+	}
+}
+
+// SECURITY regression: the public projection must not carry key material or
+// activity metadata that would let a third party target X3DH or profile the
+// victim's key state.
+func TestPublicDeviceOmitsKeyMaterial(t *testing.T) {
+	t.Parallel()
+
+	typ := reflect.TypeOf(PublicDevice{})
+	allowed := map[string]bool{
+		"DeviceID": true, "Fingerprint": true, "TrustState": true,
+	}
+	if typ.NumField() != len(allowed) {
+		t.Fatalf("PublicDevice has %d fields, want %d", typ.NumField(), len(allowed))
+	}
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if !allowed[field.Name] {
+			t.Fatalf("PublicDevice must not expose %q", field.Name)
+		}
+	}
 }
