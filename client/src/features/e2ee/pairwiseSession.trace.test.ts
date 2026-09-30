@@ -82,6 +82,9 @@ describe("chain key tracing", () => {
     const recv1_skipped = nextReceiveMessageKey(accepted.state, 1);
     console.log("recv1_skipped key:", Array.from(recv1_skipped.messageKey).slice(0, 8));
     expect(Array.from(msg1.messageKey)).toEqual(Array.from(recv1_skipped.messageKey));
+    // nextReceiveMessageKey is purely functional: the advanced state is the one
+    // it returns, so it must be adopted before asserting the skipped store.
+    accepted.state = recv1_skipped.state;
     expect(accepted.state.skippedMessageKeys.size).toBe(0);
   });
 });

@@ -279,26 +279,64 @@ export function nextSendMessageKey(state: PairwiseSessionState): RatchetedMessag
 }
 
 // SECURITY: skipped-message-key handling supports bounded out-of-order delivery.
+// The function is purely functional: it never mutates `state`, so a rejected or
+// discarded result can never leave the caller's receive chain advanced.
 export function nextReceiveMessageKey(state: PairwiseSessionState, counter?: number): RatchetedMessageKey {
-  if (counter !== undefined && counter < state.receiveCounter) {
+  validateState(state);
+  if (counter === undefined) {
+    return nextMessageKey(state, "receive");
+  }
+  // SECURITY: the counter is attacker-influenced (it arrives in the recipient
+  // envelope). A non-integer counter would shift the skipped-key bookkeeping by
+  // a fraction and permanently desynchronise the chain, so it is rejected.
+  if (!Number.isSafeInteger(counter) || counter < 0) {
+    throw new Error("Invalid ratchet counter");
+  }
+
+  if (counter < state.receiveCounter) {
     const skipped = state.skippedMessageKeys.get(counter);
     if (!skipped) throw new Error("Message key unavailable for skipped counter");
-    state.skippedMessageKeys.delete(counter);
-    return { messageKey: skipped.key, messageNonce: skipped.nonce, counter: skipped.counter, state };
+    // SECURITY: a retained skipped key is released exactly once, so a replayed
+    // counter cannot be decrypted a second time.
+    const next = copyState(state);
+    next.skippedMessageKeys.delete(counter);
+    return { messageKey: skipped.key, messageNonce: skipped.nonce, counter: skipped.counter, state: next };
   }
-  if (counter !== undefined && counter > state.receiveCounter) {
+
+  if (counter > state.receiveCounter) {
     const gap = counter - state.receiveCounter;
-    if (state.skippedMessageKeys.size + gap > MAX_SKIPPED_KEYS) {
+    if (gap > MAX_SKIPPED_KEYS || state.skippedMessageKeys.size + gap > MAX_SKIPPED_KEYS) {
       throw new Error("Skipped message key limit exceeded");
     }
+    // Derive the gap keys on a private copy so the caller's chain key, counter
+    // and skipped-key map stay untouched.
+    const skipped = new Map(state.skippedMessageKeys);
+    let chainKey: Uint8Array = state.receiveChainKey.slice();
     for (let i = state.receiveCounter; i < counter; i++) {
-      const step = advanceRatchet(state.receiveChainKey);
-      state.skippedMessageKeys.set(i, { key: step.messageKey, nonce: step.messageNonce, counter: i });
-      state.receiveChainKey = step.newChainKey;
-      state.receiveCounter = i + 1;
+      const step = advanceRatchet(chainKey);
+      skipped.set(i, { key: step.messageKey, nonce: step.messageNonce, counter: i });
+      chainKey = step.newChainKey;
     }
+    return nextMessageKey(
+      { ...copyState(state), receiveChainKey: chainKey, receiveCounter: counter, skippedMessageKeys: skipped },
+      "receive",
+    );
   }
+
   return nextMessageKey(state, "receive");
+}
+
+function copyState(state: PairwiseSessionState): PairwiseSessionState {
+  return {
+    ...state,
+    rootKey: state.rootKey.slice(),
+    sendChainKey: state.sendChainKey.slice(),
+    receiveChainKey: state.receiveChainKey.slice(),
+    dhSendPrivate: state.dhSendPrivate.slice(),
+    dhSendPublic: state.dhSendPublic.slice(),
+    dhRecvPublic: state.dhRecvPublic.slice(),
+    skippedMessageKeys: new Map(state.skippedMessageKeys),
+  };
 }
 
 function nextMessageKey(state: PairwiseSessionState, direction: "send" | "receive"): RatchetedMessageKey {
@@ -312,10 +350,16 @@ function nextMessageKey(state: PairwiseSessionState, direction: "send" | "receiv
     receiveChainKey: direction === "receive" ? step.newChainKey : state.receiveChainKey.slice(),
     sendCounter: direction === "send" ? state.sendCounter + 1 : state.sendCounter,
     receiveCounter: direction === "receive" ? state.receiveCounter + 1 : state.receiveCounter,
+    skippedMessageKeys: new Map(state.skippedMessageKeys),
   };
   return {
     messageKey: step.messageKey,
-    messageNonce: step.newChainKey.slice(0, 12),
+    // SECURITY: the message nonce is the dedicated HKDF output, not a prefix of
+    // the next chain key. Both values are 12 bytes, but they are different, so
+    // deriving the IV from the chain key made the nonce depend on whether a
+    // counter was served in order or from the skipped store — an out-of-order
+    // message then failed AES-GCM authentication.
+    messageNonce: step.messageNonce,
     counter: direction === "send" ? state.sendCounter : state.receiveCounter,
     state: next,
   };
@@ -374,9 +418,13 @@ function initializeDHRatchet(
       rootKey: newRootKey,
       sendChainKey: state.sendChainKey,
       receiveChainKey: state.receiveChainKey,
-      dhSendPrivate: localDH.secretKey,
-      dhSendPublic: localDH.publicKey,
-      dhRecvPublic: peerDHPublic,
+      // SECURITY: the session must own its key material. Aliasing the caller's
+      // buffers let `initiatePairwiseSession` zero the initiator's DH private
+      // key in its cleanup block, leaving the session with an all-zero private
+      // key and a publicly computable shared secret on the next ratchet turn.
+      dhSendPrivate: localDH.secretKey.slice(),
+      dhSendPublic: localDH.publicKey.slice(),
+      dhRecvPublic: Uint8Array.from(peerDHPublic),
     },
     newChainKey,
   };
@@ -384,6 +432,15 @@ function initializeDHRatchet(
 
 // E2EE: performs a DH ratchet turn when receiving a message with a new DH public key.
 export function performDHRatchetTurn(state: PairwiseSessionState, newPeerDHPublic: Uint8Array): PairwiseSessionState {
+  // SECURITY: the persisted session format carries no dhSendPrivate field, so a
+  // session restored from storage holds an all-zero placeholder. X25519 clamps
+  // an all-zero scalar into a publicly known constant, which would make this
+  // turn's shared secret computable by anyone who knows the peer's DH public
+  // key. Fail closed so the caller re-bootstraps the session over X3DH instead
+  // of silently producing attacker-derivable keys.
+  if (!hasUsableDHPrivateKey(state.dhSendPrivate)) {
+    throw new Error("Pairwise session has no recoverable DH private key");
+  }
   const turn = dhRatchetTurn(state.rootKey, state.dhSendPrivate, state.dhSendPublic, newPeerDHPublic);
   return {
     ...state,
@@ -392,12 +449,20 @@ export function performDHRatchetTurn(state: PairwiseSessionState, newPeerDHPubli
     sendChainKey: turn.newSendChainKey,
     dhSendPrivate: turn.newDHPrivate,
     dhSendPublic: turn.newDHPublic,
-    dhRecvPublic: newPeerDHPublic,
+    dhRecvPublic: Uint8Array.from(newPeerDHPublic),
     previousCounter: state.sendCounter,
     sendCounter: 0,
     receiveCounter: 0,
     skippedMessageKeys: new Map(),
   };
+}
+
+function hasUsableDHPrivateKey(key: Uint8Array): boolean {
+  if (key.length !== KEY_BYTES) return false;
+  for (let i = 0; i < key.length; i++) {
+    if (key[i] !== 0) return true;
+  }
+  return false;
 }
 
 function verifyPeerSignedPreKey(peer: KeyBundleAPI): void {
@@ -443,6 +508,15 @@ function validateState(state: PairwiseSessionState): void {
   }
   if (state.dhSendPrivate.length !== KEY_BYTES || state.dhSendPublic.length !== KEY_BYTES || state.dhRecvPublic.length !== KEY_BYTES) {
     throw new Error("Invalid DH ratchet keys");
+  }
+  // SECURITY: counters are restored from local storage, so a tampered or
+  // truncated bundle must not be able to shift chain positions.
+  if (
+    !Number.isSafeInteger(state.sendCounter) || state.sendCounter < 0 ||
+    !Number.isSafeInteger(state.receiveCounter) || state.receiveCounter < 0 ||
+    !Number.isSafeInteger(state.previousCounter) || state.previousCounter < 0
+  ) {
+    throw new Error("Invalid pairwise session counters");
   }
   if (state.skippedMessageKeys.size > MAX_SKIPPED_KEYS) {
     throw new Error("Skipped message key limit exceeded");

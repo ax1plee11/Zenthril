@@ -96,6 +96,13 @@ export async function decryptChannelMessage(
   const envelope = payload.recipientEnvelopes?.find(item => item.recipientDeviceId === local.deviceId);
   if (!envelope) return null;
 
+  // SECURITY: the ratchet counter is server-supplied. A missing or malformed
+  // counter must not fall through to the in-order path, which would hand out the
+  // next expected message key to an envelope that never proved its position.
+  if (!Number.isSafeInteger(envelope.ratchetCounter) || envelope.ratchetCounter < 0) {
+    return null;
+  }
+
   let bundle = local;
   let state = loadPairwiseSession(bundle, envelope.sessionId);
   if (envelope.bootstrapHeader) {
