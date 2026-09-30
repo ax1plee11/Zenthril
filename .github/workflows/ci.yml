@@ -74,18 +74,31 @@ jobs:
         go test -v -race -coverprofile=coverage.out ./...
         go tool cover -func=coverage.out
 
+    # SECURITY: the linter is a real gate. It previously ran with
+    # continue-on-error, so findings never affected the build status.
+    # The version is pinned to the one that was verified to report 0 issues.
     - name: Run linter
       uses: golangci/golangci-lint-action@v7
       with:
-        version: v2.1.6
+        version: v2.6.0
         working-directory: ./backend
-      continue-on-error: true
 
+    # Benchmarks are a measurement, not a correctness gate, but their output must
+    # be preserved so numbers quoted in the documentation can be traced to a run.
+    # The previous `|| true` discarded the results entirely.
     - name: Run benchmarks
       working-directory: ./backend
       env:
         DB_URL: postgres://postgres:postgres@localhost:5432/zenthril_test?sslmode=disable
-      run: go test -bench=. -benchmem ./benchmarks/... || true
+      run: go test -bench=. -benchmem ./benchmarks/... | tee benchmarks.txt
+
+    - name: Upload benchmark results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-benchmarks
+        path: backend/benchmarks.txt
+        if-no-files-found: warn
 
   frontend-test:
     name: Frontend Tests
