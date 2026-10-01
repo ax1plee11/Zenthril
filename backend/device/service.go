@@ -22,10 +22,30 @@ import (
 
 const signedPreKeyContext = "Zenthril signed prekey v1"
 
+// MaxDevicesPerUser bounds how many active devices one account may register.
+// Without a cap an account can grow the devices table without limit.
+const MaxDevicesPerUser = 10
+
 var (
-	ErrInvalidDeviceKey = errors.New("invalid_device_key")
-	ErrDeviceNotFound   = errors.New("device_not_found")
+	ErrInvalidDeviceKey   = errors.New("invalid_device_key")
+	ErrDeviceNotFound     = errors.New("device_not_found")
+	ErrDeviceLimitReached = errors.New("device_limit_reached")
 )
+
+// deviceLimitDecision rejects a registration that would exceed the per-user
+// active device cap.
+//
+// SECURITY: a non-positive cap is treated as a configuration error and fails
+// closed, so a misconfigured value can never silently allow unlimited devices.
+func deviceLimitDecision(activeCount, maxDevices int) error {
+	if maxDevices <= 0 {
+		return fmt.Errorf("%w: device limit must be positive", ErrDeviceLimitReached)
+	}
+	if activeCount >= maxDevices {
+		return fmt.Errorf("%w: at most %d active devices per user", ErrDeviceLimitReached, maxDevices)
+	}
+	return nil
+}
 
 type OneTimePreKey struct {
 	KeyID     int    `json:"key_id"`
@@ -103,6 +123,23 @@ func (s *Service) RegisterDevice(ctx context.Context, userID string, req Registe
 		return nil, fmt.Errorf("begin register device: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	// SECURITY: serialize device registration per user. Without the row lock two
+	// concurrent registrations both observe a count below the limit and both
+	// commit, exceeding the cap.
+	if _, err := tx.Exec(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE`, userUUID); err != nil {
+		return nil, fmt.Errorf("lock user for device registration: %w", err)
+	}
+	var activeDevices int
+	if err := tx.QueryRow(ctx,
+		`SELECT COUNT(*) FROM devices WHERE user_id = $1 AND revoked_at IS NULL`,
+		userUUID,
+	).Scan(&activeDevices); err != nil {
+		return nil, fmt.Errorf("count active devices: %w", err)
+	}
+	if err := deviceLimitDecision(activeDevices, MaxDevicesPerUser); err != nil {
+		return nil, err
+	}
 
 	fingerprint := DeviceFingerprint(userUUID.String(), deviceID.String(), req.IdentityPublicKey, req.IdentityDHPublicKey)
 	row := tx.QueryRow(ctx,

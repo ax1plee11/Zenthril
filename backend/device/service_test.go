@@ -230,6 +230,41 @@ func TestDeviceVisibilityDecisionRejectsNonUUID(t *testing.T) {
 // SECURITY regression: the public projection must not carry key material or
 // activity metadata that would let a third party target X3DH or profile the
 // victim's key state.
+// SECURITY regression: an account could previously register devices without
+// limit, growing the devices table unbounded.
+func TestDeviceLimitDecisionAllowsBelowCap(t *testing.T) {
+	t.Parallel()
+
+	for active := 0; active < MaxDevicesPerUser; active++ {
+		if err := deviceLimitDecision(active, MaxDevicesPerUser); err != nil {
+			t.Fatalf("active=%d must be allowed under cap %d: %v", active, MaxDevicesPerUser, err)
+		}
+	}
+}
+
+func TestDeviceLimitDecisionRejectsAtAndAboveCap(t *testing.T) {
+	t.Parallel()
+
+	if err := deviceLimitDecision(MaxDevicesPerUser, MaxDevicesPerUser); !errors.Is(err, ErrDeviceLimitReached) {
+		t.Fatalf("active=%d must be rejected at the cap, got %v", MaxDevicesPerUser, err)
+	}
+	if err := deviceLimitDecision(MaxDevicesPerUser+1, MaxDevicesPerUser); !errors.Is(err, ErrDeviceLimitReached) {
+		t.Fatalf("active above cap must be rejected, got %v", err)
+	}
+}
+
+// SECURITY: a misconfigured non-positive cap must fail closed rather than
+// silently allowing unlimited device registrations.
+func TestDeviceLimitDecisionFailsClosedOnInvalidCap(t *testing.T) {
+	t.Parallel()
+
+	for _, capValue := range []int{0, -1} {
+		if err := deviceLimitDecision(0, capValue); !errors.Is(err, ErrDeviceLimitReached) {
+			t.Fatalf("cap=%d must reject, got %v", capValue, err)
+		}
+	}
+}
+
 func TestPublicDeviceOmitsKeyMaterial(t *testing.T) {
 	t.Parallel()
 

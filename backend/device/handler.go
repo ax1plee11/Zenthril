@@ -38,6 +38,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_device_key", err.Error())
 			return
 		}
+		if errors.Is(err, ErrDeviceLimitReached) {
+			writeError(w, http.StatusConflict, "device_limit_reached", "Maximum active devices reached; revoke an existing device first")
+			return
+		}
 		if errors.Is(err, ErrDeviceNotFound) {
 			writeError(w, http.StatusForbidden, "device_owner_mismatch", "Device belongs to another user")
 			return
