@@ -16,6 +16,7 @@ var (
 	ErrNotFound       = errors.New("not_found")
 	ErrForbidden      = errors.New("forbidden")
 	ErrCannotSelfAdd  = errors.New("cannot_add_self")
+	ErrInvalidUserID  = errors.New("invalid_user_id")
 )
 
 type FriendUser struct {
@@ -87,9 +88,34 @@ func (s *Service) SendRequest(ctx context.Context, requesterID, addresseeID stri
 	return nil
 }
 
+// parseFriendshipIDs validates both user identifiers before they reach SQL.
+//
+// SECURITY: uuid.Parse returns uuid.Nil together with an error, so discarding
+// that error silently turns a malformed user id into the all-zero UUID and
+// executes the statement against the wrong identity.
+func parseFriendshipIDs(first, second string) (uuid.UUID, uuid.UUID, error) {
+	a, err := uuid.Parse(first)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: invalid user id %q", ErrInvalidUserID, first)
+	}
+	b, err := uuid.Parse(second)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: invalid user id %q", ErrInvalidUserID, second)
+	}
+	if a == uuid.Nil || b == uuid.Nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: user id must not be the nil UUID", ErrInvalidUserID)
+	}
+	if a == b {
+		return uuid.Nil, uuid.Nil, ErrCannotSelfAdd
+	}
+	return a, b, nil
+}
+
 func (s *Service) AcceptRequest(ctx context.Context, userID, requesterID string) error {
-	uUUID, _ := uuid.Parse(userID)
-	rUUID, _ := uuid.Parse(requesterID)
+	uUUID, rUUID, err := parseFriendshipIDs(requesterID, userID)
+	if err != nil {
+		return err
+	}
 
 	result, err := s.db.Exec(ctx,
 		`UPDATE friendships SET status='accepted', updated_at=NOW()
@@ -106,16 +132,24 @@ func (s *Service) AcceptRequest(ctx context.Context, userID, requesterID string)
 }
 
 func (s *Service) DeclineRequest(ctx context.Context, userID, otherID string) error {
-	uUUID, _ := uuid.Parse(userID)
-	oUUID, _ := uuid.Parse(otherID)
+	uUUID, oUUID, err := parseFriendshipIDs(userID, otherID)
+	if err != nil {
+		return err
+	}
 
-	_, err := s.db.Exec(ctx,
+	result, err := s.db.Exec(ctx,
 		`DELETE FROM friendships
 		 WHERE (requester_id=$1 AND addressee_id=$2)
 		    OR (requester_id=$2 AND addressee_id=$1)`,
 		uUUID, oUUID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("decline request: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Service) ListFriends(ctx context.Context, userID string) ([]FriendUser, error) {

@@ -88,6 +88,10 @@ func (h *Handler) Accept(w http.ResponseWriter, r *http.Request) {
 	}
 	otherID := chi.URLParam(r, "userId")
 	if err := h.svc.AcceptRequest(r.Context(), userID, otherID); err != nil {
+		if errors.Is(err, ErrInvalidUserID) || errors.Is(err, ErrCannotSelfAdd) {
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid user id")
+			return
+		}
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "Request not found")
 			return
@@ -117,6 +121,14 @@ func (h *Handler) Decline(w http.ResponseWriter, r *http.Request) {
 	}
 	otherID := chi.URLParam(r, "userId")
 	if err := h.svc.DeclineRequest(r.Context(), userID, otherID); err != nil {
+		if errors.Is(err, ErrInvalidUserID) || errors.Is(err, ErrCannotSelfAdd) {
+			writeError(w, http.StatusBadRequest, "invalid_request", "Invalid user id")
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Friendship not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to remove")
 		return
 	}
