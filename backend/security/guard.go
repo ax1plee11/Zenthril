@@ -25,15 +25,39 @@ import (
 type Guard struct {
 	redis *redis.Client
 	db    *pgxpool.Pool
+	// trustedProxyHops is the number of reverse proxies in front of the service
+	// that append the real client address to X-Forwarded-For.
+	//
+	// SECURITY: forwarded headers are controlled by the client unless the
+	// deployment guarantees a trusted proxy rewrites them. Trusting them by
+	// default would let any caller mint an arbitrary identity for per-IP rate
+	// limiting and brute-force protection simply by rotating a request header.
+	// The default is 0, meaning only RemoteAddr is trusted.
+	trustedProxyHops int
 }
 
 func NewGuard(rdb *redis.Client, db *pgxpool.Pool) *Guard {
-	return &Guard{redis: rdb, db: db}
+	return NewGuardWithTrustedProxies(rdb, db, 0)
 }
+
+// NewGuardWithTrustedProxies creates a Guard that honours X-Forwarded-For when
+// the deployment sits behind trustedProxyHops reverse proxies.
+//
+// SECURITY: a negative value is clamped to 0 so a misconfiguration can never
+// enable header trust.
+func NewGuardWithTrustedProxies(rdb *redis.Client, db *pgxpool.Pool, trustedProxyHops int) *Guard {
+	if trustedProxyHops < 0 {
+		trustedProxyHops = 0
+	}
+	return &Guard{redis: rdb, db: db, trustedProxyHops: trustedProxyHops}
+}
+
+// TrustedProxyHops reports the configured number of trusted proxies.
+func (g *Guard) TrustedProxyHops() int { return g.trustedProxyHops }
 
 func (g *Guard) IPRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := extractIP(r)
+		ip := g.extractIP(r)
 		blockKey := "security:ip_block:" + ip
 		counterKey := "security:ip_rps:" + ip
 
@@ -64,7 +88,7 @@ func (g *Guard) IPRateLimit(next http.Handler) http.Handler {
 
 func (g *Guard) BruteForceProtect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := extractIP(r)
+		ip := g.extractIP(r)
 		blockKey := "security:bf_block:" + ip
 
 		blocked, err := g.redis.Exists(r.Context(), blockKey).Result()
@@ -125,7 +149,7 @@ func (g *Guard) AuthRateLimit(scope string, limit int, window time.Duration) fun
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := extractIP(r)
+			ip := g.extractIP(r)
 			key := authRateLimitKey(scope, ip)
 
 			count, err := g.redis.Incr(r.Context(), key).Result()
@@ -182,26 +206,65 @@ func (g *Guard) LogSecurityEvent(ctx context.Context, eventType, ip, userID stri
 	return nil
 }
 
-func extractIP(r *http.Request) string {
-	// NOTE: security/guard.go also reads X-Forwarded-For here for IP logging
-	// purposes. This is intentional — Guard is used for logging and soft-blocking
-	// only; it does not gate access control decisions based on this value. The
-	// per-IP connection limit in the WebSocket gateway (internal/gateway) uses
-	// RemoteAddr exclusively. See internal/gateway/handler.go clientIPFromRequest.
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		if ip := strings.TrimSpace(parts[0]); ip != "" {
-			return ip
-		}
+// resolveForwardedClientIP returns the client address observed by the first
+// trusted proxy, or ok=false when the header must not be trusted.
+//
+// SECURITY: with N trusted proxies the client controls the leading entries of
+// X-Forwarded-For and each proxy appends exactly one entry, so the address the
+// first proxy observed sits at index len(parts)-N. That index is valid when the
+// chain is at least N entries long: a longer chain means the client supplied a
+// prefix that is correctly skipped, and an exactly-N-long chain means the client
+// supplied nothing at all. A shorter chain means a proxy did not append, so no
+// entry can be attributed and the header is rejected rather than guessed.
+//
+// SECURITY: this makes the result depend on the declared hop count being
+// accurate. If TRUSTED_PROXY_HOPS overstates the real proxy depth, a client can
+// position its own value in the trusted region. The setting is therefore an
+// explicit operator declaration, not something inferred at runtime.
+func resolveForwardedClientIP(xff string, trustedProxyHops int) (string, bool) {
+	parts := strings.Split(xff, ",")
+	index := len(parts) - trustedProxyHops
+	if index < 0 || index >= len(parts) {
+		return "", false
 	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
+	ip := strings.TrimSpace(parts[index])
+	if ip == "" || net.ParseIP(ip) == nil {
+		return "", false
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	return ip, true
+}
+
+// clientIPFromRemoteAddr extracts the host portion of a host:port remote address.
+func clientIPFromRemoteAddr(remoteAddr string) string {
+	if remoteAddr == "" {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		return strings.TrimSpace(remoteAddr)
 	}
 	return host
+}
+
+// extractIP resolves the address used as a rate-limit and brute-force key.
+//
+// SECURITY: X-Forwarded-For and X-Real-IP are attacker controlled whenever the
+// service is reachable without a trusted proxy rewriting them. With the default
+// configuration of zero trusted proxies only RemoteAddr is used, so a client
+// cannot bypass a per-IP limit by rotating a header. This value gates access
+// control: it keys IPRateLimit, BruteForceProtect and AuthRateLimit.
+func (g *Guard) extractIP(r *http.Request) string {
+	if g.trustedProxyHops > 0 {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if ip, ok := resolveForwardedClientIP(xff, g.trustedProxyHops); ok {
+				return ip
+			}
+		}
+		if xri := strings.TrimSpace(r.Header.Get("X-Real-IP")); xri != "" && net.ParseIP(xri) != nil {
+			return xri
+		}
+	}
+	return clientIPFromRemoteAddr(r.RemoteAddr)
 }
 
 type responseWriter struct {

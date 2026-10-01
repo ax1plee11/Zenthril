@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,6 +31,14 @@ type Config struct {
 	Environment        string
 	StaticDir          string
 	SecureCookies      bool
+	// TrustedProxyHops is the number of reverse proxies in front of the service
+	// that append the real client address to X-Forwarded-For.
+	//
+	// SECURITY: 0 means forwarded headers are not trusted at all and only
+	// RemoteAddr is used as the client identity. Trusting them unconditionally
+	// would let any client choose its own rate-limit bucket by rotating a
+	// request header.
+	TrustedProxyHops int
 }
 
 func Load() (*Config, error) {
@@ -59,6 +68,7 @@ func Load() (*Config, error) {
 		Environment:        getEnvWithFallback("ENVIRONMENT", "APP_ENV", "development"),
 		StaticDir:          getEnv("STATIC_DIR", ""),
 		SecureCookies:      getEnvBool("SECURE_COOKIES", false),
+		TrustedProxyHops:   getEnvInt("TRUSTED_PROXY_HOPS", 0),
 	}
 
 	if cfg.DBURL == "" {
@@ -181,6 +191,23 @@ func getEnvBool(key string, defaultVal bool) bool {
 		return defaultVal
 	}
 	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+// getEnvInt reads an integer environment variable.
+//
+// SECURITY: an unparsable or negative value falls back to defaultVal rather than
+// to a value that could widen trust. TRUSTED_PROXY_HOPS in particular must never
+// become positive because of a typo.
+func getEnvInt(key string, defaultVal int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultVal
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		return defaultVal
+	}
+	return parsed
 }
 
 func getEnvDuration(key string, fallback time.Duration) time.Duration {

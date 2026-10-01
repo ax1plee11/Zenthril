@@ -223,7 +223,10 @@ func main() {
 	spamGuard := spam.NewGuard(rdb)
 	// VULNERABILITY FIXED: Guard now uses the same pgxpool.Pool as the rest of
 	// the application. The second database/sql + lib/pq pool has been removed.
-	secGuard := security.NewGuard(rdb, database)
+	// SECURITY: forwarded headers are honoured only when TRUSTED_PROXY_HOPS
+	// declares how many reverse proxies actually rewrite them. The default of 0
+	// keeps per-IP rate limiting keyed on the transport peer address.
+	secGuard := security.NewGuardWithTrustedProxies(rdb, database, cfg.TrustedProxyHops)
 
 	friendsSvc := friends.NewService(database)
 	friendsHandler := friends.NewHandler(friendsSvc, wsHub)
