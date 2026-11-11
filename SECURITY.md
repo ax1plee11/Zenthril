@@ -41,6 +41,7 @@ Zenthril includes several security-oriented controls:
 - Short-lived JWT access tokens.
 - Redis-backed refresh token rotation and replay detection.
 - Redis-backed access token blacklist on logout.
+- TOTP MFA setup, verification, and disable endpoints (POST /api/v1/auth/mfa/totp/*).
 - Client access tokens are process-memory only; legacy `localStorage` copies
   are migrated and removed.
 - Cookie-backed sessions can restore a memory-only access token after reload
@@ -173,6 +174,28 @@ Guild authorization is moving to RBAC v2:
 - System roles are protected from deletion and dangerous edits.
 - The developer super-admin / "god role" is configuration-only through `ADMIN_USER_IDS` and cannot be granted through guild role APIs.
 - Banned members have no effective permissions.
+
+## ZFDA 1.3 Security Framework
+
+Zenthril is developed under the **ZFDA (Zentauril Fortress Defense Architecture)** framework, which requires every component to have its own independent protection.
+
+### ZFDA 1.3 Status
+
+| Component | Status |
+|-----------|--------|
+| Infrastructure (PostgreSQL, Redis, Docker) | Partially Verified |
+| Secrets Management | Partially Verified |
+| Data Protection | Partially Verified |
+| Backup & Disaster Recovery | Not Verified |
+| CI/CD Security | Verified (workflow created) |
+| Tauri Client Security | Partially Verified |
+| Autonomous Defense | Partially Verified |
+| Security Testing | Partially Verified |
+| Production Deployment Plan | Not Verified |
+
+### Production Readiness
+
+**Zenthril is not ready for production deployment.** See `docs/security/ZFDA/ZFDA_1.3_PRODUCTION_READINESS_REPORT.md` for the full report and list of blocking issues.
 
 See [docs/RBAC.md](docs/RBAC.md) for the current model and migration notes.
 

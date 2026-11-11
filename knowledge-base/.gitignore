@@ -1,0 +1,14 @@
+# Knowledge Base local
+.env
+.env.local
+.venv/
+__pycache__/
+*.pyc
+.content/
+snapshots/
+.idea/
+.vscode/
+*.log
+dist/
+build/
+*.egg-info/

@@ -1,5 +1,13 @@
 # Zenthril
 
+The [2026-11-12 remediation report](docs/security/SECURITY_REMEDIATION_2026-11-12.md)
+records authentication, session, dependency and deployment fixes, their validation,
+and remaining limitations. This is still alpha software, not an independently audited secure messenger.
+
+ZenthrilDB source is maintained in the pinned `zenthrildb-push` submodule.
+Use `git clone --recurse-submodules` or `git submodule update --init --recursive`
+to obtain it together with this repository.
+
 **[Русский](README.ru.md)** | **[English](README.md)** | **[Українська](README.uk.md)**
 
 **Zenthril** is a private, source-available self-hosted messaging platform focused on realtime communication, privacy, and practical security engineering.
@@ -237,6 +245,35 @@ go test ./...
 cd ../client
 npm test
 ```
+
+## ZFDA 1.3 Security Status
+
+Zenthril is developed under the **ZFDA (Zenthril Fortress Defense Architecture)** framework. Current production readiness status:
+
+| Area | Status |
+|------|--------|
+| Backend tests | 20+ packages pass |
+| Frontend tests | 208 tests pass (32 files) |
+| Go vet | Clean (Linux CI required; Windows/386 known issues) |
+| npm audit | Clean |
+| E2EE | Alpha-grade, not externally audited |
+| CI/CD | Not configured (workflow created in `.github/workflows/ci.yml`) |
+| Production readiness | **Not ready** — see `docs/security/ZFDA/ZFDA_1.3_PRODUCTION_READINESS_REPORT.md` |
+
+**Do not use Zenthril for sensitive communication until production readiness is confirmed.**
+
+See `docs/security/ZFDA/` for full ZFDA 1.3 documentation:
+- `STAGE_A_AUDIT_REPORT.md` — Current state audit
+- `INFRASTRUCTURE_HARDENING.md` — PostgreSQL, Redis, Docker hardening
+- `SECRETS_MANAGEMENT.md` — Secrets inventory and rotation
+- `DATA_PROTECTION.md` — Data classification and encryption
+- `BACKUP_AND_DISASTER_RECOVERY.md` — Backup strategy
+- `CI_CD_SECURITY.md` — CI/CD security pipeline
+- `TAURI_CLIENT_SECURITY.md` — Desktop client security audit
+- `AUTONOMOUS_DEFENSE.md` — Autonomous defense readiness
+- `SECURITY_TESTING.md` — Security testing procedures
+- `DEPLOYMENT_SECURITY.md` — Production deployment plan
+- `ZFDA_1.3_PRODUCTION_READINESS_REPORT.md` — Executive report
 
 ## Usage Policy & Restrictions
 

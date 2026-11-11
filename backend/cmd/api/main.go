@@ -37,7 +37,7 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
-	router.Use(chimiddleware.RealIP)
+	// Preserve the transport peer for trusted-proxy-aware rate limiting.
 	router.Use(chimiddleware.Recoverer)
 	// SECURITY: defense-in-depth headers for operational and WebSocket upgrade endpoints.
 	router.Use(middleware.SecurityHeaders)

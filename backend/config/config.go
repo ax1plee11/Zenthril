@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	MFAEncryptionKey   string
 	DBURL              string
 	RedisURL           string
 	JWTSecret          string
@@ -49,6 +50,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		DBURL:              getEnvWithFallback("DB_URL", "DATABASE_URL", ""),
 		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379"),
+		MFAEncryptionKey:   getEnv("MFA_ENCRYPTION_KEY", ""),
 		JWTSecret:          getEnv("JWT_SECRET", ""),
 		JWTAccessTTL:       getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
 		JWTRefreshTTL:      getEnvDuration("JWT_REFRESH_TTL", 30*24*time.Hour),
@@ -79,6 +81,9 @@ func Load() (*Config, error) {
 	}
 	if len(cfg.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	if cfg.MFAEncryptionKey != "" && len(cfg.MFAEncryptionKey) < 32 {
+		return nil, fmt.Errorf("MFA_ENCRYPTION_KEY must be at least 32 characters")
 	}
 	if cfg.JWTAccessTTL <= 0 {
 		return nil, fmt.Errorf("JWT_ACCESS_TTL must be positive")

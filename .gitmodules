@@ -1,0 +1,3 @@
+[submodule "zenthrildb-push"]
+	path = zenthrildb-push
+	url = https://github.com/ax1plee11/ZenthrilDB.git

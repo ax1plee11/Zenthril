@@ -248,10 +248,11 @@ export const api = {
         public_key,
       }, false),
 
-    login: (username: string, password: string) =>
+    login: (username: string, password: string, totp_code?: string) =>
       request<LoginResponse>("POST", "/api/v1/auth/login", {
         username,
         password,
+        totp_code,
       }, false),
 
     logout: () => request<void>("POST", "/api/v1/auth/logout"),

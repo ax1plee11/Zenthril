@@ -1,0 +1,86 @@
+# Zenthril Docker ignore
+# Exclude secrets, credentials, and local development artifacts from build context
+
+# Environment files (never include real secrets in images)
+.env
+.env.*
+**/.env
+**/.env.*
+.git/
+**/.git/
+.venv/
+**/.venv/
+**/target/
+**/node_modules/
+**/.pytest_cache/
+**/__pycache__/
+.env.local
+.env.production
+.env.development
+*.env
+backend/.env
+client/.env
+
+# Go artifacts
+pkg/
+backend/pkg/
+backend/zenthril
+backend/zenthril.exe
+backend/zenthril-server.exe
+backend/test.exe
+backend/*.exe
+*.test
+*.out
+
+# Node artifacts
+node_modules/
+client/node_modules/
+dist/
+client/dist/
+client/coverage/
+backend/package-lock.json
+package-lock.json
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.swp
+.idea/
+.vs/
+
+# Logs
+*.log
+backend/*.log
+client/*.log
+
+# Certificates / keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Private - never publish
+.admin_notes.txt
+Zenthril_Architecture_Report.docx
+backend-private-temp/
+MODERATION_GUIDE.md
+
+# Local snapshots / exports
+.snapshots/
+
+# Local/private audit worktrees
+zenthril-audit/
+.kilo/
+
+# Misc project files not needed in image
+INTEGRATION_ANALYSIS.md
+Zenthril_ZenthrilDB_Technical_Analysis.docx
+generate_dissertation.py
+zenthrildb-push/
+docs/audits/
+docs/architecture/

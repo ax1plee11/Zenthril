@@ -4,10 +4,95 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 )
+
+// x3dhHeaderFields mirrors TypeScript's X3DHSessionHeader canonicalization.
+// Field order matches TypeScript's canonicalHeader() for cross-language KDF compatibility.
+type x3dhHeaderFields struct {
+	CipherSuite             string `json:"cipherSuite"`
+	RecipientDeviceId       string `json:"recipientDeviceId"`
+	RecipientOneTimePreKeyId *uint32 `json:"recipientOneTimePreKeyId"`
+	RecipientSignedPreKeyId  uint32 `json:"recipientSignedPreKeyId"`
+	RecipientUserId         string `json:"recipientUserId"`
+	SenderDeviceId          string `json:"senderDeviceId"`
+	SenderDHPublicKey       string `json:"senderDHPublicKey"`
+	SenderEphemeralPublicKey string `json:"senderEphemeralPublicKey"`
+	SenderIdentityDHPublicKey string `json:"senderIdentityDHPublicKey"`
+	SenderUserId            string `json:"senderUserId"`
+	SessionId               string `json:"sessionId"`
+	Version                 int    `json:"version"`
+}
+
+// randomSessionID generates a random session ID matching TypeScript's randomSessionID().
+func randomSessionID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: use crypto/rand via time-based seed (should not happen)
+		b = []byte("fallback-session-id")
+	}
+	return base64URLEncode(b)
+}
+
+// base64URLEncode encodes bytes to base64 URL encoding (no padding), matching TypeScript.
+func base64URLEncode(b []byte) string {
+	const encoded = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	out := make([]byte, 0, len(b)*4/3+4)
+	for i := 0; i < len(b); i += 3 {
+		v := uint32(b[i]) << 16
+		if i+1 < len(b) {
+			v |= uint32(b[i+1]) << 8
+		}
+		if i+2 < len(b) {
+			v |= uint32(b[i+2])
+		}
+		out = append(out, encoded[(v>>18)&0x3f], encoded[(v>>12)&0x3f])
+		if i+1 < len(b) {
+			out = append(out, encoded[(v>>6)&0x3f])
+		} else {
+			out = append(out, '=')
+		}
+		if i+2 < len(b) {
+			out = append(out, encoded[v&0x3f])
+		} else {
+			out = append(out, '=')
+		}
+	}
+	// Remove padding
+	for len(out) > 0 && out[len(out)-1] == '=' {
+		out = out[:len(out)-1]
+	}
+	return string(out)
+}
+
+// canonicalX3DHHeader produces the same JSON as TypeScript's canonicalHeader().
+func canonicalX3DHHeader(sessionID, senderUserID, senderDeviceID, senderIdentityDHPub, senderEphemeralPub, senderDHPub, recipientUserID, recipientDeviceID string, signedPreKeyID uint32, oneTimePreKeyID *uint32) []byte {
+	h := x3dhHeaderFields{
+		CipherSuite:             "X3DH-HKDF-SHA256-DR-v1",
+		RecipientDeviceId:       recipientDeviceID,
+		RecipientOneTimePreKeyId: oneTimePreKeyID,
+		RecipientSignedPreKeyId:  signedPreKeyID,
+		RecipientUserId:         recipientUserID,
+		SenderDeviceId:          senderDeviceID,
+		SenderDHPublicKey:       senderDHPub,
+		SenderEphemeralPublicKey: senderEphemeralPub,
+		SenderIdentityDHPublicKey: senderIdentityDHPub,
+		SenderUserId:            senderUserID,
+		SessionId:               sessionID,
+		Version:                 1,
+	}
+	out, err := json.Marshal(h)
+	if err != nil {
+		// Should never happen with fixed struct
+		return []byte("{}")
+	}
+	return out
+}
 
 type DeviceKeyBundle struct {
 	UserID                   string
@@ -115,43 +200,77 @@ func (s *X3DHService) StartSession(ctx context.Context, local LocalDeviceKeys, p
 		return SessionState{}, err
 	}
 
-	// WEAKNESS FIXED: replace deterministic SHA256(public-key concat) with audited X25519 X3DH.
-	sharedSecret, err := deriveX3DHSharedSecret(local.IdentityPrivateKey, ephemeralPrivate, peer, oneTimePreKeyPublic)
-	if err != nil {
-		return SessionState{}, fmt.Errorf("derive X3DH shared secret: %w", err)
-	}
-
-	sessionInfo := []byte(local.UserID + ":" + local.DeviceID + "->" + peer.UserID + ":" + peer.DeviceID)
-	ratchet, err := DeriveInitialRatchetState(sharedSecret, sessionInfo, true)
-	if err != nil {
-		return SessionState{}, err
-	}
-
-	// Initialize DH ratchet keys for initiator
-	// Per Signal Protocol: initiator performs initial DH ratchet step with peer's signed prekey
+	// Initialize DH ratchet keys for initiator BEFORE computing session info,
+	// matching TypeScript's initiatePairwiseSession order.
 	dhSendPriv, dhSendPub, err := generateEphemeralKeyPair()
 	if err != nil {
 		return SessionState{}, fmt.Errorf("generate initial DH keys: %w", err)
 	}
 
-	// Perform initial DH with peer's signed prekey to establish first sending chain
+	// Generate session ID before computing info string, matching TypeScript.
+	sessionID := randomSessionID()
+
+	// Compute X3DH DH values matching client: DH1=DH(IKa,SPKb), DH2=DH(EKa,IKb), DH3=DH(EKa,SPKb), DH4=DH(EKa,OPKb)
+	dh1, err := x25519SharedSecret(local.IdentityPrivateKey, peer.SignedPreKey)
+	if err != nil {
+		return SessionState{}, fmt.Errorf("X3DH DH1: %w", err)
+	}
+	dh2, err := x25519SharedSecret(ephemeralPrivate, peer.IdentityDHPublicKey)
+	if err != nil {
+		return SessionState{}, fmt.Errorf("X3DH DH2: %w", err)
+	}
+	dh3, err := x25519SharedSecret(ephemeralPrivate, peer.SignedPreKey)
+	if err != nil {
+		return SessionState{}, fmt.Errorf("X3DH DH3: %w", err)
+	}
+	ikmParts := [][]byte{dh1, dh2, dh3}
+	if len(oneTimePreKeyPublic) == x25519KeySize {
+		dh4, err := x25519SharedSecret(ephemeralPrivate, oneTimePreKeyPublic)
+		if err != nil {
+			return SessionState{}, fmt.Errorf("X3DH DH4: %w", err)
+		}
+		ikmParts = append(ikmParts, dh4)
+	}
+	ikm := concatBytes(ikmParts...)
+
+	// Info string must match client canonicalHeader-based derivation.
+	// TypeScript: "zenthril.e2ee.x3dh.session.v1|" + JSON.stringify(canonicalHeader(header))
+	var oneTimePreKeyID *uint32
+	if len(peer.OneTimePreKey) == x25519KeySize {
+		oneTimePreKeyID = &peer.OneTimePreKeyID
+	}
+	sessionInfo := append([]byte("zenthril.e2ee.x3dh.session.v1|"),
+		canonicalX3DHHeader(
+			sessionID,
+			local.UserID, local.DeviceID,
+			base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(local.IdentityPublicKey),
+			base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(ephemeralPublic),
+			base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(dhSendPub),
+			peer.UserID, peer.DeviceID,
+			peer.SignedPreKeyID,
+			oneTimePreKeyID,
+		)...,
+	)
+	ratchet, err := DeriveInitialRatchetState(ikm, sessionInfo, true)
+	if err != nil {
+		return SessionState{}, err
+	}
+
 	dhOutput, err := x25519SharedSecret(dhSendPriv, peer.SignedPreKey)
 	if err != nil {
 		return SessionState{}, fmt.Errorf("initial DH with peer signed prekey: %w", err)
 	}
-
-	// Perform root ratchet to get new send chain key
-	rootOutput, err := RootRatchet(ratchet.RootKey, dhOutput)
+	newRootKey, newSendChainKey, err := InitializeDHRatchet(ratchet.RootKey, dhOutput)
 	if err != nil {
-		return SessionState{}, fmt.Errorf("initial root ratchet: %w", err)
+		return SessionState{}, fmt.Errorf("initialize DH ratchet: %w", err)
 	}
 
 	// Update ratchet state with new keys
-	ratchet.RootKey = rootOutput.RootKey
-	ratchet.SendChainKey = rootOutput.ChainKey
+	ratchet.RootKey = newRootKey
+	ratchet.SendChainKey = newSendChainKey
 	ratchet.DHSendPrivate = dhSendPriv
 	ratchet.DHSendPublic = dhSendPub
-	ratchet.DHRecvPublic = peer.SignedPreKey // Peer's signed prekey is their current DH public key
+	ratchet.DHRecvPublic = peer.SignedPreKey
 	// RecvChainKey stays as derived from X3DH shared secret for receiving peer's first message
 
 	session := SessionState{

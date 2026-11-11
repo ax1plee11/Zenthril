@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://localhost:8080 ws://localhost:8080 https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:8080 ws://localhost:8080 https://api.zenthril.example.com wss://api.zenthril.example.com; img-src 'self' data: https://cdn.zenthril.example.com; style-src 'self'; script-src 'self'"
     }
   },
   "bundle": {

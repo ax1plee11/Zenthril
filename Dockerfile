@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.26.5-alpine AS builder
+FROM golang:1.26.11-alpine@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb AS builder
 
 WORKDIR /app
 
@@ -10,17 +10,17 @@ RUN go mod download
 # Copy source code
 COPY backend/ ./
 
-ARG TARGET=./cmd/api
+ARG TARGET=.
 
 # Build with security flags
 # SECURITY: PIE and static linking harden the binary against exploitation.
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
-    -ldflags="-s -w -buildid= -linkmode external -extldflags '-static -z relro -z now -z noexecstack'" \
+    -ldflags="-s -w -buildid=" \
     -a -installsuffix cgo -o server ${TARGET}
 
 # Runtime stage
-FROM alpine:3.20
+FROM alpine:3.23@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
 
 RUN apk --no-cache add ca-certificates tzdata
 RUN addgroup -S zenthril && adduser -S -G zenthril zenthril

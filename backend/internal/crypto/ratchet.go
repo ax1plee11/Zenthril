@@ -86,12 +86,12 @@ func NewRatchetStateWithDH(rootKey, sendChainKey, recvChainKey []byte, dhSendPri
 	}, nil
 }
 
-func DeriveInitialRatchetState(sharedSecret []byte, sessionInfo []byte, initiator bool) (RatchetState, error) {
-	if len(sharedSecret) == 0 {
-		return RatchetState{}, fmt.Errorf("%w: shared secret is required", ErrInvalidRatchetState)
+func DeriveInitialRatchetState(ikm []byte, info []byte, initiator bool) (RatchetState, error) {
+	if len(ikm) == 0 {
+		return RatchetState{}, fmt.Errorf("%w: input key material is required", ErrInvalidRatchetState)
 	}
 
-	material, err := hkdfBytes(sharedSecret, nil, append([]byte("zenthril-ratchet-v1:init:"), sessionInfo...), ratchetKeySize*3)
+	material, err := hkdfBytes(ikm, []byte("zenthril.e2ee.x3dh.root.v1"), info, ratchetKeySize*3)
 	if err != nil {
 		return RatchetState{}, err
 	}
@@ -103,6 +103,20 @@ func DeriveInitialRatchetState(sharedSecret []byte, sessionInfo []byte, initiato
 		return NewRatchetState(root, first, second)
 	}
 	return NewRatchetState(root, second, first)
+}
+
+// InitializeDHRatchet derives a new root key and chain key from a DH output,
+// matching the client's "zenthril-ratchet-v1:init-dh" derivation.
+func InitializeDHRatchet(rootKey, dhOutput []byte) (newRootKey []byte, newChainKey []byte, err error) {
+	if len(rootKey) != ratchetKeySize || len(dhOutput) == 0 {
+		return nil, nil, fmt.Errorf("%w: root key and DH output are required", ErrInvalidRatchetState)
+	}
+
+	material, err := hkdfBytes(dhOutput, rootKey, []byte("zenthril-ratchet-v1:init-dh"), ratchetKeySize*2)
+	if err != nil {
+		return nil, nil, err
+	}
+	return material[:ratchetKeySize], material[ratchetKeySize:], nil
 }
 
 func RootRatchet(rootKey, dhOutput []byte) (RootRatchetOutput, error) {
@@ -289,16 +303,16 @@ func (s *SessionState) ApplyRatchetState(state RatchetState) {
 }
 
 func deriveMessageAndNextChain(chainKey []byte, counter uint32) (MessageKey, []byte, error) {
-	material, err := hkdfBytes(chainKey, nil, []byte("zenthril-ratchet-v1:chain"), ratchetKeySize+12+ratchetKeySize)
+	material, err := hkdfBytes(chainKey, []byte("zenthril-ratchet-v1"), []byte("chain"), ratchetKeySize*2+12)
 	if err != nil {
 		return MessageKey{}, nil, err
 	}
 	message := MessageKey{
-		Key:     cloneBytes(material[:ratchetKeySize]),
-		Nonce:   cloneBytes(material[ratchetKeySize : ratchetKeySize+12]),
+		Key:     cloneBytes(material[ratchetKeySize : ratchetKeySize*2]),
+		Nonce:   cloneBytes(material[ratchetKeySize*2 : ratchetKeySize*2+12]),
 		Counter: counter,
 	}
-	nextChainKey := cloneBytes(material[ratchetKeySize+12:])
+	nextChainKey := cloneBytes(material[:ratchetKeySize])
 	zeroBytes(material)
 	return message, nextChainKey, nil
 }

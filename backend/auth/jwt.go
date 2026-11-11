@@ -15,8 +15,9 @@ const (
 )
 
 type claims struct {
-	UserID    string `json:"user_id"`
-	TokenType string `json:"token_type"`
+	SessionVersion string `json:"session_version,omitempty"`
+	UserID         string `json:"user_id"`
+	TokenType      string `json:"token_type"`
 	jwt.RegisteredClaims
 }
 
@@ -38,7 +39,7 @@ func GenerateRefreshToken(userID string, secret string, ttl time.Duration) (stri
 	return generateTypedToken(userID, "refresh", ttl, secret)
 }
 
-func generateTypedToken(userID, tokenType string, ttl time.Duration, secret string) (string, error) {
+func generateTypedToken(userID, tokenType string, ttl time.Duration, secret string, versions ...string) (string, error) {
 	now := time.Now()
 	c := claims{
 		UserID:    userID,
@@ -50,6 +51,9 @@ func generateTypedToken(userID, tokenType string, ttl time.Duration, secret stri
 		},
 	}
 
+	if len(versions) > 0 {
+		c.SessionVersion = versions[0]
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
 	signed, err := token.SignedString([]byte(secret))
 	if err != nil {
@@ -109,6 +113,9 @@ func parseTypedToken(tokenStr, secret, expectedType string) (*claims, error) {
 		return nil, errors.New("invalid token")
 	}
 
+	if c.UserID == "" || c.ID == "" {
+		return nil, errors.New("missing token identity")
+	}
 	if c.TokenType != expectedType {
 		return nil, fmt.Errorf("wrong token type: expected %s, got %s", expectedType, c.TokenType)
 	}

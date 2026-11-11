@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strings"
 )
@@ -83,14 +84,19 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		TOTPCode string `json:"totp_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
 		return
 	}
 
-	user, pair, err := h.svc.Login(r.Context(), req.Username, req.Password)
+	user, pair, err := h.svc.Login(r.Context(), req.Username, req.Password, req.TOTPCode)
 	if err != nil {
+		if errors.Is(err, ErrMFARequired) || errors.Is(err, ErrInvalidTOTPCode) {
+			writeError(w, http.StatusUnauthorized, "mfa_required", "A valid authenticator code is required")
+			return
+		}
 		if errors.Is(err, ErrInvalidCredentials) {
 			writeError(w, http.StatusUnauthorized, "invalid_credentials", "Invalid username or password")
 			return
@@ -165,15 +171,85 @@ func (h *Handler) WSTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) TOTPStart(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "TOTP MFA setup is not implemented yet")
+	userID, ok := UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	secret, uri, err := h.svc.SetupTOTP(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, ErrTOTPAlreadyEnabled) {
+			writeError(w, http.StatusConflict, "totp_already_enabled", "TOTP MFA is already enabled")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to setup TOTP")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"secret": secret,
+		"uri":    uri,
+	})
 }
 
 func (h *Handler) TOTPConfirm(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "TOTP MFA confirmation is not implemented yet")
+	userID, ok := UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	if err := h.svc.VerifyTOTPSetup(r.Context(), userID, req.Code); err != nil {
+		if errors.Is(err, ErrInvalidTOTPCode) {
+			writeError(w, http.StatusBadRequest, "invalid_totp_code", "Invalid TOTP code")
+			return
+		}
+		if errors.Is(err, ErrTOTPAlreadyEnabled) {
+			writeError(w, http.StatusConflict, "totp_already_enabled", "TOTP MFA is already enabled")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to confirm TOTP")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) TOTPDisable(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "TOTP MFA disable is not implemented yet")
+	userID, ok := UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Code) != 6 {
+		writeError(w, http.StatusBadRequest, "invalid_totp_code", "Authenticator code required")
+		return
+	}
+	if err := h.svc.DisableTOTP(r.Context(), userID, req.Code); err != nil {
+		if errors.Is(err, ErrInvalidTOTPCode) || errors.Is(err, ErrMFARequired) {
+			writeError(w, http.StatusUnauthorized, "invalid_totp_code", "Invalid authenticator code")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to disable TOTP")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +360,7 @@ func (h *Handler) GlobalBan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetUserID := r.PathValue("userId")
+	targetUserID := chi.URLParam(r, "userId")
 	if targetUserID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "userId is required")
 		return
@@ -315,7 +391,7 @@ func (h *Handler) GlobalUnban(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetUserID := r.PathValue("userId")
+	targetUserID := chi.URLParam(r, "userId")
 	if targetUserID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "userId is required")
 		return
@@ -346,6 +422,84 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		"user_id":  user.ID.String(),
 		"username": user.Username,
 	})
+}
+
+func (h *Handler) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	// SECURITY: cap unauthenticated request bodies.
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	var req struct {
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	if req.Username == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Username is required")
+		return
+	}
+
+	_, err := h.svc.RequestPasswordReset(r.Context(), req.Username)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to process reset request")
+		return
+	}
+
+	// SECURITY: never return the reset token in the HTTP response.
+	// The token must be delivered out-of-band (e.g., email, SMS) to the user.
+	// Returning it in the response body would expose it to XSS, CSRF, or
+	// logging intermediaries, enabling account takeover.
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "ok",
+	})
+}
+
+// ConfirmPasswordReset validates a reset token and sets a new password.
+func (h *Handler) ConfirmPasswordReset(w http.ResponseWriter, r *http.Request) {
+	// SECURITY: cap unauthenticated request bodies.
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	var req struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	if req.Token == "" || req.NewPassword == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Token and new password are required")
+		return
+	}
+
+	// Enforce password complexity
+	if err := ValidatePasswordComplexity(req.NewPassword); err != nil {
+		var message string
+		switch {
+		case errors.Is(err, ErrPasswordTooShort):
+			message = "Password must be at least 8 characters"
+		case errors.Is(err, ErrPasswordNoUppercase):
+			message = "Password must contain at least one uppercase letter"
+		case errors.Is(err, ErrPasswordNoLowercase):
+			message = "Password must contain at least one lowercase letter"
+		case errors.Is(err, ErrPasswordNoNumber):
+			message = "Password must contain at least one number"
+		case errors.Is(err, ErrPasswordNoSpecialChar):
+			message = "Password must contain at least one special character"
+		default:
+			message = "Password does not meet complexity requirements"
+		}
+		writeError(w, http.StatusBadRequest, "weak_password", message)
+		return
+	}
+
+	if err := h.svc.ConfirmPasswordReset(r.Context(), req.Token, req.NewPassword); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_token", "Invalid or expired reset token")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func extractBearerToken(r *http.Request) string {

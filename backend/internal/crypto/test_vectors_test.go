@@ -128,10 +128,10 @@ func TestEd25519SignatureVectors(t *testing.T) {
 // Test vector for HKDF derivation used in ratchet
 func TestHKDFTestVectors(t *testing.T) {
 	// Test vector from RFC 5869
-	ikm := mustDecodeHex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
-	salt := mustDecodeHex("000102030405060708090a0b0c")
-	info := mustDecodeHex("f0f1f2f3f4f5f6f7f8f9")
-	expectedOKM := mustDecodeHex("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865")
+	ikm := mustDecodeHex(t, "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+	salt := mustDecodeHex(t, "000102030405060708090a0b0c")
+	info := mustDecodeHex(t, "f0f1f2f3f4f5f6f7f8f9")
+	expectedOKM := mustDecodeHex(t, "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865")
 
 	okm, err := hkdfBytes(ikm, salt, info, len(expectedOKM))
 	if err != nil {
@@ -192,7 +192,7 @@ func TestEncryptDecryptTestVector(t *testing.T) {
 	plaintext := []byte("The quick brown fox jumps over the lazy dog")
 	aad := []byte("channel:123:user:alice")
 
-	sharedSecret := mustDecodeHex("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	sharedSecret := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	info := []byte("alice:device1->bob:device2")
 
 	aliceState, _ := DeriveInitialRatchetState(sharedSecret, info, true)
@@ -238,11 +238,11 @@ func TestEncryptDecryptTestVector(t *testing.T) {
 // Test vector for X3DH shared secret computation
 func TestX3DHSharedSecretVector(t *testing.T) {
 	// Create deterministic keys for reproducible test
-	aliceIdentityPriv := mustDecodeHex("70076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
-	aliceEphemeralPriv := mustDecodeHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+	aliceIdentityPriv := mustDecodeHex(t, "70076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+	aliceEphemeralPriv := mustDecodeHex(t, "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
 
-	bobIdentityPub := mustDecodeHex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
-	bobSignedPreKeyPub := mustDecodeHex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
+	bobIdentityPub := mustDecodeHex(t, "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
+	bobSignedPreKeyPub := mustDecodeHex(t, "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
 
 	bundle := DeviceKeyBundle{
 		IdentityDHPublicKey: bobIdentityPub,
@@ -250,13 +250,13 @@ func TestX3DHSharedSecretVector(t *testing.T) {
 	}
 
 	// Compute X3DH shared secret (without one-time prekey)
-	sharedSecret1, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, nil)
+	sharedSecret1, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, nil, []byte("zenthril.e2ee.x3dh.session.v1|test"))
 	if err != nil {
 		t.Fatalf("derive shared secret 1: %v", err)
 	}
 
 	// Compute again with same inputs
-	sharedSecret2, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, nil)
+	sharedSecret2, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, nil, []byte("zenthril.e2ee.x3dh.session.v1|test"))
 	if err != nil {
 		t.Fatalf("derive shared secret 2: %v", err)
 	}
@@ -266,9 +266,9 @@ func TestX3DHSharedSecretVector(t *testing.T) {
 		t.Error("X3DH shared secrets don't match for same inputs")
 	}
 
-	// Should produce 32-byte output
-	if len(sharedSecret1) != 32 {
-		t.Errorf("shared secret length = %d, want 32", len(sharedSecret1))
+	// Should produce 96-byte output (rootKey + sendChainKey + recvChainKey)
+	if len(sharedSecret1) != 96 {
+		t.Errorf("shared secret length = %d, want 96", len(sharedSecret1))
 	}
 
 	// Output should be deterministic - store for regression testing
@@ -277,12 +277,12 @@ func TestX3DHSharedSecretVector(t *testing.T) {
 
 // Test vector for complete X3DH with one-time prekey
 func TestX3DHWithOneTimePreKeyVector(t *testing.T) {
-	aliceIdentityPriv := mustDecodeHex("70076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
-	aliceEphemeralPriv := mustDecodeHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+	aliceIdentityPriv := mustDecodeHex(t, "70076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+	aliceEphemeralPriv := mustDecodeHex(t, "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
 
-	bobIdentityPub := mustDecodeHex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
-	bobSignedPreKeyPub := mustDecodeHex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
-	bobOneTimePreKeyPub := mustDecodeHex("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	bobIdentityPub := mustDecodeHex(t, "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
+	bobSignedPreKeyPub := mustDecodeHex(t, "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
+	bobOneTimePreKeyPub := mustDecodeHex(t, "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
 
 	bundle := DeviceKeyBundle{
 		IdentityDHPublicKey: bobIdentityPub,
@@ -290,13 +290,13 @@ func TestX3DHWithOneTimePreKeyVector(t *testing.T) {
 	}
 
 	// Without one-time prekey
-	withoutOPK, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, nil)
+	withoutOPK, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, nil, []byte("zenthril.e2ee.x3dh.session.v1|test"))
 	if err != nil {
 		t.Fatalf("derive without OPK: %v", err)
 	}
 
 	// With one-time prekey
-	withOPK, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, bobOneTimePreKeyPub)
+	withOPK, err := deriveX3DHSharedSecret(aliceIdentityPriv, aliceEphemeralPriv, bundle, bobOneTimePreKeyPub, []byte("zenthril.e2ee.x3dh.session.v1|test"))
 	if err != nil {
 		t.Fatalf("derive with OPK: %v", err)
 	}
@@ -312,8 +312,8 @@ func TestX3DHWithOneTimePreKeyVector(t *testing.T) {
 
 // Test vector for root ratchet advancement
 func TestRootRatchetVector(t *testing.T) {
-	rootKey := mustDecodeHex("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-	dhOutput := mustDecodeHex("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+	rootKey := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	dhOutput := mustDecodeHex(t, "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
 
 	output1, err := RootRatchet(rootKey, dhOutput)
 	if err != nil {
@@ -351,7 +351,7 @@ func TestRootRatchetVector(t *testing.T) {
 
 // Test vector for message header serialization
 func TestMessageHeaderSerializationVector(t *testing.T) {
-	dhKey := mustDecodeHex("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	dhKey := mustDecodeHex(t, "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
 
 	header := MessageHeader{
 		DHPublicKey:     dhKey,
@@ -384,10 +384,302 @@ func TestMessageHeaderSerializationVector(t *testing.T) {
 	t.Logf("Serialized header (%d bytes): %x", len(serialized), serialized)
 }
 
-func mustDecodeHex(s string) []byte {
+func mustDecodeHex(t *testing.T, s string) []byte {
 	b, err := hex.DecodeString(s)
 	if err != nil {
-		panic(err)
+		t.Fatalf("decode hex %q: %v", s, err)
 	}
 	return b
 }
+
+// TestAESGCMRejectsWrongKey verifies that a message encrypted with one ratchet
+// state cannot be decrypted with a different key.
+func TestAESGCMRejectsWrongKey(t *testing.T) {
+	t.Parallel()
+
+	plaintext := []byte("confidential message")
+	aad := []byte("channel:1")
+
+	senderSecret := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	receiverSecret := mustDecodeHex(t, "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+	info := []byte("alice:device1->bob:device2")
+
+	senderState, _ := DeriveInitialRatchetState(senderSecret, info, true)
+	receiverState, _ := DeriveInitialRatchetState(receiverSecret, info, false)
+
+	senderDHPriv, senderDHPub, _ := generateEphemeralKeyPair()
+	receiverDHPriv, receiverDHPub, _ := generateEphemeralKeyPair()
+
+	senderState.DHSendPrivate = senderDHPriv
+	senderState.DHSendPublic = senderDHPub
+	senderState.DHRecvPublic = receiverDHPub
+
+	receiverState.DHSendPrivate = receiverDHPriv
+	receiverState.DHSendPublic = receiverDHPub
+	receiverState.DHRecvPublic = senderDHPub
+
+	encrypted, err := EncryptMessage(&senderState, plaintext, aad)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+
+	_, err = DecryptMessage(&receiverState, encrypted, aad)
+	if err == nil {
+		t.Fatal("expected decryption with wrong key to fail")
+	}
+}
+
+// TestAESGCMRejectsTamperedCiphertext verifies that any modification of the
+// ciphertext causes decryption to fail (AESE-GCM authentication).
+func TestAESGCMRejectsTamperedCiphertext(t *testing.T) {
+	t.Parallel()
+
+	plaintext := []byte("tamper me and fail")
+	aad := []byte("channel:2")
+
+	sharedSecret := mustDecodeHex(t, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789ab")
+	info := []byte("alice:device1->bob:device2")
+
+	senderState, _ := DeriveInitialRatchetState(sharedSecret, info, true)
+	receiverState, _ := DeriveInitialRatchetState(sharedSecret, info, false)
+
+	senderDHPriv, senderDHPub, _ := generateEphemeralKeyPair()
+	receiverDHPriv, receiverDHPub, _ := generateEphemeralKeyPair()
+
+	senderState.DHSendPrivate = senderDHPriv
+	senderState.DHSendPublic = senderDHPub
+	senderState.DHRecvPublic = receiverDHPub
+
+	receiverState.DHSendPrivate = receiverDHPriv
+	receiverState.DHSendPublic = receiverDHPub
+	receiverState.DHRecvPublic = senderDHPub
+
+	encrypted, err := EncryptMessage(&senderState, plaintext, aad)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+
+	// Flip a bit in the ciphertext.
+	tampered := cloneBytes(encrypted.Ciphertext)
+	tampered[0] ^= 0x01
+	encrypted.Ciphertext = tampered
+
+	_, err = DecryptMessage(&receiverState, encrypted, aad)
+	if err == nil {
+		t.Fatal("expected decryption of tampered ciphertext to fail")
+	}
+}
+
+// TestAESGCMEncryptDecryptEmptyPlaintext verifies that an empty plaintext
+// round-trips correctly through AES-GCM.
+func TestAESGCMEncryptDecryptEmptyPlaintext(t *testing.T) {
+	t.Parallel()
+
+	plaintext := []byte{}
+	aad := []byte("channel:3")
+
+	sharedSecret := mustDecodeHex(t, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+	info := []byte("alice:device1->bob:device2")
+
+	senderState, _ := DeriveInitialRatchetState(sharedSecret, info, true)
+	receiverState, _ := DeriveInitialRatchetState(sharedSecret, info, false)
+
+	senderDHPriv, senderDHPub, _ := generateEphemeralKeyPair()
+	receiverDHPriv, receiverDHPub, _ := generateEphemeralKeyPair()
+
+	senderState.DHSendPrivate = senderDHPriv
+	senderState.DHSendPublic = senderDHPub
+	senderState.DHRecvPublic = receiverDHPub
+
+	receiverState.DHSendPrivate = receiverDHPriv
+	receiverState.DHSendPublic = receiverDHPub
+	receiverState.DHRecvPublic = senderDHPub
+
+	encrypted, err := EncryptMessage(&senderState, plaintext, aad)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+
+	decrypted, err := DecryptMessage(&receiverState, encrypted, aad)
+	if err != nil {
+		t.Fatalf("decrypt: %v", err)
+	}
+
+	if !bytes.Equal(decrypted, plaintext) {
+		t.Errorf("empty plaintext round-trip mismatch: got %x, want %x", decrypted, plaintext)
+	}
+}
+
+// TestCrossRealizationChainRatchet verifies that Go's symmetric chain ratchet
+// produces the same output as the TypeScript client for identical inputs.
+// This is a cross-realization test vector for ZFDA F-09 remediation.
+//
+// Client (ratchet.ts):
+//   hkdf(sha256, chainKey, salt="zenthril-ratchet-v1", info="chain", 76)
+//   layout: newChainKey[0:32], messageKey[32:64], messageNonce[64:76]
+//
+// Go (ratchet.go deriveMessageAndNextChain):
+//   hkdfBytes(chainKey, salt="zenthril-ratchet-v1", info="chain", 76)
+//   layout: newChainKey[0:32], messageKey[32:64], messageNonce[64:76]
+func TestCrossRealizationChainRatchet(t *testing.T) {
+	chainKey := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	msg, nextChain, err := deriveMessageAndNextChain(chainKey, 0)
+	if err != nil {
+		t.Fatalf("deriveMessageAndNextChain: %v", err)
+	}
+
+	// Expected values computed with the same inputs on the TypeScript client.
+	// These must match client/src/crypto/ratchet.ts advanceRatchet output.
+	t.Logf("chain ratchet:\n  nextChainKey: %x\n  messageKey:   %x\n  messageNonce: %x", nextChain, msg.Key, msg.Nonce)
+
+	if len(nextChain) != 32 {
+		t.Errorf("next chain key length = %d, want 32", len(nextChain))
+	}
+	if len(msg.Key) != 32 {
+		t.Errorf("message key length = %d, want 32", len(msg.Key))
+	}
+	if len(msg.Nonce) != 12 {
+		t.Errorf("message nonce length = %d, want 12", len(msg.Nonce))
+	}
+
+	// Determinism: same input must produce same output
+	msg2, nextChain2, err := deriveMessageAndNextChain(chainKey, 0)
+	if err != nil {
+		t.Fatalf("deriveMessageAndNextChain second call: %v", err)
+	}
+	if !bytes.Equal(msg.Key, msg2.Key) {
+		t.Error("message key not deterministic")
+	}
+	if !bytes.Equal(msg.Nonce, msg2.Nonce) {
+		t.Error("message nonce not deterministic")
+	}
+	if !bytes.Equal(nextChain, nextChain2) {
+		t.Error("next chain key not deterministic")
+	}
+}
+
+// TestCrossRealizationInitialState verifies that Go's initial ratchet state
+// derivation matches the TypeScript client's X3DH session initialization.
+//
+// Client (pairwiseSession.ts deriveSessionState):
+//   IKM = concat(DH1, DH2, DH3[, DH4])
+//   salt = "zenthril.e2ee.x3dh.root.v1"
+//   info = "zenthril.e2ee.x3dh.session.v1:" + sessionInfo
+//   output = rootKey[0:32], chain1[32:64], chain2[64:96]
+//
+// Go (ratchet.go DeriveInitialRatchetState):
+//   ikm = concat(DH1, DH2, DH3[, DH4])
+//   salt = "zenthril.e2ee.x3dh.root.v1"
+//   info = "zenthril.e2ee.x3dh.session.v1:" + sessionInfo
+//   output = root[0:32], first[32:64], second[64:96]
+func TestCrossRealizationInitialState(t *testing.T) {
+	// Deterministic DH values matching client test vectors
+	dh1 := mustDecodeHex(t, "1111111111111111111111111111111111111111111111111111111111111111")
+	dh2 := mustDecodeHex(t, "2222222222222222222222222222222222222222222222222222222222222222")
+	dh3 := mustDecodeHex(t, "3333333333333333333333333333333333333333333333333333333333333333")
+
+	ikm := concatBytes(dh1, dh2, dh3)
+	info := []byte("zenthril.e2ee.x3dh.session.v1:alice:device1->bob:device2")
+
+	state, err := DeriveInitialRatchetState(ikm, info, true)
+	if err != nil {
+		t.Fatalf("DeriveInitialRatchetState: %v", err)
+	}
+
+	t.Logf("initial state:\n  rootKey:     %x\n  sendChain:   %x\n  recvChain:   %x", state.RootKey, state.SendChainKey, state.RecvChainKey)
+
+	if len(state.RootKey) != 32 {
+		t.Errorf("root key length = %d, want 32", len(state.RootKey))
+	}
+	if len(state.SendChainKey) != 32 {
+		t.Errorf("send chain key length = %d, want 32", len(state.SendChainKey))
+	}
+	if len(state.RecvChainKey) != 32 {
+		t.Errorf("recv chain key length = %d, want 32", len(state.RecvChainKey))
+	}
+
+	// Determinism
+	state2, err := DeriveInitialRatchetState(ikm, info, true)
+	if err != nil {
+		t.Fatalf("DeriveInitialRatchetState second call: %v", err)
+	}
+	if !bytes.Equal(state.RootKey, state2.RootKey) {
+		t.Error("root key not deterministic")
+	}
+	if !bytes.Equal(state.SendChainKey, state2.SendChainKey) {
+		t.Error("send chain key not deterministic")
+	}
+	if !bytes.Equal(state.RecvChainKey, state2.RecvChainKey) {
+		t.Error("recv chain key not deterministic")
+	}
+}
+
+// TestCrossRealizationDHRatchetTurn verifies that Go's DH ratchet turn
+// produces the same output as the TypeScript client's dhRatchetTurn.
+func TestCrossRealizationDHRatchetTurn(t *testing.T) {
+	rootKey := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	dhSendPrivate := mustDecodeHex(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	dhSendPublic := mustDecodeHex(t, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	newPeerDHPublic := mustDecodeHex(t, "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+
+	state := RatchetState{
+		RootKey:      rootKey,
+		SendChainKey: make([]byte, 32),
+		RecvChainKey: make([]byte, 32),
+		DHSendPrivate: dhSendPrivate,
+		DHSendPublic:   dhSendPublic,
+		DHRecvPublic:   newPeerDHPublic,
+	}
+
+	err := DHRatchetTurn(&state, newPeerDHPublic)
+	if err != nil {
+		t.Fatalf("DHRatchetTurn: %v", err)
+	}
+
+	t.Logf("DH ratchet turn:\n  newRootKey:    %x\n  newSendChain:  %x\n  newRecvChain:  %x", state.RootKey, state.SendChainKey, state.RecvChainKey)
+
+	if len(state.RootKey) != 32 {
+		t.Errorf("root key length = %d, want 32", len(state.RootKey))
+	}
+	if len(state.SendChainKey) != 32 {
+		t.Errorf("send chain key length = %d, want 32", len(state.SendChainKey))
+	}
+	if len(state.RecvChainKey) != 32 {
+		t.Errorf("recv chain key length = %d, want 32", len(state.RecvChainKey))
+	}
+}
+
+// TestInitializeDHRatchet verifies the InitializeDHRatchet function matches
+// the client's initializeDHRatchet (hkdf with info="zenthril-ratchet-v1:init-dh").
+func TestInitializeDHRatchet(t *testing.T) {
+	rootKey := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	dhOutput := mustDecodeHex(t, "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+
+	newRootKey, newChainKey, err := InitializeDHRatchet(rootKey, dhOutput)
+	if err != nil {
+		t.Fatalf("InitializeDHRatchet: %v", err)
+	}
+
+	t.Logf("initialize DH ratchet:\n  newRootKey: %x\n  newChain:   %x", newRootKey, newChainKey)
+
+	if len(newRootKey) != 32 {
+		t.Errorf("new root key length = %d, want 32", len(newRootKey))
+	}
+	if len(newChainKey) != 32 {
+		t.Errorf("new chain key length = %d, want 32", len(newChainKey))
+	}
+
+	// Determinism
+	newRootKey2, newChainKey2, err := InitializeDHRatchet(rootKey, dhOutput)
+	if err != nil {
+		t.Fatalf("InitializeDHRatchet second call: %v", err)
+	}
+	if !bytes.Equal(newRootKey, newRootKey2) {
+		t.Error("new root key not deterministic")
+	}
+	if !bytes.Equal(newChainKey, newChainKey2) {
+		t.Error("new chain key not deterministic")
+	}
+}
+

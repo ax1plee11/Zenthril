@@ -1,5 +1,16 @@
 # Changelog
 
+## Security remediation — 2026-11-12
+
+- Enforce TOTP before issuing login tokens, reject OTP replay, and encrypt stored MFA secrets.
+- Revoke account-wide access/refresh sessions and pending WebSocket tickets; close local realtime sessions on revocation.
+- Consume password-reset tokens atomically and restrict cross-user device-key claims.
+- Preserve the transport peer address for trusted-proxy-aware rate limiting and fail closed on authorization errors.
+- Update Go, JavaScript, Python and Rust dependencies and repair Docker build/persistence configuration.
+- Include backend moderation/audit source and migrations so a clean checkout contains the application it builds.
+- Publish architecture, audit and knowledge-base material; link ZenthrilDB as a pinned submodule.
+- See [the remediation report](docs/security/SECURITY_REMEDIATION_2026-11-12.md) for validation, deployment steps and remaining limitations. Shannon exploitation testing was not completed.
+
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
@@ -28,4 +39,4 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Legal terms updated to proprietary / all-rights-reserved usage with explicit permission required for copying, redistribution, public forks, commercial use, and derivative publication.
 
 ### Known Issues
-- `npm audit` still reports the Vite/esbuild development-server advisory at moderate severity; fixing it requires a Vite major-version migration and is tracked as a follow-up batch.
+- The Linux GTK dependency chain still retains the GLib advisory documented in the 2026-11-12 remediation report; independent cryptographic auditing remains outstanding.

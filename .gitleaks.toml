@@ -1,0 +1,19 @@
+title = "Zenthril secret detection"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated dependency and build directories"
+paths = ['''(^|/)(node_modules|\.venv|target|dist|coverage|\.git)(/|$)''']
+
+[[rules]]
+id = "zenthril-auth-secret"
+description = "Zenthril authentication or operational secret"
+regex = '''(?i)(?:jwt_secret|mfa_encryption_key|operational_token|metrics_token|federation_token)\s*[:=]\s*["']?([A-Za-z0-9+/=_-]{32,})'''
+secretGroup = 1
+keywords = ["jwt_secret", "mfa_encryption_key", "operational_token", "metrics_token", "federation_token"]
+[[rules.allowlists]]
+description = "Explicit non-production placeholders"
+regexTarget = "secret"
+regexes = ['''^(change-me|test-secret|dev-secret|audit-local|replace-me)''']

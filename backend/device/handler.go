@@ -161,6 +161,10 @@ func (h *Handler) ClaimKeyBundle(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "device_not_found", "Device not found")
 			return
 		}
+		if errors.Is(err, ErrNoSharedGuild) {
+			writeError(w, http.StatusNotFound, "device_not_found", "Device not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to claim key bundle")
 		return
 	}

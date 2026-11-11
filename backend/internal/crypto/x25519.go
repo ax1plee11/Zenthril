@@ -41,11 +41,14 @@ func x25519SharedSecret(privateKey, publicKey []byte) ([]byte, error) {
 // an initiator with identity key IKa and ephemeral key EKa against a peer bundle.
 //
 // SECURITY: DH1=DH(IKa,SPKb), DH2=DH(EKa,IKb), DH3=DH(EKa,SPKb), DH4=DH(EKa,OPKb).
+// Output is 96 bytes: rootKey[0:32], sendChainKey[32:64], recvChainKey[64:96].
+// Matches client/src/features/e2ee/pairwiseSession.ts deriveSessionState.
 func deriveX3DHSharedSecret(
 	identityPrivateKey []byte,
 	ephemeralPrivateKey []byte,
 	peer DeviceKeyBundle,
 	oneTimePreKeyPublic []byte,
+	info []byte,
 ) ([]byte, error) {
 	if len(identityPrivateKey) != x25519KeySize {
 		return nil, fmt.Errorf("identity private key must be %d bytes", x25519KeySize)
@@ -77,7 +80,8 @@ func deriveX3DHSharedSecret(
 	}
 
 	ikm := concatBytes(parts...)
-	// SECURITY: HKDF with zero salt matches Signal X3DH KDF convention for SK derivation.
-	salt := make([]byte, x25519KeySize)
-	return hkdfBytes(ikm, salt, []byte("Zenthril X3DH v1"), x25519KeySize)
+	// SECURITY: salt matches client-side "zenthril.e2ee.x3dh.root.v1" for
+	// cross-language X3DH interoperability.
+	salt := []byte("zenthril.e2ee.x3dh.root.v1")
+	return hkdfBytes(ikm, salt, info, ratchetKeySize*3)
 }

@@ -91,11 +91,17 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 		return false, errors.New("invalid hash format")
 	}
 
+	if parts[1] != "argon2id" {
+		return false, errors.New("unsupported hash algorithm")
+	}
 	var version int
 	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
 		return false, fmt.Errorf("parse version: %w", err)
 	}
 
+	if version != argon2.Version {
+		return false, errors.New("unsupported argon2 version")
+	}
 	var memory uint32
 	var iterations uint32
 	var parallelism uint8
@@ -103,6 +109,9 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 		return false, fmt.Errorf("parse params: %w", err)
 	}
 
+	if memory < 8*uint32(parallelism) || memory > 256*1024 || iterations < 1 || iterations > 10 || parallelism < 1 || parallelism > 16 {
+		return false, errors.New("unsafe argon2 parameters")
+	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return false, fmt.Errorf("decode salt: %w", err)
@@ -113,6 +122,9 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 		return false, fmt.Errorf("decode hash: %w", err)
 	}
 
+	if len(salt) < 8 || len(salt) > 64 || len(expectedHash) < 16 || len(expectedHash) > 64 {
+		return false, errors.New("invalid argon2 salt or key length")
+	}
 	actualHash := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, uint32(len(expectedHash)))
 
 	return subtle.ConstantTimeCompare(actualHash, expectedHash) == 1, nil

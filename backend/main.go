@@ -205,6 +205,7 @@ func main() {
 	rdb := redis.NewClient(redisOpts)
 
 	authSvc := auth.NewService(database, rdb, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
+	authSvc.SetMFAEncryptionKey(cfg.MFAEncryptionKey)
 	authHandler := auth.NewHandler(authSvc, cfg.SecureCookies)
 	deviceSvc := device.NewService(database)
 	deviceHandler := device.NewHandler(deviceSvc)
@@ -212,6 +213,7 @@ func main() {
 	guildSvc := guild.NewService(database, cfg.HTTPAddr)
 	guildSvc.SetSuperAdmins(cfg.AdminUserIDs)
 	wsHub := hub.NewHubWithUserMessageLimiter(guildSvc, hub.NewRedisFixedWindowLimiter(rdb, "zenthril"))
+	authSvc.SetSessionRevocationHook(wsHub.DisconnectUser)
 	go wsHub.Run()
 	guildHandler := guild.NewHandler(guildSvc, wsHub)
 
@@ -237,7 +239,7 @@ func main() {
 	federationHandler := federation.NewHandler(federationSvc)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
+	// Keep RemoteAddr as the transport peer; security.Guard handles trusted proxies.
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -280,14 +282,13 @@ func main() {
 			r.With(secGuard.BruteForceProtect).Post("/login", authHandler.Login)
 			r.With(secGuard.AuthRateLimit("logout", 30, time.Minute)).Post("/logout", authHandler.Logout)
 			r.With(secGuard.AuthRateLimit("refresh", 30, time.Minute)).Post("/refresh", authHandler.Refresh)
-			// TOTP/MFA routes are registered but return 501 Not Implemented.
-			// They are explicitly hidden in production to avoid false signals of
-			// MFA support. Set TOTP_ENABLED=true to expose them in development/staging.
-			if cfg.Environment != "production" {
-				r.Post("/mfa/totp/start", authHandler.TOTPStart)
-				r.Post("/mfa/totp/confirm", authHandler.TOTPConfirm)
-				r.Post("/mfa/totp/disable", authHandler.TOTPDisable)
-			}
+			// TOTP/MFA routes are registered for all environments with rate limiting.
+			r.With(authSvc.Middleware, secGuard.AuthRateLimit("totp_start", 5, time.Minute)).Post("/mfa/totp/start", authHandler.TOTPStart)
+			r.With(authSvc.Middleware, secGuard.AuthRateLimit("totp_confirm", 5, time.Minute)).Post("/mfa/totp/confirm", authHandler.TOTPConfirm)
+			r.With(authSvc.Middleware, secGuard.AuthRateLimit("totp_disable", 5, time.Minute)).Post("/mfa/totp/disable", authHandler.TOTPDisable)
+			// Password reset (no auth required, rate limited)
+			r.With(secGuard.AuthRateLimit("password_reset_request", 3, time.Hour)).Post("/password-reset/request", authHandler.RequestPasswordReset)
+			r.With(secGuard.AuthRateLimit("password_reset_confirm", 10, time.Hour)).Post("/password-reset/confirm", authHandler.ConfirmPasswordReset)
 			r.Group(func(r chi.Router) {
 				r.Use(authSvc.Middleware)
 				r.Post("/ws-ticket", authHandler.WSTicket)

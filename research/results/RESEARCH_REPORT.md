@@ -4,6 +4,18 @@
 **Author:** Zenthril Research Team  
 **Version:** 1.0
 
+> **STATUS: UNVERIFIED / HISTORICAL**
+>
+> The performance figures in this report were recorded on a specific local development
+> workstation (HP ProBook 455 G8, Windows 11, Go 1.22.0) in May 2026. They have **not**
+> been reproduced in this session, and the benchmark code has not been run against the
+> current toolchain (Go 1.26.5). Treat all numbers as preliminary, unverified research
+> data, not as a guarantee of production performance. See [`BENCH-307`](docs/audits/PHASE_17_REMEDIATION.md)
+> for the verification status.
+>
+> Zenthril is an alpha-stage project (see `README.md`). Nothing in this report implies
+> production readiness.
+
 ---
 
 ## Abstract
@@ -11,7 +23,7 @@
 This report presents the results of comprehensive performance evaluation of the Zenthril federated E2EE messenger. The study covers encryption overhead, WebSocket scalability, database performance, load testing, and comparative analysis with existing solutions (Matrix Synapse, Signal Server, XMPP+Prosody).
 
 **Key findings:**
-- AES-256-GCM encryption overhead: **0.83ms** for 1KB messages
+- AES-256-GCM encryption overhead: **0.83 µs** for 1KB messages
 - WebSocket P95 latency at 500 users: **98.7ms**
 - Database INSERT performance: **0.207ms** average
 - Maximum stable throughput: **14,823 messages/second**
@@ -237,7 +249,7 @@ This report presents the results of comprehensive performance evaluation of the 
 |-----------|--------|----------|--------|
 | Concurrent users | 500+ | 1,000 | ✅ |
 | P95 latency | < 200ms | 98.7ms | ✅ |
-| Encryption overhead | < 1ms | 0.83ms | ✅ |
+| Encryption overhead | < 1ms | 0.83 µs | ✅ |
 | Error rate | < 1% | 0.18% | ✅ |
 | Memory stability | No leaks | Confirmed | ✅ |
 | DB INSERT | < 5ms | 0.207ms | ✅ |
@@ -252,8 +264,8 @@ This report presents the results of comprehensive performance evaluation of the 
 
 ### 7.3 Practical Significance
 
-- Zenthril can serve as a **production-ready** federated messenger for organizations
-- The architecture can handle **1,000+ concurrent users** on commodity hardware
+- Zenthril is an **alpha-stage** federated messenger suitable for controlled experimentation and small trusted groups. It is not yet suitable for production use.
+- The architecture has been tested with up to **1,000 concurrent users** on commodity hardware in a local environment
 - **22.6x database speedup** through proper indexing demonstrates importance of query optimization
 - Built-in metrics enable **continuous performance monitoring** in production
 

@@ -19,6 +19,8 @@ export default function AuthScreen({ onAuth, sessionNotice }: AuthScreenProps) {
   const [tab, setTab]           = useState<Tab>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [showServers, setShowServers] = useState(false);
@@ -64,21 +66,22 @@ export default function AuthScreen({ onAuth, sessionNotice }: AuthScreenProps) {
         saveAuth(res.token, { id: res.user_id, username: trimUser, public_key: pubKeyB64 });
         await registerE2EEDeviceBestEffort(res.user_id);
       } else {
-        const res = await api.auth.login(trimUser, password);
+        const res = await api.auth.login(trimUser, password, totpCode || undefined);
         saveAuth(res.token, { id: res.user.id, username: res.user.username, public_key: res.user.public_key });
         await registerE2EEDeviceBestEffort(res.user.id);
       }
       onAuth();
     } catch (err: unknown) {
       const { code, message } = apiErrorFields(err);
-      if (code === "username_taken") setError(t('auth.registerError'));
+      if (code === "mfa_required") { setMfaRequired(true); setTotpCode(""); setError(message ?? "Authenticator code required"); }
+      else if (code === "username_taken") setError(t('auth.registerError'));
       else if (code === "invalid_credentials") setError(t('auth.loginError'));
       else if (code === "account_banned") setError(t('auth.loginError'));
       else setError(message ?? t('common.error'));
     } finally {
       setLoading(false);
     }
-  }, [tab, username, password, usernameStatus, onAuth, t]);
+  }, [tab, username, password, totpCode, usernameStatus, onAuth, t]);
 
   return (
     <div style={s.root}>
@@ -196,6 +199,15 @@ export default function AuthScreen({ onAuth, sessionNotice }: AuthScreenProps) {
             )}
           </div>
 
+          {tab === "login" && mfaRequired && (
+            <div style={s.field}>
+              <label style={s.label} htmlFor="totp-code">Authenticator code</label>
+              <input id="totp-code" style={s.input} value={totpCode}
+                onChange={e => setTotpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}"
+                minLength={6} maxLength={6} required autoFocus />
+            </div>
+          )}
           {error && (
             <div style={s.error} className="fade-in">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}>

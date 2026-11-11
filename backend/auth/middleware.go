@@ -41,7 +41,11 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		}
 
 		banned, err := s.IsGloballyBanned(r.Context(), userID)
-		if err == nil && banned {
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "authorization_unavailable", "Account validation unavailable")
+			return
+		}
+		if banned {
 			reason, _ := s.GetGlobalBanReason(r.Context(), userID)
 			if reason == "" {
 				reason = "Your account has been permanently banned"

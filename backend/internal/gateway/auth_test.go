@@ -84,8 +84,9 @@ func TestJWTAuthenticatorRejectsOversizedTokenBeforeValidator(t *testing.T) {
 func signedGatewayToken(t *testing.T, secret, userID string) string {
 	t.Helper()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims{
-		UserID:   userID,
-		DeviceID: "device-1",
+		TokenType: "access",
+		UserID:    userID,
+		DeviceID:  "device-1",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        "session-1",
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -97,4 +98,23 @@ func signedGatewayToken(t *testing.T, secret, userID string) string {
 		t.Fatalf("sign token: %v", err)
 	}
 	return signed
+}
+
+func TestJWTAuthenticatorRejectsRefreshToken(t *testing.T) {
+	validator := &stubSessionValidator{}
+	auth := NewJWTAuthenticator("secret", validator)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims{
+		UserID: "user-1", TokenType: "refresh",
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
+	})
+	signed, err := token.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.AuthenticateWebSocket(context.Background(), signed); err == nil {
+		t.Fatal("refresh token accepted as WebSocket access token")
+	}
+	if validator.blacklistChecks != 0 {
+		t.Fatal("validator called before token type validation")
+	}
 }

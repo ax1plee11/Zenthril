@@ -65,7 +65,7 @@ func (a *JWTAuthenticator) AuthenticateWebSocket(ctx context.Context, tokenStrin
 	if err != nil {
 		return UserClaims{}, fmt.Errorf("parse websocket token: %w", err)
 	}
-	if !token.Valid || claims.UserID == "" {
+	if !token.Valid || claims.UserID == "" || claims.TokenType != "access" {
 		return UserClaims{}, errors.New("invalid websocket token")
 	}
 
@@ -98,8 +98,10 @@ func (a *JWTAuthenticator) AuthenticateWebSocket(ctx context.Context, tokenStrin
 }
 
 type jwtClaims struct {
-	UserID   string `json:"user_id"`
-	DeviceID string `json:"device_id,omitempty"`
+	TokenType      string `json:"token_type"`
+	SessionVersion string `json:"session_version,omitempty"`
+	UserID         string `json:"user_id"`
+	DeviceID       string `json:"device_id,omitempty"`
 	jwt.RegisteredClaims
 }
 

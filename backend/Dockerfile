@@ -1,12 +1,16 @@
-FROM golang:1.26.5-alpine AS builder
+# Zenthril backend production Dockerfile
+# Multi-stage build, non-root user, minimal runtime image
+
+FROM golang:1.26.11-alpine@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb AS builder
 WORKDIR /app
-COPY go.mod go.sum ./
+COPY backend/go.mod backend/go.sum ./
 RUN go mod download
-COPY . .
+COPY backend/ ./
+RUN mkdir -p /app/static
 ARG TARGET=.
 RUN CGO_ENABLED=0 GOOS=linux go build -o zenthril ${TARGET}
 
-FROM alpine:3.19
+FROM alpine:3.23@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
 WORKDIR /app
 
 # ca-certificates: required for TLS connections to external services
@@ -16,9 +20,7 @@ RUN apk --no-cache add ca-certificates && \
 
 COPY --from=builder /app/zenthril .
 
-# Copy pre-built frontend static files (optional — only present when
-# the image is built with the client dist folder available).
-# Set STATIC_DIR=/app/static in the container to serve the SPA.
+# Copy pre-built frontend static files (optional)
 COPY --from=builder /app/static ./static
 
 RUN chown -R zenthril:zenthril /app

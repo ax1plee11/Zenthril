@@ -3,7 +3,7 @@ node_modules/
 client/node_modules/
 
 # Go module cache
-pkg/
+/pkg/
 backend/pkg/
 
 # Build outputs
@@ -18,6 +18,9 @@ backend/*.exe
 
 # Environment - NEVER commit these
 .env
+.env.*
+!.env.example
+!**/.env.example
 .env.local
 .env.production
 client/.env
@@ -65,10 +68,11 @@ Thumbs.db
 Zenthril_Architecture_Report.docx
 backend-private-temp/
 MODERATION_GUIDE.md
-backend/moderation/
-backend/migrations/004_admin_audit_log.sql
-backend/migrations/005_ip_tracking_and_guild_bans.sql
-backend/auth/audit.go
 
 # Local/private audit worktrees. Keep sanitized reports under security/audit/.
 zenthril-audit/
+.kilo/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc

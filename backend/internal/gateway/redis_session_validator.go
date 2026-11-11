@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -50,7 +52,20 @@ func (v *RedisSessionValidator) IsTokenBlacklisted(ctx context.Context, token st
 	if err != nil {
 		return false, fmt.Errorf("gateway blacklist check: %w", err)
 	}
-	return val > 0, nil
+	if val > 0 {
+		return true, nil
+	}
+	// AuthenticateWebSocket verifies the signature before invoking this method.
+	// These claims are used only to deny a revoked session, never to authorize it.
+	c := jwtClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(token, &c); err != nil || c.UserID == "" {
+		return true, nil
+	}
+	version, err := v.redis.Get(ctx, "auth:session-version:"+c.UserID).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return false, err
+	}
+	return version != c.SessionVersion, nil
 }
 
 // IsGloballyBanned delegates to the configured GlobalBanLookup.

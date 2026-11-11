@@ -364,7 +364,19 @@ func (s *Service) ClaimKeyBundle(ctx context.Context, requesterID, userID, devic
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid requester_id", ErrInvalidDeviceKey)
 	}
-
+	if requesterUUID != userUUID {
+		var shared bool
+		err := s.db.QueryRow(ctx, `SELECT EXISTS (
+		 SELECT 1 FROM guild_members a JOIN guild_members b ON b.guild_id = a.guild_id
+		 WHERE a.user_id = $1 AND b.user_id = $2 AND a.banned = FALSE AND b.banned = FALSE
+		)`, requesterUUID, userUUID).Scan(&shared)
+		if err != nil {
+			return nil, fmt.Errorf("authorize key bundle: %w", err)
+		}
+		if !shared {
+			return nil, ErrNoSharedGuild
+		}
+	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin claim key bundle: %w", err)
