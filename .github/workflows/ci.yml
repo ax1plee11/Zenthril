@@ -82,7 +82,7 @@ jobs:
     - name: Run linter
       uses: golangci/golangci-lint-action@v7
       with:
-        version: v2.6.0
+        version: v2.15.0
         working-directory: ./backend
 
     # Benchmarks are a measurement, not a correctness gate, but their output must

@@ -15,18 +15,18 @@ import (
 // x3dhHeaderFields mirrors TypeScript's X3DHSessionHeader canonicalization.
 // Field order matches TypeScript's canonicalHeader() for cross-language KDF compatibility.
 type x3dhHeaderFields struct {
-	CipherSuite             string `json:"cipherSuite"`
-	RecipientDeviceId       string `json:"recipientDeviceId"`
-	RecipientOneTimePreKeyId *uint32 `json:"recipientOneTimePreKeyId"`
-	RecipientSignedPreKeyId  uint32 `json:"recipientSignedPreKeyId"`
-	RecipientUserId         string `json:"recipientUserId"`
-	SenderDeviceId          string `json:"senderDeviceId"`
-	SenderDHPublicKey       string `json:"senderDHPublicKey"`
-	SenderEphemeralPublicKey string `json:"senderEphemeralPublicKey"`
-	SenderIdentityDHPublicKey string `json:"senderIdentityDHPublicKey"`
-	SenderUserId            string `json:"senderUserId"`
-	SessionId               string `json:"sessionId"`
-	Version                 int    `json:"version"`
+	CipherSuite               string  `json:"cipherSuite"`
+	RecipientDeviceId         string  `json:"recipientDeviceId"`
+	RecipientOneTimePreKeyId  *uint32 `json:"recipientOneTimePreKeyId"`
+	RecipientSignedPreKeyId   uint32  `json:"recipientSignedPreKeyId"`
+	RecipientUserId           string  `json:"recipientUserId"`
+	SenderDeviceId            string  `json:"senderDeviceId"`
+	SenderDHPublicKey         string  `json:"senderDHPublicKey"`
+	SenderEphemeralPublicKey  string  `json:"senderEphemeralPublicKey"`
+	SenderIdentityDHPublicKey string  `json:"senderIdentityDHPublicKey"`
+	SenderUserId              string  `json:"senderUserId"`
+	SessionId                 string  `json:"sessionId"`
+	Version                   int     `json:"version"`
 }
 
 // randomSessionID generates a random session ID matching TypeScript's randomSessionID().
@@ -73,18 +73,18 @@ func base64URLEncode(b []byte) string {
 // canonicalX3DHHeader produces the same JSON as TypeScript's canonicalHeader().
 func canonicalX3DHHeader(sessionID, senderUserID, senderDeviceID, senderIdentityDHPub, senderEphemeralPub, senderDHPub, recipientUserID, recipientDeviceID string, signedPreKeyID uint32, oneTimePreKeyID *uint32) []byte {
 	h := x3dhHeaderFields{
-		CipherSuite:             "X3DH-HKDF-SHA256-DR-v1",
-		RecipientDeviceId:       recipientDeviceID,
-		RecipientOneTimePreKeyId: oneTimePreKeyID,
-		RecipientSignedPreKeyId:  signedPreKeyID,
-		RecipientUserId:         recipientUserID,
-		SenderDeviceId:          senderDeviceID,
-		SenderDHPublicKey:       senderDHPub,
-		SenderEphemeralPublicKey: senderEphemeralPub,
+		CipherSuite:               "X3DH-HKDF-SHA256-DR-v1",
+		RecipientDeviceId:         recipientDeviceID,
+		RecipientOneTimePreKeyId:  oneTimePreKeyID,
+		RecipientSignedPreKeyId:   signedPreKeyID,
+		RecipientUserId:           recipientUserID,
+		SenderDeviceId:            senderDeviceID,
+		SenderDHPublicKey:         senderDHPub,
+		SenderEphemeralPublicKey:  senderEphemeralPub,
 		SenderIdentityDHPublicKey: senderIdentityDHPub,
-		SenderUserId:            senderUserID,
-		SessionId:               sessionID,
-		Version:                 1,
+		SenderUserId:              senderUserID,
+		SessionId:                 sessionID,
+		Version:                   1,
 	}
 	out, err := json.Marshal(h)
 	if err != nil {

@@ -138,4 +138,3 @@ type CascadeBanReport struct {
 	TotalMembers int                           `json:"total_members"`
 	MemberIPs    map[string][]ConnectionRecord `json:"member_ips"`
 }
-

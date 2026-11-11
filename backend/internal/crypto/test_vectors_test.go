@@ -515,12 +515,14 @@ func TestAESGCMEncryptDecryptEmptyPlaintext(t *testing.T) {
 // This is a cross-realization test vector for ZFDA F-09 remediation.
 //
 // Client (ratchet.ts):
-//   hkdf(sha256, chainKey, salt="zenthril-ratchet-v1", info="chain", 76)
-//   layout: newChainKey[0:32], messageKey[32:64], messageNonce[64:76]
+//
+//	hkdf(sha256, chainKey, salt="zenthril-ratchet-v1", info="chain", 76)
+//	layout: newChainKey[0:32], messageKey[32:64], messageNonce[64:76]
 //
 // Go (ratchet.go deriveMessageAndNextChain):
-//   hkdfBytes(chainKey, salt="zenthril-ratchet-v1", info="chain", 76)
-//   layout: newChainKey[0:32], messageKey[32:64], messageNonce[64:76]
+//
+//	hkdfBytes(chainKey, salt="zenthril-ratchet-v1", info="chain", 76)
+//	layout: newChainKey[0:32], messageKey[32:64], messageNonce[64:76]
 func TestCrossRealizationChainRatchet(t *testing.T) {
 	chainKey := mustDecodeHex(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
@@ -563,16 +565,18 @@ func TestCrossRealizationChainRatchet(t *testing.T) {
 // derivation matches the TypeScript client's X3DH session initialization.
 //
 // Client (pairwiseSession.ts deriveSessionState):
-//   IKM = concat(DH1, DH2, DH3[, DH4])
-//   salt = "zenthril.e2ee.x3dh.root.v1"
-//   info = "zenthril.e2ee.x3dh.session.v1:" + sessionInfo
-//   output = rootKey[0:32], chain1[32:64], chain2[64:96]
+//
+//	IKM = concat(DH1, DH2, DH3[, DH4])
+//	salt = "zenthril.e2ee.x3dh.root.v1"
+//	info = "zenthril.e2ee.x3dh.session.v1:" + sessionInfo
+//	output = rootKey[0:32], chain1[32:64], chain2[64:96]
 //
 // Go (ratchet.go DeriveInitialRatchetState):
-//   ikm = concat(DH1, DH2, DH3[, DH4])
-//   salt = "zenthril.e2ee.x3dh.root.v1"
-//   info = "zenthril.e2ee.x3dh.session.v1:" + sessionInfo
-//   output = root[0:32], first[32:64], second[64:96]
+//
+//	ikm = concat(DH1, DH2, DH3[, DH4])
+//	salt = "zenthril.e2ee.x3dh.root.v1"
+//	info = "zenthril.e2ee.x3dh.session.v1:" + sessionInfo
+//	output = root[0:32], first[32:64], second[64:96]
 func TestCrossRealizationInitialState(t *testing.T) {
 	// Deterministic DH values matching client test vectors
 	dh1 := mustDecodeHex(t, "1111111111111111111111111111111111111111111111111111111111111111")
@@ -624,12 +628,12 @@ func TestCrossRealizationDHRatchetTurn(t *testing.T) {
 	newPeerDHPublic := mustDecodeHex(t, "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 
 	state := RatchetState{
-		RootKey:      rootKey,
-		SendChainKey: make([]byte, 32),
-		RecvChainKey: make([]byte, 32),
+		RootKey:       rootKey,
+		SendChainKey:  make([]byte, 32),
+		RecvChainKey:  make([]byte, 32),
 		DHSendPrivate: dhSendPrivate,
-		DHSendPublic:   dhSendPublic,
-		DHRecvPublic:   newPeerDHPublic,
+		DHSendPublic:  dhSendPublic,
+		DHRecvPublic:  newPeerDHPublic,
 	}
 
 	err := DHRatchetTurn(&state, newPeerDHPublic)
@@ -682,4 +686,3 @@ func TestInitializeDHRatchet(t *testing.T) {
 		t.Error("new chain key not deterministic")
 	}
 }
-
