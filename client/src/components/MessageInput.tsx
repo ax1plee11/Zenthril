@@ -49,7 +49,7 @@ export default function MessageInput({ channelName, onSend, onTyping, disabled =
   const hasText = text.trim().length > 0;
 
   return (
-    <div style={{ padding: "0 16px 20px", flexShrink: 0, position: "relative" as const }} ref={wrapRef}>
+    <div className="message-composer" style={{ padding: "0 16px 20px", flexShrink: 0, position: "relative" as const }} ref={wrapRef}>
       {/* GIF Picker */}
       {showGif && (
         <GifPicker onSelect={handleGifSelect} onClose={() => setShowGif(false)} />
@@ -65,6 +65,7 @@ export default function MessageInput({ channelName, onSend, onTyping, disabled =
       }}>
         <textarea
           ref={ref}
+          aria-label={`Message #${channelName}`}
           style={{
             flex: 1, background: "none", border: "none", outline: "none",
             color: "var(--text-primary)", fontSize: 14, lineHeight: 1.6,
@@ -88,7 +89,7 @@ export default function MessageInput({ channelName, onSend, onTyping, disabled =
           disabled={disabled}
           title="Send a GIF"
           style={{
-            width: 34, height: 34, borderRadius: 9, border: "none",
+            width: 44, height: 44, borderRadius: 9, border: "none",
             background: showGif ? "var(--accent-dim)" : "none",
             color: showGif ? "var(--accent)" : "var(--text-muted)",
             cursor: disabled ? "default" : "pointer",
@@ -104,16 +105,17 @@ export default function MessageInput({ channelName, onSend, onTyping, disabled =
 
         {/* Send button */}
         <button
+          aria-label="Send message"
           onClick={() => handleSend()}
           disabled={!hasText || sending || disabled}
           style={{
-            width: 34, height: 34, borderRadius: 9, border: "none",
-            background: hasText ? "linear-gradient(135deg, #8B9DFF, #A8FFDA)" : "var(--bg-input)",
-            color: hasText ? "#fff" : "var(--text-muted)",
+            width: 44, height: 44, borderRadius: 9, border: "none",
+            background: hasText ? "var(--accent)" : "var(--bg-input)",
+            color: hasText ? "var(--on-accent)" : "var(--text-muted)",
             cursor: hasText ? "pointer" : "default",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0, transition: "all 0.2s",
-            boxShadow: hasText ? "0 2px 8px rgba(124,106,247,0.4)" : "none",
+            boxShadow: "none",
           }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

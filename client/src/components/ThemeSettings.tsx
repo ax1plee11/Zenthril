@@ -1,3 +1,4 @@
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import React, { useRef, useState } from "react";
 import { useTheme, DEFAULT_THEME, ANIMATED_BG_PRESETS, DEFAULT_TOPBAR_ITEMS } from "../store/theme";
 import type { Theme, TopbarItem, TopbarItemId } from "../store/theme";
@@ -27,6 +28,7 @@ const CHAT_BG_PRESETS = [
 ];
 
 export default function ThemeSettings({ onClose }: Props) {
+  const dialogRef = useDialogFocus(onClose);
   const { theme, setTheme } = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft]   = useState<Theme>({ ...theme });
@@ -70,9 +72,9 @@ export default function ThemeSettings({ onClose }: Props) {
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 1000, backdropFilter: "blur(6px)",
     }} onClick={onClose}>
-      <div style={{
-        background: "var(--bg-surface)", borderRadius: 20,
-        width: 520, maxHeight: "88vh", overflow: "hidden",
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Appearance" tabIndex={-1} style={{
+        background: "var(--bg-surface)", borderRadius: 24,
+        width: "min(520px, calc(100vw - 32px))", maxHeight: "88vh", overflow: "hidden",
         border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)",
         display: "flex", flexDirection: "column",
         animation: "fadeUp 0.2s ease",
@@ -87,7 +89,7 @@ export default function ThemeSettings({ onClose }: Props) {
             <div style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary)" }}>
               Appearance
             </div>
-            <button onClick={onClose} style={{
+            <button aria-label="Close appearance settings" onClick={onClose} style={{
               background: "none", border: "none", cursor: "pointer",
               color: "var(--text-muted)", fontSize: 18, padding: "2px 6px", borderRadius: 6,
             }}>✕</button>

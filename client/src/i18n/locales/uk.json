@@ -78,5 +78,26 @@
     "undeafen": "Увімкнути звук",
     "shareScreen": "Поділитися екраном",
     "stopSharing": "Зупинити показ"
+  },
+  "design": {
+    "welcome": "З поверненням.",
+    "createAccount": "Познайоммося.",
+    "signInDescription": "Ваші розмови. Ваш простір.",
+    "registerDescription": "Створіть обліковий запис на вибраному сервері.",
+    "server": "Сервер",
+    "accountAction": "Дія з обліковим записом",
+    "usernamePlaceholder": "Ім’я користувача",
+    "passwordPlaceholder": "Введіть пароль",
+    "showPassword": "Показати пароль",
+    "hidePassword": "Приховати пароль",
+    "passwordHint": "Від 8 символів: велика й мала літери, цифра та спеціальний символ.",
+    "authenticatorCode": "Код із застосунку-автентифікатора",
+    "username_idle": "2–32 символи: латинські літери, цифри, _, . та -",
+    "username_checking": "Перевіряємо ім’я…",
+    "username_available": "Ім’я вільне",
+    "username_taken": "Це ім’я вже зайняте",
+    "privateSpace": "Особистий простір для спілкування.",
+    "earlyAccess": "Ранній доступ",
+    "selfHosted": "На вашому сервері"
   }
 }

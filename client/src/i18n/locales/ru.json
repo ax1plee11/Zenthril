@@ -78,5 +78,26 @@
     "undeafen": "Включить звук",
     "shareScreen": "Поделиться экраном",
     "stopSharing": "Остановить показ"
+  },
+  "design": {
+    "welcome": "С возвращением.",
+    "createAccount": "Давайте знакомиться.",
+    "signInDescription": "Ваши разговоры. Ваше пространство.",
+    "registerDescription": "Создайте аккаунт на выбранном сервере.",
+    "server": "Сервер",
+    "accountAction": "Действие с аккаунтом",
+    "usernamePlaceholder": "Имя пользователя",
+    "passwordPlaceholder": "Введите пароль",
+    "showPassword": "Показать пароль",
+    "hidePassword": "Скрыть пароль",
+    "passwordHint": "От 8 символов: заглавная и строчная буквы, цифра и специальный символ.",
+    "authenticatorCode": "Код из приложения-аутентификатора",
+    "username_idle": "2–32 символа: латинские буквы, цифры, _, . и -",
+    "username_checking": "Проверяем имя…",
+    "username_available": "Имя свободно",
+    "username_taken": "Это имя уже занято",
+    "privateSpace": "Личное пространство для общения.",
+    "earlyAccess": "Ранний доступ",
+    "selfHosted": "На вашем сервере"
   }
 }

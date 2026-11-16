@@ -60,8 +60,8 @@ export interface Theme {
 const THEME_KEY = "zenthril_theme";
 
 export const DEFAULT_THEME: Theme = {
-  scheme: "dark",
-  accentColor: "#8B9DFF",
+  scheme: "light",
+  accentColor: "#0071e3",
   chatBackground: null,
   chatBgOpacity: 100,
   animatedPresetId: null,
@@ -71,45 +71,61 @@ export const DEFAULT_THEME: Theme = {
 };
 
 const DARK_VARS: Record<string, string> = {
-  "--primary":        "#8B9DFF",
-  "--accent":         "#A8FFDA",
-  "--accent-hover":   "rgba(139, 157, 255, 0.9)",
-  "--accent-dim":     "rgba(139, 157, 255, 0.15)",
-  "--bg":             "#0E1116",
-  "--bg-base":        "#0E1116",
-  "--bg-surface":     "rgba(255, 255, 255, 0.05)",
-  "--bg-elevated":    "rgba(255, 255, 255, 0.08)",
-  "--bg-input":       "rgba(255, 255, 255, 0.05)",
-  "--border":         "rgba(255, 255, 255, 0.08)",
-  "--border-accent":  "rgba(139, 157, 255, 0.4)",
-  "--text-primary":   "#FFFFFF",
-  "--text-secondary": "#9AA4B2",
-  "--text-muted":     "#9AA4B2",
-  "--surface":        "rgba(255, 255, 255, 0.05)",
-  "--surface-strong": "rgba(255, 255, 255, 0.08)",
-  "--shadow":         "0 10px 30px rgba(0, 0, 0, 0.35)",
-  // legacy compat
-  "--bg-primary":     "rgba(255, 255, 255, 0.08)",
-  "--bg-secondary":   "#131720",
-  "--bg-tertiary":    "#0E1116",
+  "--bg": "#161618",
+  "--bg-base": "#161618",
+  "--bg-surface": "#1f1f22",
+  "--bg-elevated": "#2b2b2f",
+  "--bg-input": "#252528",
+  "--bg-overlay": "rgba(0,0,0,0.4)",
+  "--bg-primary": "#1f1f22",
+  "--bg-secondary": "#161618",
+  "--bg-tertiary": "#2b2b2f",
+  "--surface": "#1f1f22",
+  "--surface-strong": "#2b2b2f",
+  "--text-main": "#f5f5f7",
+  "--text-primary": "#f5f5f7",
+  "--text-secondary": "#c0c0c8",
+  "--text-muted": "#a0a0ab",
+  "--border": "rgba(255,255,255,0.12)",
+  "--chrome": "rgba(31,31,34,0.86)",
+  "--green": "#30d158",
+  "--red": "#ff6961",
+  "--yellow": "#ffd60a",
+  "--danger-bg": "rgba(255,59,48,0.09)",
+  "--warning-bg": "rgba(255,159,10,0.10)",
+  "--shadow-sm": "0 1px 3px rgba(0,0,0,0.06)",
+  "--shadow-md": "0 8px 24px rgba(0,0,0,0.10)",
+  "--shadow-lg": "0 20px 64px rgba(0,0,0,0.12)",
+  "--shadow": "0 8px 24px rgba(0,0,0,0.10)",
 };
 
 const LIGHT_VARS: Record<string, string> = {
-  "--accent":         "#5865f2",
-  "--accent-hover":   "#7983f5",
-  "--accent-dim":     "rgba(88,101,242,0.12)",
-  "--bg-base":        "#f2f3f5",
-  "--bg-surface":     "#ffffff",
-  "--bg-elevated":    "#e3e5e8",
-  "--bg-input":       "#ebedef",
-  "--border":         "rgba(0,0,0,0.08)",
-  "--border-accent":  "rgba(88,101,242,0.4)",
-  "--text-primary":   "#2e3338",
-  "--text-secondary": "#4f5660",
-  "--text-muted":     "#747f8d",
-  "--bg-primary":     "#ffffff",
-  "--bg-secondary":   "#f2f3f5",
-  "--bg-tertiary":    "#e3e5e8",
+  "--bg": "#f5f5f7",
+  "--bg-base": "#f5f5f7",
+  "--bg-surface": "#ffffff",
+  "--bg-elevated": "#ececef",
+  "--bg-input": "#f5f5f7",
+  "--bg-overlay": "rgba(0,0,0,0.4)",
+  "--bg-primary": "#ffffff",
+  "--bg-secondary": "#f5f5f7",
+  "--bg-tertiary": "#ececef",
+  "--surface": "#ffffff",
+  "--surface-strong": "#ececef",
+  "--text-main": "#1d1d1f",
+  "--text-primary": "#1d1d1f",
+  "--text-secondary": "#515158",
+  "--text-muted": "#686870",
+  "--border": "rgba(0,0,0,0.10)",
+  "--chrome": "rgba(249,249,251,0.86)",
+  "--green": "#247a3e",
+  "--red": "#b42328",
+  "--yellow": "#855700",
+  "--danger-bg": "rgba(255,59,48,0.09)",
+  "--warning-bg": "rgba(255,159,10,0.10)",
+  "--shadow-sm": "0 1px 3px rgba(0,0,0,0.06)",
+  "--shadow-md": "0 8px 24px rgba(0,0,0,0.10)",
+  "--shadow-lg": "0 20px 64px rgba(0,0,0,0.12)",
+  "--shadow": "0 8px 24px rgba(0,0,0,0.10)",
 };
 
 export function presetResolvedColors(
@@ -166,9 +182,21 @@ export function saveTheme(theme: Theme): void {
   }
 }
 
+function accentForeground(color: string): string {
+  const channels = /^#[0-9a-f]{6}$/i.test(color)
+    ? [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16) / 255)
+    : [0, 0.443, 0.89];
+  const linear = channels.map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const luminance = linear[0]! * 0.2126 + linear[1]! * 0.7152 + linear[2]! * 0.0722;
+  return luminance > 0.179 ? "#1d1d1f" : "#ffffff";
+}
+
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   const vars = theme.scheme === "light" ? LIGHT_VARS : DARK_VARS;
+  root.dataset.theme = theme.scheme;
+  root.classList.toggle("dark", theme.scheme !== "light");
+  root.style.colorScheme = theme.scheme === "light" ? "light" : "dark";
 
   // 1. Применяем базовые CSS переменные
   for (const [key, value] of Object.entries(vars)) {
@@ -176,7 +204,9 @@ export function applyTheme(theme: Theme): void {
   }
 
   // 2. Акцентный цвет
+  root.style.setProperty("--primary", theme.accentColor);
   root.style.setProperty("--accent", theme.accentColor);
+  root.style.setProperty("--on-accent", accentForeground(theme.accentColor));
   root.style.setProperty("--accent-hover", theme.accentColor + "dd");
   root.style.setProperty("--accent-dim", theme.accentColor + "26");
   root.style.setProperty("--border-accent", theme.accentColor + "66");
@@ -198,9 +228,9 @@ export function applyTheme(theme: Theme): void {
     }
   } else {
     // Без фона — панели непрозрачные, используют стандартные цвета
-    root.style.setProperty("--panel-bg",          theme.scheme === "light" ? "#ffffff" : "#13141d");
-    root.style.setProperty("--panel-bg-elevated", theme.scheme === "light" ? "#e3e5e8" : "#1a1b27");
-    root.style.setProperty("--panel-topbar",      theme.scheme === "light" ? "#f2f3f5" : "#0d0e14");
+    root.style.setProperty("--panel-bg",          "var(--chrome)");
+    root.style.setProperty("--panel-bg-elevated", "var(--bg-elevated)");
+    root.style.setProperty("--panel-topbar",      "var(--chrome)");
   }
 
   // 3. App background — применяем на #root, body делаем прозрачным

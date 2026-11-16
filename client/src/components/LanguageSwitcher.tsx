@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Globe2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,8 +27,8 @@ export default function LanguageSwitcher() {
           className="gap-2"
           title={currentLanguage.name}
         >
-          <span className="text-lg">{currentLanguage.flag}</span>
-          <span className="hidden sm:inline">{currentLanguage.code.toUpperCase()}</span>
+          <Globe2 size={16} aria-hidden="true" />
+          <span>{currentLanguage.code.toUpperCase()}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

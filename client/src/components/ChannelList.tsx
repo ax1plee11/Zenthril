@@ -21,12 +21,13 @@ function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; se
   const isVoice = ch.type === "voice";
 
   return (
-    <div
+    <button type="button" className="channel-item" aria-pressed={selected}
       style={{
+        border: "none",
         display: "flex", alignItems: "center", gap: 8,
         padding: "7px 10px", margin: "1px 6px", borderRadius: "var(--radius-sm)",
         cursor: "pointer",
-        background: selected ? "rgba(139, 157, 255, 0.15)" : hovered ? "rgba(255,255,255,0.04)" : "transparent",
+        background: selected ? "var(--accent-dim)" : hovered ? "var(--bg-elevated)" : "transparent",
         color: selected ? "var(--text-primary)" : unread > 0 ? "var(--text-primary)" : hovered ? "var(--text-secondary)" : "var(--text-muted)",
         fontSize: 14, fontWeight: selected || unread > 0 ? 600 : 400,
         transition: "all 0.15s", userSelect: "none" as const,
@@ -63,7 +64,7 @@ function ChannelItem({ ch, selected, onClick, unread = 0 }: { ch: ChannelAPI; se
           {unread > 99 ? "99+" : unread}
         </span>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -92,7 +93,7 @@ function VoiceChannelItem({ ch, selected, onClick, currentUserId, currentUsernam
         cursor: "pointer",
         background: isInThisChannel
           ? "rgba(62,207,142,0.12)"
-          : selected ? "rgba(139, 157, 255, 0.15)" : hovered ? "rgba(255,255,255,0.04)" : "transparent",
+          : selected ? "var(--accent-dim)" : hovered ? "var(--bg-elevated)" : "transparent",
         color: isInThisChannel ? "#3ecf8e" : selected ? "var(--text-primary)" : hovered ? "var(--text-secondary)" : "var(--text-muted)",
         fontSize: 14, fontWeight: isInThisChannel || selected ? 600 : 400,
         transition: "all 0.15s", userSelect: "none" as const,
@@ -158,7 +159,7 @@ export default function ChannelList({ guild, channels, selectedChannelId, onSele
   };
 
   return (
-    <div style={{
+    <div className="channel-list" style={{
       width: 232, background: "transparent", display: "flex",
       flexDirection: "column" as const, flexShrink: 0,
       borderRight: "1px solid var(--border)",

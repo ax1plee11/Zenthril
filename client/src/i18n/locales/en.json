@@ -78,5 +78,26 @@
     "undeafen": "Undeafen",
     "shareScreen": "Share Screen",
     "stopSharing": "Stop Sharing"
+  },
+  "design": {
+    "welcome": "Welcome back.",
+    "createAccount": "Make yourself at home.",
+    "signInDescription": "Your conversations. Your own space.",
+    "registerDescription": "Create an account on your selected server.",
+    "server": "Server",
+    "accountAction": "Account action",
+    "usernamePlaceholder": "Username",
+    "passwordPlaceholder": "Enter your password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "passwordHint": "At least 8 characters, with an uppercase letter, lowercase letter, number and symbol.",
+    "authenticatorCode": "Authenticator code",
+    "username_idle": "2–32 characters: letters, numbers, _, . and -",
+    "username_checking": "Checking availability…",
+    "username_available": "This name is available",
+    "username_taken": "This name is already taken",
+    "privateSpace": "A personal space for your conversations.",
+    "earlyAccess": "Early access",
+    "selfHosted": "Self-hosted"
   }
 }

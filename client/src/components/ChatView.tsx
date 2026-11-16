@@ -43,7 +43,7 @@ const styles = {
     background: "var(--panel-topbar)",
     backdropFilter: "blur(16px)",
     WebkitBackdropFilter: "blur(16px)",
-    boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 2px 8px rgba(0,0,0,0.2)",
+    boxShadow: "none",
   } as React.CSSProperties,
   headerIcon: {
     color: "var(--accent)", display: "flex", alignItems: "center",
@@ -470,7 +470,7 @@ export default function ChatView({
 
   if (!channelId) {
     return (
-      <div style={styles.root}>
+      <div className="chat-view" style={styles.root}>
         <div style={styles.noChannel}>
           <div style={{ opacity: 0.5 }}>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5">
@@ -493,9 +493,9 @@ export default function ChatView({
   }
 
   return (
-    <div style={styles.root}>
+    <div className="chat-view" style={styles.root}>
       {/* Заголовок */}
-      <div style={styles.header}>
+      <div className="chat-header" style={styles.header}>
         <span style={styles.headerIcon}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>

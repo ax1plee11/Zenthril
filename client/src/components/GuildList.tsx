@@ -13,29 +13,27 @@ interface GuildListProps {
   panelBg?: string | undefined;
 }
 
-const COLORS = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF"];
-const guildColor = (name: string) => COLORS[name.charCodeAt(0) % COLORS.length];
 
 // ── Guild icon in sidebar ─────────────────────────────────────────────────────
 function GuildIcon({ guild, selected, onClick }: { guild: GuildAPI; selected: boolean; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
-  const color = guildColor(guild.name);
+  const color = "var(--accent)";
   return (
     <div style={{ position: "relative" }}>
-      <div style={{
+      <button type="button" aria-label={guild.name} aria-pressed={selected} style={{
         width: 44, height: 44, borderRadius: selected ? 14 : "50%",
         background: selected ? color : "var(--bg-elevated)",
         border: `2px solid ${selected ? color : "var(--border)"}`,
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer", fontSize: 16, fontWeight: 700,
-        color: selected ? "#fff" : "var(--text-secondary)",
+        color: selected ? "var(--on-accent)" : "var(--text-secondary)",
         transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
-        boxShadow: selected ? `0 4px 16px ${color}44` : "none",
+        boxShadow: "none",
         userSelect: "none" as const, flexShrink: 0,
         transform: hovered && !selected ? "scale(1.08)" : "scale(1)",
       }} onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
         {guild.name.charAt(0).toUpperCase()}
-      </div>
+      </button>
       {hovered && (
         <div style={{
           position: "absolute", left: 54, top: "50%", transform: "translateY(-50%)",
@@ -128,7 +126,7 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
               onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border)")}>
                 <div style={{
                   width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                  background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
+                  background: "var(--accent)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   boxShadow: "0 4px 12px rgba(139, 157, 255, 0.4)",
                 }}>
@@ -188,7 +186,7 @@ function ServerModal({ onClose, onCreateGuild, onJoinGuild }: ServerModalProps) 
           <div>
             {/* Header with gradient */}
             <div style={{
-              height: 100, background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
+              height: 100, background: "var(--accent)",
               display: "flex", alignItems: "center", justifyContent: "center",
               position: "relative",
             }}>
@@ -330,7 +328,7 @@ export default function GuildList({ guilds, selectedGuildId, onSelect, onCreateG
 
   return (
     <>
-      <div style={{
+      <div className="guild-rail" style={{
         width: 68,
         background: bg,
         backdropFilter: hasBg ? "blur(16px)" : "none",
@@ -341,9 +339,9 @@ export default function GuildList({ guilds, selectedGuildId, onSelect, onCreateG
         {/* Logo */}
         <div style={{
           width: 44, height: 44, borderRadius: 14,
-          background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
+          background: "var(--accent)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          marginBottom: 4, boxShadow: "0 4px 16px rgba(139, 157, 255, 0.4)", flexShrink: 0,
+          marginBottom: 4, boxShadow: "none", flexShrink: 0,
         }}>
           <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
             <path d="M14 2L26 8V20L14 26L2 20V8L14 2Z" fill="rgba(255,255,255,0.9)"/>
@@ -362,10 +360,10 @@ export default function GuildList({ guilds, selectedGuildId, onSelect, onCreateG
         {/* Add server button */}
         <button style={{
           width: 44, height: 44, borderRadius: addHovered ? 14 : "50%",
-          background: addHovered ? "rgba(62,207,142,0.15)" : "var(--bg-elevated)",
-          border: `2px solid ${addHovered ? "rgba(62,207,142,0.5)" : "var(--border)"}`,
+          background: addHovered ? "var(--accent-dim)" : "var(--bg-elevated)",
+          border: `2px solid ${addHovered ? "var(--accent)" : "var(--border)"}`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", fontSize: 22, color: "#3ecf8e",
+          cursor: "pointer", fontSize: 22, color: "var(--accent)",
           transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)", flexShrink: 0,
         }}
         onClick={() => setShowModal(true)}

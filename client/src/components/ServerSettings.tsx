@@ -1,3 +1,4 @@
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useCallback, useEffect, useState } from "react";
 import type React from "react";
 import {
@@ -24,6 +25,7 @@ interface ServerSettingsProps {
 type HealthState = "unknown" | "checking" | "online" | "offline";
 
 export default function ServerSettings({ onClose }: ServerSettingsProps) {
+  const dialogRef = useDialogFocus(onClose);
   const [servers, setServers] = useState<ZenthrilServer[]>([]);
   const [selectedID, setSelectedID] = useState<string>("");
   const [customURL, setCustomURL] = useState("");
@@ -77,13 +79,13 @@ export default function ServerSettings({ onClose }: ServerSettingsProps) {
 
   return (
     <div style={s.backdrop} onMouseDown={onClose}>
-      <div style={s.modal} onMouseDown={e => e.stopPropagation()}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="servers-title" tabIndex={-1} style={s.modal} onMouseDown={e => e.stopPropagation()}>
         <div style={s.header}>
           <div>
-            <div style={s.title}>Servers</div>
+            <div id="servers-title" style={s.title}>Servers</div>
             <div style={s.subtitle}>Change server or add a custom backup endpoint</div>
           </div>
-          <button style={s.close} onClick={onClose}>x</button>
+          <button aria-label="Close server settings" style={s.close} onClick={onClose}>×</button>
         </div>
 
         <div style={s.list}>
@@ -164,7 +166,7 @@ const s = {
     overflow: "auto",
     background: "var(--bg-elevated)",
     border: "1px solid var(--border)",
-    borderRadius: 12,
+    borderRadius: 24,
     boxShadow: "var(--shadow-lg)",
     padding: 18,
   } as React.CSSProperties,
@@ -239,7 +241,7 @@ const s = {
     borderRadius: 8,
     padding: "7px 10px",
     background: "var(--accent)",
-    color: "#fff",
+    color: "var(--on-accent)",
     cursor: "pointer",
     fontWeight: 700,
   } as React.CSSProperties,
@@ -272,7 +274,7 @@ const s = {
     borderRadius: 8,
     padding: "10px 12px",
     background: "linear-gradient(135deg, #7c6af7, #a78bfa)",
-    color: "#fff",
+    color: "var(--on-accent)",
     cursor: "pointer",
     fontWeight: 800,
   } as React.CSSProperties,

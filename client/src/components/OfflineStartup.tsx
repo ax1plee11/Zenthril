@@ -22,7 +22,7 @@ export default function OfflineStartup({ username, onConnect, onLogout }: Offlin
 
   return (
     <div style={s.wrap}>
-      <div style={s.panel}>
+      <div className="offline-panel" style={s.panel}>
         <div style={s.eyebrow}>Privacy-first startup</div>
         <h1 style={s.title}>Zenthril is offline</h1>
         <p style={s.body}>
@@ -36,7 +36,7 @@ export default function OfflineStartup({ username, onConnect, onLogout }: Offlin
           destination IP addresses, domains, timing, and traffic volume once you
           connect.
         </p>
-        <label style={s.checkRow}>
+        <label className="offline-check" style={s.checkRow}>
           <input
             type="checkbox"
             checked={autoConnect}
@@ -100,7 +100,7 @@ const s = {
     borderRadius: 8,
     border: "1px solid var(--border)",
     background: "var(--bg-input)",
-    color: "var(--text-muted)",
+    color: "var(--text-secondary)",
     fontSize: 12,
     lineHeight: 1.5,
   } as React.CSSProperties,
@@ -122,7 +122,7 @@ const s = {
     borderRadius: 8,
     padding: "10px 16px",
     background: "var(--accent)",
-    color: "#fff",
+    color: "var(--on-accent)",
     fontWeight: 800,
     cursor: "pointer",
   } as React.CSSProperties,

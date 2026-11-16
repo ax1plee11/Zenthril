@@ -16,10 +16,11 @@ import ServerSettings from "./ServerSettings";
 import NotificationsPanel, { useUnreadCount } from "./NotificationsPanel";
 import { loadProfile } from "./ProfileModal";
 import { GroupVoiceRoom } from "../features/voice/components/GroupVoiceRoom";
-import { Server, Smartphone } from "lucide-react";
+import { PanelLeft, Server, Smartphone } from "lucide-react";
 
 export default function MainLayout() {
   const { user, logout } = useAuth();
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [guilds, setGuilds]                       = useState<GuildAPI[]>([]);
   const [selectedGuildId, setSelectedGuildId]     = useState<string | null>(null);
   const [channels, setChannels]                   = useState<ChannelAPI[]>([]);
@@ -81,8 +82,8 @@ export default function MainLayout() {
     }).catch(console.error);
   }, [selectedGuildId]);
 
-  const handleSelectGuild   = useCallback((id: string) => { setSelectedGuildId(id); setSelectedChannelId(null); }, []);
-  const handleSelectChannel = useCallback((id: string) => setSelectedChannelId(id), []);
+  const handleSelectGuild   = useCallback((id: string) => { setSelectedGuildId(id); setSelectedChannelId(null); setNavigationOpen(true); }, []);
+  const handleSelectChannel = useCallback((id: string) => { setSelectedChannelId(id); setNavigationOpen(false); }, []);
   const handleCreateGuild   = useCallback(async (name: string) => {
     const g = await api.guilds.create(name);
     setGuilds(prev => [...prev, g]);
@@ -119,10 +120,10 @@ export default function MainLayout() {
   const topbarBg  = glassy ? "var(--panel-topbar)"     : (theme.scheme === "light" ? "#f2f3f5" : "var(--bg-base)");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+    <div className="app-shell" data-navigation-open={navigationOpen} style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
 
-      {/* ── STEAM-STYLE TOPBAR ── */}
-      <div style={{
+      {/* Main toolbar */}
+      <div className="app-toolbar" style={{
         height: 48, flexShrink: 0,
         background: topbarBg,
         backdropFilter: glassy ? "blur(20px)" : "none",
@@ -133,12 +134,13 @@ export default function MainLayout() {
         gap: 6, zIndex: 100,
         boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 2px 12px rgba(0,0,0,0.3)",
       }}>
+        <button className="quiet-button mobile-navigation" aria-label="Каналы" aria-controls="channel-navigation" aria-expanded={navigationOpen} onClick={() => setNavigationOpen(value => !value)}><PanelLeft size={20} aria-hidden="true" /></button>
         {/* Logo */}
-        <div style={{
+        <div className="toolbar-brand" style={{
           width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-          background: "linear-gradient(135deg, #8B9DFF, #A8FFDA)",
+          background: "var(--accent)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 8px rgba(139, 157, 255, 0.4)",
+          boxShadow: "none",
           marginRight: 4,
         }}>
           <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
@@ -147,13 +149,13 @@ export default function MainLayout() {
           </svg>
         </div>
 
-        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginRight: 4 }}>
+        <span className="app-wordmark" style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginRight: 4 }}>
           Zenthril
         </span>
 
         {/* WS offline indicator */}
         {!wsOnline && (
-          <div style={{
+          <div className="connection-status" role="status" aria-label="Нет соединения" title="Нет соединения" style={{
             display: "flex", alignItems: "center", gap: 5,
             padding: "2px 8px", borderRadius: 20,
             background: "rgba(240,79,94,0.15)", border: "1px solid rgba(240,79,94,0.3)",
@@ -168,7 +170,7 @@ export default function MainLayout() {
         {/* Dynamic topbar items from theme */}
         {(theme.topbarItems ?? DEFAULT_TOPBAR_ITEMS).filter(it => it.visible).map(item => {
           if (item.id === "divider") {
-            return <div key="divider" style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />;
+            return <div className="toolbar-divider" key="divider" style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />;
           }
           if (item.id === "search") return (
             <TopBtn key="search" title="Поиск пользователей" onClick={() => setShowSearch(true)}>
@@ -227,8 +229,9 @@ export default function MainLayout() {
         </TopBtn>
 
         {/* Always-visible profile button */}
-        <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
+        <div className="toolbar-divider" style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />
         <button
+          className="profile-trigger" aria-label="Профиль" aria-expanded={showProfileMenu}
           ref={profileBtnRef}
           onClick={() => setShowProfileMenu(v => !v)}
           style={{
@@ -253,7 +256,7 @@ export default function MainLayout() {
               ? <img src={profile.avatarBase64} alt="av" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               : username.charAt(0).toUpperCase()}
           </div>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span className="profile-username" style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {username}
           </span>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5"
@@ -321,7 +324,7 @@ export default function MainLayout() {
       </div>
 
       {/* ── MAIN CONTENT ── */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div className="app-body" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Guild list */}
         <GuildList
           guilds={guilds} selectedGuildId={selectedGuildId}
@@ -330,7 +333,7 @@ export default function MainLayout() {
         />
 
         {/* Channel sidebar */}
-        <div style={{
+        <div id="channel-navigation" className="channel-sidebar" style={{
           display: "flex", flexDirection: "column", width: 232, flexShrink: 0,
           background: sidebarBg,
           backdropFilter: glassy ? "blur(16px)" : "none",
@@ -348,12 +351,12 @@ export default function MainLayout() {
         </div>
 
         {/* Chat */}
-        <ChatView
+        <div className="chat-pane"><ChatView
           channelId={selectedChannelId}
           channelName={selectedChannel?.name ?? ""}
           currentUserId={user?.id ?? ""}
           currentUsername={user?.username ?? ""}
-        />
+        /></div>
       </div>
 
       {/* ── MODALS ── */}
@@ -462,10 +465,10 @@ const TopBtn = forwardRef<HTMLButtonElement, {
 }>(({ children, title, onClick, active }, ref) => {
   const [hovered, setHovered] = useState(false);
   return (
-    <button ref={ref} title={title} onClick={onClick}
+    <button className="toolbar-button" ref={ref} title={title} aria-label={title} aria-pressed={active ?? false} onClick={onClick}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{
-        position: "relative", background: active || hovered ? "rgba(255,255,255,0.08)" : "none",
+        position: "relative", background: active || hovered ? "var(--bg-elevated)" : "none",
         border: "none", cursor: "pointer",
         color: active || hovered ? "var(--text-primary)" : "var(--text-muted)",
         padding: "7px 8px", borderRadius: 7,
@@ -480,10 +483,10 @@ const TopBtn = forwardRef<HTMLButtonElement, {
 function DropItem({ icon, label, onClick, danger }: { icon: string; label: string; onClick: () => void; danger?: boolean }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div onClick={onClick}
+    <button type="button" onClick={onClick}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{
-        padding: "9px 14px", cursor: "pointer",
+        width: "100%", border: "none", textAlign: "left", fontFamily: "inherit", padding: "9px 14px", cursor: "pointer",
         background: hovered ? "rgba(255,255,255,0.06)" : "transparent",
         display: "flex", alignItems: "center", gap: 10, transition: "background 0.1s",
       }}>
@@ -491,6 +494,6 @@ function DropItem({ icon, label, onClick, danger }: { icon: string; label: strin
       <span style={{ fontSize: 13, fontWeight: 500, color: danger ? "#f04f5e" : hovered ? "var(--text-primary)" : "var(--text-secondary)" }}>
         {label}
       </span>
-    </div>
+    </button>
   );
 }

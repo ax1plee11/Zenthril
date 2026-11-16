@@ -50,11 +50,11 @@ function formatText(text: string): React.ReactNode[] {
       parts.push(<code key={key++} style={{
         background: "rgba(255,255,255,0.06)", borderRadius: 4,
         padding: "1px 6px", fontFamily: "monospace", fontSize: 13,
-        color: "#A8FFDA", border: "1px solid rgba(255,255,255,0.08)",
+        color: "var(--text-primary)", border: "1px solid var(--border)",
       }}>{seg.slice(1,-1)}</code>);
     else if (seg.startsWith("@"))
       parts.push(<span key={key++} style={{
-        background: "rgba(139, 157, 255, 0.2)", color: "#A8FFDA",
+        background: "var(--accent-dim)", color: "var(--accent)",
         borderRadius: 4, padding: "0 4px", fontWeight: 600,
       }}>{seg}</span>);
     else
@@ -87,7 +87,7 @@ export function canGroup(a: MessageAPI, b: MessageAPI): boolean {
   return diff < 5 * 60 * 1000; // 5 минут
 }
 
-const AVATAR_COLORS = ["#8B9DFF","#A8FFDA","#9AA4B2","#131720","#0E1116","#FFFFFF","#8b5cf6"];
+
 
 function MediaMessage({ url, isGif }: { url: string; isGif: boolean }) {
   const [status, setStatus] = useState<"loading" | "proxied" | "direct" | "error">("loading");
@@ -177,7 +177,7 @@ export default function MessageItem({ message, currentUserId, onEdit, onDelete, 
   const displayText = rawText ?? "[encrypted]";
   const isDecrypted = rawText !== undefined;
   const name        = message.author_username ?? "Unknown";
-  const color       = AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+
 
   const startEdit = useCallback(() => { setEditText(message.decryptedContent ?? ""); setEditing(true); }, [message.decryptedContent]);
   const submitEdit = useCallback(async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -220,10 +220,10 @@ export default function MessageItem({ message, currentUserId, onEdit, onDelete, 
         ) : (
           <div style={{
             width: 38, height: 38, borderRadius: 12,
-            background: `linear-gradient(135deg, ${color}, ${color}99)`,
+            background: "var(--accent)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 15, fontWeight: 700, color: "#fff",
-            boxShadow: `0 2px 8px ${color}44`, cursor: "pointer",
+            fontSize: 15, fontWeight: 700, color: "var(--on-accent)",
+            cursor: "pointer",
           }} onClick={() => setShowCard(v => !v)}>
             {name.charAt(0).toUpperCase()}
           </div>
@@ -244,7 +244,7 @@ export default function MessageItem({ message, currentUserId, onEdit, onDelete, 
         {/* Header — только для первого в группе */}
         {!grouped && (
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color }}>{name}</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>{name}</span>
             <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatTime(message.created_at)}</span>
             {message.edited && !message.deleted && (
               <span style={{ fontSize: 10, color: "var(--text-muted)", fontStyle: "italic" }}>(edited)</span>

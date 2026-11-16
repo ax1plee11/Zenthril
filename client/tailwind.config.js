@@ -8,34 +8,34 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "rgba(255, 255, 255, 0.08)",
-        input: "rgba(255, 255, 255, 0.05)",
-        ring: "rgba(139, 157, 255, 0.4)",
-        background: "#0E1116",
-        foreground: "#FFFFFF",
+        border: "var(--border)",
+        input: "var(--bg-input)",
+        ring: "var(--border-accent)",
+        background: "var(--bg-base)",
+        foreground: "var(--text-primary)",
         primary: {
-          DEFAULT: "#8B9DFF",
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--accent)",
+          foreground: "var(--on-accent)",
         },
         secondary: {
-          DEFAULT: "#131720",
-          foreground: "#9AA4B2",
+          DEFAULT: "var(--bg-elevated)",
+          foreground: "var(--text-secondary)",
         },
         accent: {
-          DEFAULT: "#A8FFDA",
-          foreground: "#0E1116",
+          DEFAULT: "var(--accent-dim)",
+          foreground: "var(--bg-base)",
         },
         muted: {
-          DEFAULT: "rgba(255, 255, 255, 0.05)",
-          foreground: "#9AA4B2",
+          DEFAULT: "var(--bg-input)",
+          foreground: "var(--text-secondary)",
         },
         card: {
-          DEFAULT: "rgba(255, 255, 255, 0.05)",
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--bg-input)",
+          foreground: "var(--text-primary)",
         },
         popover: {
-          DEFAULT: "rgba(255, 255, 255, 0.08)",
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--border)",
+          foreground: "var(--text-primary)",
         },
       },
       borderRadius: {
