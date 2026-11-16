@@ -4,7 +4,9 @@ The [2026-11-12 remediation report](docs/security/SECURITY_REMEDIATION_2026-11-1
 records authentication, session, dependency and deployment fixes, their validation,
 and remaining limitations. This is still alpha software, not an independently audited secure messenger.
 
-ZenthrilDB source is maintained in the pinned `zenthrildb-push` submodule.
+[Web client](https://ax1plee11.github.io/Zenthril/) · [GitHub Actions](https://github.com/ax1plee11/Zenthril/actions)
+
+ZenthrilDB 0.1.0 is tracked in the `zenthrildb-push` submodule. Stage 5 adds verified baseline snapshots and recovery. PostgreSQL and Redis serve the application. [Integration status](docs/architecture/zenthrildb-integration.md).
 Use `git clone --recurse-submodules` or `git submodule update --init --recursive`
 to obtain it together with this repository.
 
@@ -26,7 +28,7 @@ to obtain it together with this repository.
 > Do not use it for sensitive or high-risk communication yet.
 > The current E2EE implementation is experimental and has not been externally audited.
 > It is not equivalent to the Signal Protocol.
-> X3DH, full Double Ratchet, skipped-message-key handling, production-grade device verification, secure recovery, and external audit are still required before production security claims.
+> Pairwise X3DH and Double Ratchet are implemented. Production readiness still requires further validation of real message flows, device verification, secure recovery, and external review.
 
 ## Security Status
 
@@ -160,7 +162,7 @@ current design and limitations.
 
 **Backend**
 
-- Go 1.23+
+- Go 1.26.11 or newer
 - Chi router
 - PostgreSQL
 - Redis
@@ -204,14 +206,14 @@ Benchmark results do **not** imply production readiness. Real deployment behavio
 
 Requirements:
 
-- Go 1.23+
+- Go 1.26.11 or newer
 - Node.js and npm
 - PostgreSQL
 - Redis
 - Tauri prerequisites for desktop development
 
 ```bash
-git clone https://github.com/ax1plee11/Zenthril.git
+git clone --recurse-submodules https://github.com/ax1plee11/Zenthril.git
 cd Zenthril
 
 cp .env.example .env
@@ -257,7 +259,7 @@ Zenthril is developed under the **ZFDA (Zenthril Fortress Defense Architecture)*
 | Go vet | Clean (Linux CI required; Windows/386 known issues) |
 | npm audit | Clean |
 | E2EE | Alpha-grade, not externally audited |
-| CI/CD | Not configured (workflow created in `.github/workflows/ci.yml`) |
+| CI/CD | GitHub Actions checks the backend and frontend. Pushes to main deploy the web client to GitHub Pages. |
 | Production readiness | **Not ready** — see `docs/security/ZFDA/ZFDA_1.3_PRODUCTION_READINESS_REPORT.md` |
 
 **Do not use Zenthril for sensitive communication until production readiness is confirmed.**

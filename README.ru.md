@@ -27,7 +27,7 @@
 
 **Backend**
 
-- Go 1.23+
+- Go 1.26.11 или новее
 - Chi router
 - PostgreSQL + Redis
 - Gorilla WebSocket
@@ -97,7 +97,7 @@ Zenthril сейчас реализует **foundational E2EE components**, а н
 ## Для разработчиков
 
 ```bash
-git clone https://github.com/ax1plee11/Zenthril.git
+git clone --recurse-submodules https://github.com/ax1plee11/Zenthril.git
 cd Zenthril
 
 cp .env.example .env
